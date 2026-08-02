@@ -1,0 +1,9 @@
+torch
+transformers
+datasets
+scikit-learn
+accelerate
+numpy
+sentencepiece>=0.2.0
+protobuf
+tiktoken

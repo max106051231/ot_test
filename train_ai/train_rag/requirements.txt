@@ -1,0 +1,7 @@
+torch
+transformers
+datasets
+scikit-learn
+accelerate
+sentence-transformers>=3.0.0
+numpy

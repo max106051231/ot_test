@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+.env
+.env.*
+*.log
+
+# IDE / OS
+.idea/
+.vscode/
+.cursor/
+*.swp
+Thumbs.db
+Desktop.ini
+
+# 大型模型權重與訓練產物（勿上傳 GitHub）
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.h5
+*.npy
+*.npz
+*.arrow
+
+# 合併／微調模型目錄
+qwen_ot_merged_model/
+phi4_merged_model/
+train_ai/models/
+train_ai/train_llm/qwen_ot_merged_model/
+train_ai/train_llm/phi4_merged_model/
+train_ai/train_llm/phi4_lora_model/
+train_ai/train_llm/outputs/
+train_ai/outputs/
+train_ai/train_gur/guardrail_checkpoints/
+train_ai/train_gur/fine_tuned_guardrail/model.safetensors
+train_ai/train_gur/fine_tuned_guardrail/optimizer.pt
+train_ai/train_gur/fine_tuned_guardrail/scheduler.pt
+train_ai/train_gur/fine_tuned_guardrail/rng_state.pth
+train_ai/train_gur/fine_tuned_guardrail/scaler.pt
+train_ai/train_gur/fine_tuned_guardrail/training_args.bin
+train_ai/train_rag/fine_tuned_rag_embedder/
+train_ai/train_rag/checkpoints/
+train_ai/train_rag/index/embeddings.npy
+train_ai/unsloth_compiled_cache/
+
+# 可選：過大的本地日誌（若需一併上傳可刪除此段）
+# ot/*.txt
+
+# 暫存檢查腳本／雜訊檔
+_check_*.py
+0.46.1`

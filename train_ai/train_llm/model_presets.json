@@ -1,0 +1,40 @@
+{
+  "presets": {
+    "qwen25-1.5b": {
+      "model_id": "Qwen/Qwen2.5-1.5B-Instruct",
+      "slug": "qwen25_1p5b_ot",
+      "desc": "最小、最快，適合先驗證流程",
+      "batch_size": 2,
+      "max_steps": 200
+    },
+    "qwen25-3b": {
+      "model_id": "Qwen/Qwen2.5-3B-Instruct",
+      "slug": "qwen25_3b_ot",
+      "desc": "預設推薦：繁中指令與單卡平衡佳",
+      "batch_size": 2,
+      "max_steps": 200
+    },
+    "qwen25-7b": {
+      "model_id": "Qwen/Qwen2.5-7B-Instruct",
+      "slug": "qwen25_7b_ot",
+      "desc": "效果通常更好，需較大顯存（建議 ≥16GB）",
+      "batch_size": 1,
+      "max_steps": 200
+    },
+    "phi4-mini": {
+      "model_id": "microsoft/Phi-4-mini-instruct",
+      "slug": "phi4_mini_ot",
+      "desc": "微軟小型指令模型，可與 Qwen 對照",
+      "batch_size": 2,
+      "max_steps": 200
+    },
+    "llama32-3b": {
+      "model_id": "meta-llama/Llama-3.2-3B-Instruct",
+      "slug": "llama32_3b_ot",
+      "desc": "Llama 3.2 3B（需 HF 授權／登入）",
+      "batch_size": 2,
+      "max_steps": 200
+    }
+  },
+  "default_preset": "qwen25-3b"
+}
