@@ -56,3 +56,8 @@ train_ai/unsloth_compiled_cache/
 # 暫存檢查腳本／雜訊檔
 _check_*.py
 0.46.1`
+_archive/
+
+# 合規 evidence / review 執行期資料
+data/evidence_registry.jsonl
+data/review_queue.jsonl

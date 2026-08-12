@@ -1,0 +1,54 @@
+{
+  "version": "1.0",
+  "phase": "MVP",
+  "targets": {
+    "annex_a_coverage_rate": {
+      "label": "Annex A 控制項矩陣覆蓋率",
+      "target": 0.8,
+      "unit": "ratio",
+      "note": "Phase 1 目標 ≥80%（A.5+A.8 共 71 項中至少 57 項有定義與證據類型）"
+    },
+    "automated_monitoring_coverage": {
+      "label": "自動化監控覆蓋（OT syslog）",
+      "target": 6,
+      "unit": "controls",
+      "note": "現行 6 項 OT 訊號對映；Phase 2 擴至 15+"
+    },
+    "control_mapping_accuracy": {
+      "label": "ISO 控制項對映準確率",
+      "target": 0.85,
+      "unit": "ratio",
+      "note": "Human review 後抽樣驗證 ≥85%"
+    },
+    "human_review_adoption_rate": {
+      "label": "Human review 後採納率",
+      "target": 0.75,
+      "unit": "ratio",
+      "note": "待審項目經分析師核准比例 ≥75%"
+    },
+    "evidence_traceability_rate": {
+      "label": "Evidence 可追溯率",
+      "target": 1.0,
+      "unit": "ratio",
+      "note": "每項合規宣稱必須有 evidence_id，100%"
+    },
+    "report_generation_time_days": {
+      "label": "合規報告生成時間",
+      "target": 2,
+      "baseline_days": 28,
+      "unit": "days",
+      "note": "傳統顧問約 4 週 → 本系統 ≤2 天"
+    },
+    "compliance_cost_reduction": {
+      "label": "合規評估成本降低",
+      "target": 0.7,
+      "unit": "ratio",
+      "note": "相較純人工顧問整理證據 ≥70%"
+    }
+  },
+  "measurement": {
+    "control_mapping_accuracy": "review_queue 中 approved 且 annex_a 標註正確 / 已審核總數",
+    "human_review_adoption_rate": "approved / (approved + rejected)",
+    "evidence_traceability_rate": "含 evidence_id 的 audit 回應 / 全部 audit 回應"
+  }
+}

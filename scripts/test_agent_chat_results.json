@@ -1,0 +1,290 @@
+[
+  {
+    "model": "default",
+    "case": "casual",
+    "status": "success",
+    "elapsed": 0.1,
+    "issues": [],
+    "reply_len": 54,
+    "tool": null
+  },
+  {
+    "model": "default",
+    "case": "patch_10",
+    "status": "success",
+    "elapsed": 0.1,
+    "issues": [],
+    "reply_len": 853,
+    "tool": "scan_ot_directory"
+  },
+  {
+    "model": "default",
+    "case": "compliance",
+    "status": "success",
+    "elapsed": 1.7,
+    "issues": [],
+    "reply_len": 581,
+    "tool": "scan_ot_directory"
+  },
+  {
+    "model": "default",
+    "case": "iso_knowledge",
+    "status": "success",
+    "elapsed": 1.5,
+    "issues": [],
+    "reply_len": 285,
+    "tool": "rag_retrieve+scan_ot_directory"
+  },
+  {
+    "model": "default",
+    "case": "hardening",
+    "status": "success",
+    "elapsed": 0.0,
+    "issues": [],
+    "reply_len": 490,
+    "tool": "scan_ot_directory"
+  },
+  {
+    "model": "default",
+    "case": "chart",
+    "status": "success",
+    "elapsed": 0.0,
+    "issues": [],
+    "reply_len": 997,
+    "tool": "rag_retrieve+scan_ot_directory"
+  },
+  {
+    "model": "default",
+    "case": "off_topic",
+    "status": "success",
+    "elapsed": 0.6,
+    "issues": [],
+    "reply_len": 68,
+    "tool": null
+  },
+  {
+    "model": "default",
+    "case": "follow_up",
+    "status": "success",
+    "elapsed": 0.1,
+    "issues": [],
+    "reply_len": 727,
+    "tool": "rag_retrieve"
+  },
+  {
+    "model": "Qwen2.5-3B",
+    "case": "casual",
+    "status": "success",
+    "elapsed": 0.3,
+    "issues": [],
+    "reply_len": 54,
+    "tool": null
+  },
+  {
+    "model": "Qwen2.5-3B",
+    "case": "patch_10",
+    "status": "success",
+    "elapsed": 0.2,
+    "issues": [],
+    "reply_len": 853,
+    "tool": "scan_ot_directory"
+  },
+  {
+    "model": "Qwen2.5-3B",
+    "case": "compliance",
+    "status": "success",
+    "elapsed": 1.4,
+    "issues": [],
+    "reply_len": 252,
+    "tool": "scan_ot_directory"
+  },
+  {
+    "model": "Qwen2.5-3B",
+    "case": "iso_knowledge",
+    "status": "success",
+    "elapsed": 1.7,
+    "issues": [],
+    "reply_len": 336,
+    "tool": "rag_retrieve+scan_ot_directory"
+  },
+  {
+    "model": "Qwen2.5-3B",
+    "case": "hardening",
+    "status": "success",
+    "elapsed": 0.3,
+    "issues": [],
+    "reply_len": 490,
+    "tool": "scan_ot_directory"
+  },
+  {
+    "model": "Qwen2.5-3B",
+    "case": "chart",
+    "status": "success",
+    "elapsed": 0.3,
+    "issues": [],
+    "reply_len": 997,
+    "tool": "rag_retrieve+scan_ot_directory"
+  },
+  {
+    "model": "Qwen2.5-3B",
+    "case": "off_topic",
+    "status": "success",
+    "elapsed": 0.9,
+    "issues": [],
+    "reply_len": 77,
+    "tool": null
+  },
+  {
+    "model": "Qwen2.5-3B",
+    "case": "follow_up",
+    "status": "success",
+    "elapsed": 0.3,
+    "issues": [],
+    "reply_len": 727,
+    "tool": "rag_retrieve"
+  },
+  {
+    "model": "Gemma 2B OT",
+    "case": "casual",
+    "status": "success",
+    "elapsed": 0.3,
+    "issues": [],
+    "reply_len": 54,
+    "tool": null
+  },
+  {
+    "model": "Gemma 2B OT",
+    "case": "patch_10",
+    "status": "success",
+    "elapsed": 0.3,
+    "issues": [],
+    "reply_len": 853,
+    "tool": "scan_ot_directory"
+  },
+  {
+    "model": "Gemma 2B OT",
+    "case": "compliance",
+    "status": "success",
+    "elapsed": 1.2,
+    "issues": [],
+    "reply_len": 581,
+    "tool": "scan_ot_directory"
+  },
+  {
+    "model": "Gemma 2B OT",
+    "case": "iso_knowledge",
+    "status": "success",
+    "elapsed": 2.1,
+    "issues": [],
+    "reply_len": 103,
+    "tool": "rag_retrieve+scan_ot_directory"
+  },
+  {
+    "model": "Gemma 2B OT",
+    "case": "hardening",
+    "status": "success",
+    "elapsed": 0.5,
+    "issues": [],
+    "reply_len": 490,
+    "tool": "scan_ot_directory"
+  },
+  {
+    "model": "Gemma 2B OT",
+    "case": "chart",
+    "status": "success",
+    "elapsed": 0.5,
+    "issues": [],
+    "reply_len": 997,
+    "tool": "rag_retrieve+scan_ot_directory"
+  },
+  {
+    "model": "Gemma 2B OT",
+    "case": "off_topic",
+    "status": "success",
+    "elapsed": 0.8,
+    "issues": [],
+    "reply_len": 65,
+    "tool": null
+  },
+  {
+    "model": "Gemma 2B OT",
+    "case": "follow_up",
+    "status": "success",
+    "elapsed": 0.5,
+    "issues": [],
+    "reply_len": 727,
+    "tool": "rag_retrieve"
+  },
+  {
+    "model": "Qwen2.5-3B OT",
+    "case": "casual",
+    "status": "success",
+    "elapsed": 0.3,
+    "issues": [],
+    "reply_len": 54,
+    "tool": null
+  },
+  {
+    "model": "Qwen2.5-3B OT",
+    "case": "patch_10",
+    "status": "success",
+    "elapsed": 0.3,
+    "issues": [],
+    "reply_len": 853,
+    "tool": "scan_ot_directory"
+  },
+  {
+    "model": "Qwen2.5-3B OT",
+    "case": "compliance",
+    "status": "success",
+    "elapsed": 1.7,
+    "issues": [],
+    "reply_len": 281,
+    "tool": "scan_ot_directory"
+  },
+  {
+    "model": "Qwen2.5-3B OT",
+    "case": "iso_knowledge",
+    "status": "success",
+    "elapsed": 1.6,
+    "issues": [],
+    "reply_len": 298,
+    "tool": "rag_retrieve+scan_ot_directory"
+  },
+  {
+    "model": "Qwen2.5-3B OT",
+    "case": "hardening",
+    "status": "success",
+    "elapsed": 0.2,
+    "issues": [],
+    "reply_len": 490,
+    "tool": "scan_ot_directory"
+  },
+  {
+    "model": "Qwen2.5-3B OT",
+    "case": "chart",
+    "status": "success",
+    "elapsed": 0.3,
+    "issues": [],
+    "reply_len": 997,
+    "tool": "rag_retrieve+scan_ot_directory"
+  },
+  {
+    "model": "Qwen2.5-3B OT",
+    "case": "off_topic",
+    "status": "success",
+    "elapsed": 1.0,
+    "issues": [],
+    "reply_len": 82,
+    "tool": null
+  },
+  {
+    "model": "Qwen2.5-3B OT",
+    "case": "follow_up",
+    "status": "success",
+    "elapsed": 0.4,
+    "issues": [],
+    "reply_len": 727,
+    "tool": "rag_retrieve"
+  }
+]

@@ -1,0 +1,1774 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISO 27001 半導體供應鏈合規稽核系統</title>
+    <script src="/static/vendor/jspdf.umd.min.js"></script>
+    <script src="/static/vendor/html2canvas.min.js"></script>
+    <script src="/static/vendor/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #f1f5f9;       
+            --card-bg: #ffffff;         
+            --text-main: #0f172a;       
+            --text-muted: #64748b;      
+            --border-color: #cbd5e1;    
+            --tech-blue: #0284c7;       
+            --ai-glow: #4f46e5;         
+            --sidebar-width: 450px; 
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            padding-right: 60px; 
+            transition: padding-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-x: hidden;
+        }
+
+        /* 整合平台 iframe 嵌入模式 */
+        html.embedded, html.embedded body {
+            height: 100%;
+            overflow: auto;
+        }
+        html.embedded body {
+            padding: 16px;
+            padding-right: 16px;
+        }
+        html.embedded header h1 { font-size: 18px; }
+
+        body.sidebar-open { padding-right: calc(var(--sidebar-width) + 20px); }
+        .main-container { width: 100%; }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        h1 { margin: 0; font-size: 22px; letter-spacing: 0.5px; color: var(--tech-blue); }
+        .subtitle { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+        .system-time { color: var(--text-muted); font-family: monospace; font-size: 14px; }
+
+        .io-panel {
+            background: #fff;
+            padding: 12px 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+        }
+
+        .panel-left { display: flex; align-items: center; gap: 15px; }
+        
+        .download-controls { 
+            display: flex; 
+            align-items: center; 
+            gap: 12px; 
+        }
+
+        .btn-pdf {
+            background: linear-gradient(135deg, #4f46e5, #3b82f6);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
+        }
+        .btn-pdf:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
+            filter: brightness(1.05);
+        }
+
+        .btn-txt {
+            background-color: #0f172a;
+            color: #10b981;
+            border: 1px solid #10b981;
+            padding: 9px 18px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+        }
+        .btn-txt:hover:not(:disabled) {
+            background-color: #1e293b;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+        }
+
+        .btn-pdf:disabled, .btn-txt:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: #cbd5e1 !important;
+            color: #64748b !important;
+            border: none !important;
+        }
+
+        .compliance-summary { display: flex; gap: 10px; margin-bottom: 20px; width: 100%; }
+        .summary-card { flex: 1; min-width: 0; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 12px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.02); transition: all 0.2s; display: flex; flex-direction: column; justify-content: center; }
+        .summary-card:hover { border-color: var(--tech-blue); box-shadow: 0 3px 10px rgba(0,0,0,0.06); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; }
+        .card-title { font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-left: 5px; background-color: #cbd5e1; }
+        
+        .analytics-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 20px; margin-bottom: 20px; }
+        .log-section, .chart-section { background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: relative; }
+        .log-section h2, .chart-section h2 { margin-top: 0; font-size: 15px; color: var(--text-main); }
+        
+        .log-title-area { display: flex; justify-content: space-between; align-items: center; }
+        .btn-view-all { background: none; border: 1px solid var(--tech-blue); color: var(--tech-blue); padding: 4px 10px; border-radius: 4px; font-size: 12px; cursor: pointer; font-weight: 600; }
+        .btn-view-all:hover { background-color: #e0f2fe; }
+
+        table { width: 100%; border-collapse: collapse; text-align: left; margin-top: 15px; }
+        th, td { padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+        th { color: var(--text-muted); font-weight: 600; background-color: #f8fafc; }
+        tr.clickable-row { cursor: pointer; }
+        tr.clickable-row:hover { background-color: #f1f5f9; }
+
+        .badge { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-align: center; display: inline-block; width: 75px; }
+        .badge.pass-bg { background-color: #d1fae5; color: #065f46; }
+        .badge.review-bg { background-color: #fef3c7; color: #92400e; }
+        .badge.fail-bg { background-color: #fee2e2; color: #991b1b; }
+
+        .chart-container { position: relative; width: 100%; height: 260px; }
+        .guardrail-box { font-family: monospace; font-size: 11px; color: #f43f5e; background-color: #fff1f2; border: 1px dashed #f43f5e; padding: 8px 12px; margin-top: 10px; border-radius: 4px; display: none; }
+
+        .archive-search-bar { display: flex; align-items: center; gap: 12px; margin: 12px 0; }
+        .archive-input { flex: 1; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 13px; outline: none; }
+        .archive-counter { font-family: monospace; font-size: 12px; color: var(--text-muted); font-weight: bold; white-space: nowrap; }
+
+        /* PDF 模板：匯出時暫時移入可視區，避免 -9999px 截圖錯亂／空白 */
+        #pdfRenderTemplate { 
+            position: fixed; 
+            left: 0;
+            top: 0;
+            width: 794px; 
+            background: #ffffff; 
+            color: #1e293b; 
+            padding: 30px; 
+            box-sizing: border-box;
+            opacity: 0;
+            pointer-events: none;
+            z-index: -1;
+            overflow: hidden;
+        }
+        #pdfRenderTemplate.pdf-exporting {
+            opacity: 1;
+            z-index: 99999;
+            overflow: visible;
+        }
+        .pdf-block { 
+            background: #ffffff; 
+            margin-bottom: 12px; 
+            box-sizing: border-box; 
+            width: 100%; 
+            page-break-inside: avoid; /* 防斷頁關鍵 */
+        }
+        .pdf-h1 { font-size: 24px; color: #0284c7; margin: 0 0 5px 0; border-bottom: 3px solid #0284c7; padding-bottom: 10px; text-align: center;}
+        .pdf-meta-table { width: 100%; margin-top: 15px; margin-bottom: 25px; font-size: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-collapse: collapse; }
+        .pdf-grid-title { font-size: 15px; color: #1e293b; font-weight: bold; margin-top: 15px; border-left: 4px solid #4f46e5; padding-left: 8px; margin-bottom: 12px; }
+        .pdf-alert-block { background: #fee2e2; border-left: 4px solid #ef4444; color: #991b1b; padding: 12px; border-radius: 4px; font-size: 12px; margin-bottom: 15px; line-height: 1.6; }
+        .pdf-llm-analysis-item {
+            margin-bottom: 18px;
+            padding: 12px 12px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: #f8fafc;
+            font-size: 12px;
+            line-height: 1.6;
+            page-break-inside: avoid;
+        }
+        .pdf-llm-tag {
+            font-weight: bold;
+            color: #0284c7;
+            background: #e0f2fe;
+            padding: 4px 10px;
+            border-radius: 6px;
+            margin: 0 0 10px 0;
+            display: inline-block;
+            font-size: 13px;
+        }
+        .pdf-llm-control-head {
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        /* PDF 文字卡（樣式掛在元素自身，供 html2canvas 單卡截圖） */
+        .pdf-ai-cards.md-block {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        #pdfRenderTemplate .md-section-card,
+        .pdf-section-card {
+            background: #ffffff !important;
+            border: 1px solid #e9d5ff !important;
+            border-radius: 10px !important;
+            overflow: hidden;
+            page-break-inside: avoid;
+            margin-bottom: 8px;
+            box-sizing: border-box;
+            width: 100%;
+        }
+        #pdfRenderTemplate .md-section-card.tone-0,
+        .pdf-section-card.tone-0 { border-top: 3px solid #8b5cf6 !important; }
+        #pdfRenderTemplate .md-section-card.tone-1,
+        .pdf-section-card.tone-1 { border-top: 3px solid #10b981 !important; }
+        #pdfRenderTemplate .md-section-card.tone-2,
+        .pdf-section-card.tone-2 { border-top: 3px solid #f59e0b !important; }
+        #pdfRenderTemplate .md-card-head,
+        .pdf-section-card .md-card-head {
+            display: flex !important;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px !important;
+            background: #faf5ff !important;
+            border-bottom: 1px solid #ede9fe !important;
+        }
+        #pdfRenderTemplate .md-card-index,
+        .pdf-section-card .md-card-index {
+            min-width: 22px;
+            height: 22px;
+            border-radius: 999px;
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 800;
+            color: #fff !important;
+            background: #8b5cf6 !important;
+        }
+        #pdfRenderTemplate .tone-1 .md-card-index,
+        .pdf-section-card.tone-1 .md-card-index { background: #10b981 !important; }
+        #pdfRenderTemplate .tone-2 .md-card-index,
+        .pdf-section-card.tone-2 .md-card-index { background: #f59e0b !important; }
+        #pdfRenderTemplate .md-card-title,
+        .pdf-section-card .md-card-title {
+            margin: 0 !important;
+            font-size: 12px !important;
+            font-weight: 700 !important;
+            color: #5b21b6 !important;
+        }
+        #pdfRenderTemplate .md-card-body,
+        .pdf-section-card .md-card-body {
+            padding: 10px 12px 12px !important;
+            color: #334155 !important;
+            background: #fff !important;
+        }
+        #pdfRenderTemplate .md-card-content,
+        .pdf-section-card .md-card-content {
+            background: #fff !important;
+            border: 1px solid #ede9fe !important;
+            border-radius: 8px !important;
+            padding: 10px 12px !important;
+        }
+        #pdfRenderTemplate .md-card-body p,
+        .pdf-section-card .md-card-body p {
+            margin: 0 0 6px !important;
+            font-size: 11px !important;
+            line-height: 1.55 !important;
+            color: #334155 !important;
+        }
+        #pdfRenderTemplate .md-card-body ul,
+        #pdfRenderTemplate .md-card-body ol,
+        .pdf-section-card .md-card-body ul,
+        .pdf-section-card .md-card-body ol {
+            margin: 6px 0 0 0 !important;
+            padding-left: 16px !important;
+            color: #475569 !important;
+        }
+        #pdfRenderTemplate .md-card-body li,
+        .pdf-section-card .md-card-body li {
+            margin: 3px 0 !important;
+            padding: 0 !important;
+            background: transparent !important;
+            border: none !important;
+            border-radius: 0 !important;
+            font-size: 11px !important;
+            line-height: 1.5 !important;
+            color: #334155 !important;
+        }
+        #pdfRenderTemplate .end-mark {
+            text-align: right;
+            color: #94a3b8;
+            font-size: 10px;
+            margin: 4px 0 10px;
+        }
+        .pdf-llm-card-unit {
+            margin-bottom: 8px;
+            page-break-inside: avoid;
+        }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(15, 23, 42, 0.4); display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; z-index: 1001; backdrop-filter: blur(2px); }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+        .modal-content { background-color: var(--card-bg); border-radius: 10px; border: 1px solid var(--border-color); width: 90%; max-width: 650px; padding: 25px; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+        .modal-content.large-layout { max-width: 950px; width: 95%; }
+        
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 15px; }
+        .modal-header h2 { margin: 0; font-size: 18px; color: var(--tech-blue); }
+        .close-btn { background: none; border: none; color: var(--text-muted); font-size: 22px; cursor: pointer; }
+        .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; margin-bottom: 20px; background: #f8fafc; padding: 14px; border-radius: 6px; font-size: 13px; border: 1px solid var(--border-color); }
+        .meta-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #e2e8f0; padding-bottom: 6px; }
+        .log-box { background-color: #0f172a; border: 1px solid #1e293b; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 11px; color: #38bdf8; max-height: 250px; overflow-y: auto; white-space: pre-wrap; margin-bottom: 20px; line-height: 1.4;}
+        .ai-btn { background-color: var(--ai-glow); color: white; border: none; padding: 12px; border-radius: 6px; font-weight: 600; cursor: pointer; width: 100%; display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 14px; }
+        .ai-result {
+            margin-top: 20px;
+            background: linear-gradient(180deg, #faf5ff 0%, #f8fafc 100%);
+            border: 1px solid #ddd6fe;
+            border-radius: 12px;
+            padding: 16px;
+            display: none;
+            font-size: 14px;
+            line-height: 1.65;
+            border-left: 4px solid var(--ai-glow);
+            color: #4c1d95;
+            white-space: normal;
+        }
+        .ai-result .ai-hero,
+        .ai-result .report-hero {
+            color: #6d28d9;
+            font-size: 16px;
+            font-weight: 800;
+            margin: 0 0 12px;
+            letter-spacing: 0.02em;
+            padding: 12px 14px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, rgba(109,40,217,.1), rgba(139,92,246,.06));
+            border: 1px solid #ddd6fe;
+        }
+        .ai-result .md-block {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .ai-result .md-section-card {
+            background: #ffffff;
+            border: 1px solid #e9d5ff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(91, 33, 182, 0.06);
+        }
+        .ai-result .md-section-card.tone-0 { border-top: 3px solid #8b5cf6; }
+        .ai-result .md-section-card.tone-1 { border-top: 3px solid #10b981; }
+        .ai-result .md-section-card.tone-2 { border-top: 3px solid #f59e0b; }
+        .ai-result .md-section-card.tone-3 { border-top: 3px solid #3b82f6; }
+        .ai-result .md-section-card.tone-4 { border-top: 3px solid #ec4899; }
+        .ai-result .md-card-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: #faf5ff;
+            border-bottom: 1px solid #ede9fe;
+        }
+        .ai-result .md-card-index {
+            min-width: 28px;
+            height: 28px;
+            padding: 0 8px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 800;
+            color: #fff;
+            background: #8b5cf6;
+        }
+        .ai-result .md-section-card.tone-1 .md-card-index { background: #10b981; }
+        .ai-result .md-section-card.tone-2 .md-card-index { background: #f59e0b; }
+        .ai-result .md-section-card.tone-3 .md-card-index { background: #3b82f6; }
+        .ai-result .md-section-card.tone-4 .md-card-index { background: #ec4899; }
+        .ai-result .md-card-title {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 700;
+            color: #5b21b6;
+        }
+        .ai-result .md-card-body { padding: 12px 14px 14px; }
+        .ai-result .md-card-body .md-card-content {
+            background: #fff;
+            border: 1px solid #ede9fe;
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+        .ai-result .md-card-body h3,
+        .ai-result .md-card-body h4 { margin: 8px 0 6px; color: #6d28d9; font-size: 13px; }
+        .ai-result .md-card-body p { margin: 0 0 8px; color: #4c1d95; line-height: 1.65; }
+        .ai-result .md-card-body p:last-child { margin-bottom: 0; }
+        .ai-result .md-card-body ul,
+        .ai-result .md-card-body ol {
+            margin: 8px 0 0 0;
+            padding-left: 18px;
+            color: #5b21b6;
+        }
+        .ai-result .md-card-body li {
+            margin: 4px 0;
+            padding: 0;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            line-height: 1.55;
+        }
+        .ai-result .end-mark { text-align: right; color: #a78bfa; font-size: 12px; margin-top: 4px; }
+        .ai-rag-box {
+            margin-top: 14px;
+            padding: 10px 12px;
+            background: #fff;
+            border: 1px dashed #c4b5fd;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #6d28d9;
+        }
+        .ai-rag-box summary { cursor: pointer; font-weight: 700; }
+        .ai-rag-box ol { margin: 8px 0 0 18px; padding: 0; }
+        .spinner { border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top: 3px solid #fff; width: 16px; height: 16px; animation: spin 0.8s linear infinite; display: none; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .big-value { font-size: 16px; font-weight: 800; font-family: monospace; margin-top: 4px; letter-spacing: -0.2px; }
+        .status-dot.pass { background-color: #10b981; }
+        .status-dot.review { background-color: #f59e0b; }
+        .status-dot.fail { background-color: #ef4444; }
+
+        .llm-picker {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .llm-picker label {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .llm-picker select {
+            min-width: 220px;
+            max-width: 320px;
+            padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: #fff;
+            color: var(--text-main);
+            font-size: 12px;
+        }
+        .llm-picker select:disabled {
+            opacity: 0.6;
+            cursor: wait;
+        }
+        .llm-picker-status {
+            font-size: 11px;
+            color: var(--text-muted);
+            max-width: 280px;
+        }
+        .llm-picker-status.ok { color: #059669; }
+        .llm-picker-status.err { color: #dc2626; }
+        .llm-picker-status.busy { color: #d97706; }
+        .modal-llm-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 0 0 12px 0;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        <header>
+            <div>
+                <h1>半導體供應鏈資訊安全管理系統 (Semi-Shield ISMS)</h1>
+                <div class="subtitle">供應商 ISO/IEC 27001:2022 深度合規自動化戰情室</div>
+            </div>
+            <div class="system-time" id="sysTime">更新時間：載入中...</div>
+        </header>
+
+        <div class="io-panel">
+            <div class="panel-left">
+                <span id="otStatus" style="font-size: 13px; color: var(--tech-blue); font-weight: bold;">🔄 連線中...</span>
+            </div>
+            
+            <div class="download-controls">
+                <div class="llm-picker" title="合規分析／匯出報告使用的 LLM；切換後會釋放舊模型資源">
+                    <label for="reportLlmSelect">分析模型</label>
+                    <select id="reportLlmSelect" onchange="onReportLlmChange(this.value)">
+                        <option value="">載入中…</option>
+                    </select>
+                    <span class="llm-picker-status" id="reportLlmStatus"></span>
+                </div>
+                <button class="btn-pdf" id="downloadPdfBtn" onclick="exportBeautifulPDFReport()" disabled>📄 匯出美化版 PDF</button>
+                <button class="btn-txt" id="downloadTxtBtn" onclick="exportTextReport()" disabled>📝 匯出純文字 TXT</button>
+            </div>
+        </div>
+
+        <div class="compliance-summary">
+            <div class="summary-card" onclick="showDetails('sec_gem_log')">
+                <div class="card-header"><span class="card-title">A.8.24 傳輸加密</span><div class="status-dot" id="dot-sec_gem_log"></div></div>
+                <div class="big-value" id="val-sec_gem_log">--</div>
+            </div>
+            <div class="summary-card" onclick="showDetails('recipe_audit')">
+                <div class="card-header"><span class="card-title">A.8.19 組態變更</span><div class="status-dot" id="dot-recipe_audit"></div></div>
+                <div class="big-value" id="val-recipe_audit">--</div>
+            </div>
+            <div class="summary-card" onclick="showDetails('access_control')">
+                <div class="card-header"><span class="card-title">A.5.15 存取控制</span><div class="status-dot" id="dot-access_control"></div></div>
+                <div class="big-value" id="val-access_control">--</div>
+            </div>
+            <div class="summary-card" onclick="showDetails('patch_management')">
+                <div class="card-header"><span class="card-title">A.8.8 弱點修補</span><div class="status-dot" id="dot-patch_management"></div></div>
+                <div class="big-value" id="val-patch_management">--</div>
+            </div>
+            <div class="summary-card" onclick="showDetails('supplier_security')">
+                <div class="card-header"><span class="card-title">A.5.19 供應鏈管理</span><div class="status-dot" id="dot-supplier_security"></div></div>
+                <div class="big-value" id="val-supplier_security">--</div>
+            </div>
+            <div class="summary-card" onclick="showDetails('malware_defense')">
+                <div class="card-header"><span class="card-title">A.8.7 端點防禦</span><div class="status-dot" id="dot-malware_defense"></div></div>
+                <div class="big-value" id="val-malware_defense">--</div>
+            </div>
+        </div>
+
+        <div class="analytics-grid">
+            <div class="log-section">
+                <div class="log-title-area">
+                    <h2>ISO 27001 近期接收之合規日誌追蹤檔 (Detailed Logs)</h2>
+                    <button class="btn-view-all" id="openFullTableBtn" onclick="openFullLogsModal()" disabled>🔍 展開全量追蹤檔</button>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>接收時間</th>
+                            <th>日誌來源檔案</th>
+                            <th>主稽控制項對應</th>
+                            <th>合規判定</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logTableBody">
+                        <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">正在同步後端 OT/ 目錄日誌...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="chart-section">
+                <h2>本月各控制項不符合事件統計</h2>
+                <div class="chart-container">
+                    <canvas id="complianceBarChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="log-section" style="margin-top: 20px;">
+            <h2>全量歷史日誌串流存檔區域 (Historical Log Stream)</h2>
+            <div class="archive-search-bar">
+                <input type="text" id="archiveSearchInput" class="archive-input" placeholder="💡 輸入關鍵字篩選歷史日誌..." oninput="executeArchiveFilter()" disabled>
+                <span id="archiveSearchCounter" class="archive-counter">匹配進度: 0 / 0 行</span>
+            </div>
+            <div style="background: #0f172a; color: #38bdf8; font-family: monospace; font-size: 12px; padding: 15px; border-radius: 6px; height: 250px; overflow-y: auto; white-space: pre-wrap; line-height: 1.5;" id="historicalLogContainer">系統就緒。等待數據推送...</div>
+        </div>
+    </div>
+
+    <!-- 📄 渲染 PDF 的專用隱藏 HTML 結構 -->
+    <div id="pdfRenderTemplate">
+        <div class="pdf-block"><div class="pdf-h1">ISO 27001 半導體供應鏈合規稽核報告</div></div>
+        <div class="pdf-block">
+            <div class="pdf-grid-title">一、 基本稽核追蹤 Meta 數據</div>
+            <table class="pdf-meta-table">
+                <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0; width: 30%;">產出時間</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;" id="pdf-meta-time">--</td></tr>
+                <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">分析引擎</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;" id="pdf-meta-engine">地端 LLM 合規診斷</td></tr>
+                <tr><td style="padding: 10px; font-weight: bold; border-bottom: 1px solid #e2e8f0;">解析數據規量</td><td style="padding: 10px; border-bottom: 1px solid #e2e8f0;" id="pdf-meta-lines">-- 行日誌事件紀錄</td></tr>
+                <tr><td style="padding: 10px; font-weight: bold;">Evidence 追溯</td><td style="padding: 10px;" id="pdf-meta-evidence">--</td></tr>
+            </table>
+        </div>
+        <div class="pdf-block">
+            <div class="pdf-grid-title">二、 全廠各項控制指標量化矩陣</div>
+            <table style="width:100%; font-size:12px; border-collapse:collapse; margin-bottom: 20px;">
+                <thead><tr style="background:#0284c7; color:#fff;"><th style="padding:8px; text-align:left;">ISO 27001 控制項條文</th><th style="padding:8px; text-align:right;">實時狀態數據統計</th></tr></thead>
+                <tbody>
+                    <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:8px;">A.8.24 密碼學與傳輸安全（SNMP／加密）</td><td style="padding:8px; text-align:right; font-weight:bold;" id="pdf-m-824">--</td></tr>
+                    <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:8px;">A.8.19 組態／介面事件稽核（含 UPDOWN）</td><td style="padding:8px; text-align:right; font-weight:bold;" id="pdf-m-819">--</td></tr>
+                    <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:8px;">A.5.15 存取控制與身分驗證事件</td><td style="padding:8px; text-align:right; font-weight:bold;" id="pdf-m-74">--</td></tr>
+                    <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:8px;">A.8.8 技術弱點／韌體與映像</td><td style="padding:8px; text-align:right; font-weight:bold;" id="pdf-m-88">--</td></tr>
+                    <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:8px;">A.5.19 供應商／外部連線關係</td><td style="padding:8px; text-align:right; font-weight:bold;" id="pdf-m-519">--</td></tr>
+                    <tr style="border-bottom:1px solid #e2e8f0;"><td style="padding:8px;">A.8.7 惡意軟體／入侵防護事件</td><td style="padding:8px; text-align:right; font-weight:bold;" id="pdf-m-87">--</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="pdf-block" id="pdfExceptionContainer"></div>
+        <div class="pdf-block">
+            <div class="pdf-grid-title">三、 地端 LLM 各指標智慧診斷報告</div>
+            <div id="pdfLLMAnalysisContainer" style="background:#f8fafc; border:1px solid #e2e8f0; padding:15px; border-radius:6px;"></div>
+        </div>
+    </div>
+
+    <!-- Modal 彈窗區塊 -->
+    <div class="modal-overlay" id="modalOverlay" onclick="closeModal()">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header"><h2 id="modalTitle">合規詳情</h2><button class="close-btn" onclick="closeModal()">&times;</button></div>
+            <div class="meta-grid" id="modalMeta"></div>
+            <h3 style="font-size: 13px; margin: 0 0 8px 0; color: var(--text-muted);">原始資安日誌內容 (Raw Audit Log)</h3>
+            <div class="log-box" id="modalLog"></div>
+            <div class="modal-llm-row">
+                <div class="llm-picker">
+                    <label for="modalReportLlmSelect">診斷模型</label>
+                    <select id="modalReportLlmSelect" onchange="onReportLlmChange(this.value)">
+                        <option value="">載入中…</option>
+                    </select>
+                </div>
+            </div>
+            <button class="ai-btn" id="aiBtn" onclick="analyzeComplianceWithLocalLLM()">
+                <div class="spinner" id="aiSpinner"></div><span id="aiBtnText">執行地端診斷分析</span>
+            </button>
+            <div class="guardrail-box" id="modalGuardrail">⚠️ 護欄警示：偵測到敏感資安設備明細，輸出已進行遮蔽遮罩與事件混淆處理。</div>
+            <div class="ai-result" id="aiResultBox">
+                <div class="ai-hero">地端 LLM 智慧合規診斷報告</div>
+                <div id="aiResponseText"></div>
+                <div class="ai-rag-box" id="aiRagBox" style="display:none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="fullLogsModalOverlay" onclick="closeFullLogsModal()">
+        <div class="modal-content large-layout" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2>ISO 27001 完整合規日誌追蹤存檔 (All Tracked Logs)</h2>
+                <button class="close-btn" onclick="closeFullLogsModal()">&times;</button>
+            </div>
+            <div style="max-height: 60vh; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 6px; background: #fff;">
+                <table style="margin-top: 0;">
+                    <thead style="position: sticky; top: 0; z-index: 10;">
+                        <tr style="background: #f1f5f9;">
+                            <th>接收時間</th>
+                            <th>日誌來源檔案</th>
+                            <th>主稽控制項對應</th>
+                            <th>合規判定</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fullLogTableBodyModal"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+
+        const LLM_MODEL_KEY = 'ot_agent_llm_model';
+        let selectedReportLlm = localStorage.getItem(LLM_MODEL_KEY) || '';
+        let reportLlmModels = [];
+        let reportLlmSwitching = false;
+
+        function setReportLlmStatus(text, kind) {
+            const el = document.getElementById('reportLlmStatus');
+            if (!el) return;
+            el.textContent = text || '';
+            el.className = 'llm-picker-status' + (kind ? ' ' + kind : '');
+        }
+
+        function syncReportLlmSelects() {
+            ['reportLlmSelect', 'modalReportLlmSelect'].forEach((id) => {
+                const sel = document.getElementById(id);
+                if (!sel || !sel.options.length) return;
+                const want = selectedReportLlm || '';
+                let matched = false;
+                for (const opt of sel.options) {
+                    if (opt.value && (opt.value === want)) {
+                        sel.value = opt.value;
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched && sel.options.length) {
+                    // keep current if still valid
+                }
+            });
+        }
+
+        function fillReportLlmSelect(sel, models, current, groups) {
+            if (!sel) return;
+            const finetuned = (groups && groups.finetuned) || models.filter((m) => m.stage !== 'base');
+            const base = (groups && groups.base) || models.filter((m) => m.stage === 'base');
+            let html = '';
+            const addGroup = (label, list) => {
+                if (!list.length) return;
+                html += `<optgroup label="${label}">`;
+                list.forEach((m) => {
+                    const val = m.slug || m.path || '';
+                    const dis = m.available === false ? ' disabled' : '';
+                    const mark = m.active ? ' ✓' : '';
+                    const reason = m.available === false ? '（不可用）' : '';
+                    html += `<option value="${String(val).replace(/"/g, '&quot;')}"${dis}>${(m.stage_label || '')} ${m.label || val}${mark}${reason}</option>`;
+                });
+                html += '</optgroup>';
+            };
+            addGroup('微調後', finetuned);
+            addGroup('微調前', base);
+            sel.innerHTML = html || '<option value=\"\">尚無可選模型</option>';
+            const cur = (current && (current.slug || current.path)) || selectedReportLlm;
+            if (cur) {
+                for (const opt of sel.options) {
+                    if (opt.value === cur) { sel.value = cur; break; }
+                }
+            }
+        }
+
+        async function loadReportLlmMenu() {
+            setReportLlmStatus('讀取模型…', 'busy');
+            try {
+                const res = await fetch('/api/llm/models');
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || '無法取得模型清單');
+                reportLlmModels = data.models || [];
+                const current = data.current || {};
+                if (current.slug) {
+                    selectedReportLlm = current.slug;
+                    localStorage.setItem(LLM_MODEL_KEY, selectedReportLlm);
+                } else if (current.path) {
+                    selectedReportLlm = current.path;
+                    localStorage.setItem(LLM_MODEL_KEY, selectedReportLlm);
+                }
+                fillReportLlmSelect(document.getElementById('reportLlmSelect'), reportLlmModels, current, data.groups);
+                fillReportLlmSelect(document.getElementById('modalReportLlmSelect'), reportLlmModels, current, data.groups);
+                const tag = current.stage_label ? `[${current.stage_label}] ` : '';
+                setReportLlmStatus(
+                    current.label ? `目前：${tag}${current.label}` : '請選擇模型',
+                    current.loaded === false ? 'err' : 'ok'
+                );
+            } catch (e) {
+                setReportLlmStatus(e.message || '讀取失敗', 'err');
+            }
+        }
+
+        async function onReportLlmChange(slug) {
+            if (!slug || reportLlmSwitching) return;
+            const meta = reportLlmModels.find((m) => m.slug === slug || m.path === slug);
+            if (meta && meta.available === false) {
+                setReportLlmStatus(meta.unavailable_reason || '此模型不可用', 'err');
+                syncReportLlmSelects();
+                return;
+            }
+            if (slug === selectedReportLlm && meta && meta.active) {
+                setReportLlmStatus('已是目前模型', 'ok');
+                return;
+            }
+            reportLlmSwitching = true;
+            const sels = ['reportLlmSelect', 'modalReportLlmSelect'].map((id) => document.getElementById(id));
+            sels.forEach((s) => { if (s) s.disabled = true; });
+            const nice = (meta && meta.label) || slug;
+            setReportLlmStatus(`正在切換「${nice}」並釋放舊模型…`, 'busy');
+            try {
+                const res = await fetch('/api/llm/switch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: slug })
+                });
+                let data = {};
+                try { data = await res.json(); } catch (_) {}
+                if (!data.ok) throw new Error(data.error || ('切換失敗 HTTP ' + res.status));
+                selectedReportLlm = data.slug || slug;
+                localStorage.setItem(LLM_MODEL_KEY, selectedReportLlm);
+                await loadReportLlmMenu();
+                setReportLlmStatus(data.message || ('已切換：' + nice), 'ok');
+            } catch (e) {
+                setReportLlmStatus(e.message || '切換失敗', 'err');
+                await loadReportLlmMenu();
+            } finally {
+                reportLlmSwitching = false;
+                sels.forEach((s) => { if (s) s.disabled = false; });
+            }
+        }
+
+        let myChart;
+        let globalMetrics = null;
+        let globalParsedLogs = [];
+        let rawArchiveLines = [];
+
+        function escapeHtml(s) {
+            return String(s ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function renderMarkdownLite(text) {
+            // 固定三張文字卡，忽略殘留 # / 雜標題
+            const inline = (s) => escapeHtml(s)
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/`([^`]+)`/g, '<code>$1</code>');
+            const canon = {
+                s1: { idx: '1', title: '事件經過摘要', tone: 0 },
+                s2: { idx: '2', title: '不合規／風險分析', tone: 1 },
+                s3: { idx: '3', title: '具體修補建議', tone: 2 }
+            };
+            const classify = (title) => {
+                const t = String(title || '').replace(/^[一二三123][、.．]\s*/, '');
+                if (/智慧合規診斷報告|地端\s*LLM.*報告|專業\s*IT\s*合規/.test(t)) return 'hero';
+                if (/事件經過|摘要|概述|概觀|總述|經歷/.test(t)) return 's1';
+                if (/不合|風險|危害|分析|評估|不符/.test(t)) return 's2';
+                if (/建議|修補|防護|改善|修正|當事人/.test(t)) return 's3';
+                return null;
+            };
+            const CODE_KEYWORDS = new Set([
+                'else', 'begin', 'end', 'def', 'class', 'rescue', 'ensure', 'case', 'when',
+                'then', 'elsif', 'elif', 'if', 'unless', 'while', 'until', 'for', 'do',
+                'return', 'yield', 'super', 'self', 'nil', 'true', 'false', 'null', 'none',
+                'try', 'except', 'finally', 'catch', 'throw', 'new', 'var', 'let', 'const',
+                'function', 'import', 'from', 'export', 'module', 'require', 'include',
+                'puts', 'print', 'printf', 'console', 'lambda', 'pass', 'break', 'continue'
+            ]);
+            const isGarbageLine = (t) => {
+                if (!t) return true;
+                let s = String(t).replace(/^[-*•]\s+/, '').trim();
+                if (!s) return true;
+                if (/^`{3,}/.test(s) || s === '---' || s === '***' || s === '/') return true;
+                if (/^[{}\[\],;]+$/.test(s)) return true;
+                if (/^[/／]\s*\S{0,12}$/.test(s)) return true;
+                if (/^(control_id|title|description)\s*:/i.test(s)) return true;
+                if (/\[REPORT\s*END\]/i.test(s)) return true;
+                if (CODE_KEYWORDS.has(s.toLowerCase())) return true;
+                if (/^[A-Za-z_]{1,16}$/.test(s) && CODE_KEYWORDS.has(s.toLowerCase())) return true;
+                if (!/[\u4e00-\u9fff]/.test(s)) {
+                    const tokens = (s.toLowerCase().match(/[A-Za-z_]+/g) || []);
+                    if (tokens.length && tokens.every((x) => CODE_KEYWORDS.has(x) || x.length <= 2)) return true;
+                    if (s.length <= 24 && /^[A-Za-z0-9_\s\.=>:\-`]+$/.test(s) &&
+                        !/\b(ISO|SNMP|RADIUS|SYSLOG|CAPA|OT)\b/i.test(s)) return true;
+                }
+                if (/\b(respond_to\?|is_string|CoffeeScript|MyClass|string_object|e\.message|please let me know|further assistance|def\s+\w+|class\s+[A-Z])\b/i.test(s)) return true;
+                if (/rescue\s*=>|我想知道如何使用|完整代碼片段|檢查一個對象是否|暫時處於等待狀態/.test(s)) return true;
+                // 提示詞洩漏（把「請用某某格式撰寫／開始輸入」當正文）
+                if (/格式撰寫|撰寫診斷|撰寫報告|必要的資訊和建議|所有必要的資訊|合作規診斷|回答第一行必須|總字數必須|禁止照抄|轉述重點|內容寫診斷|誌」/.test(s)) return true;
+                if (/MFG\s*\d+|MFG01|新增(?:新)?設定檔|刪除舊設定檔/.test(s)) return true;
+                if (/開始輸入答案|開始輸出答案|開始作答|輸入答案|開始輸入|開始輸出|在此輸入|請開始寫/.test(s)) return true;
+                if (/智慧合規診斷報告.{0,12}開始/.test(s)) return true;
+                if (/[「"'].{0,32}報告[」"'].{0,16}(?:格式|開始)/.test(s)) return true;
+                if (/此處省略|省略了詳細|且出現了\s*的訊息|SSH\s*埠\s*\(\s*\)/.test(s)) return true;
+                if (/依目前監控數據，未觀察到需立即升級|尚未觀察到需立即升級/.test(s) &&
+                    /SSL|UPDOWN|LOGIN|SNMP|interface/i.test(s)) return true;
+                const cjk = (s.match(/[\u4e00-\u9fff]/g) || []).length;
+                if (cjk < 4) {
+                    const hits = (s.toLowerCase().match(/[A-Za-z_]+/g) || []).filter((x) => CODE_KEYWORDS.has(x)).length;
+                    if (hits >= 1 && s.length <= 40) return true;
+                }
+                return false;
+            };
+            const cleanLine = (line) => {
+                let s = String(line || '')
+                    .replace(/^\s*#{1,6}\s*$/g, '')
+                    .replace(/\s*#{1,6}\s*$/g, '')
+                    .replace(/\s*#{1,6}\s*/g, ' ')
+                    .replace(/【(?:回答|報告)結束】/g, '')
+                    .replace(/\[REPORT\s*END\]/ig, '')
+                    .replace(/`[^`]*`/g, '')
+                    .replace(/rescue\s*=>\s*e\b.*/ig, '')
+                    .replace(/\bp\s+e\.message\b/ig, '')
+                    .replace(/^[/／]\s*/, '')
+                    .replace(/LLM\s*\S{0,8}合規狀況簡報\s*/g, '')
+                    .replace(/知巧合綜評|晴智合規狀況簡報/g, '')
+                    .replace(/[一二三]、\s*(?:不合規／風險分析|具體修補建議|事件經過摘要)\s*$/g, '');
+                const kw = [...CODE_KEYWORDS].sort((a, b) => b.length - a.length).join('|');
+                s = s.replace(new RegExp(`(?:^|[\\s，,、;；。])(?:${kw})(?=$|[\\s，,、;；。])`, 'gi'), ' ');
+                return s.replace(/\s{2,}/g, ' ').replace(/^[，,、;；\s]+|[，,、;；\s]+$/g, '').trim();
+            };
+            const renderBodyLines = (lines) => {
+                const cleaned = [];
+                lines.forEach((line) => {
+                    let t = cleanLine(line);
+                    if (!t || /^【(?:回答|報告)結束】$/.test(t)) return;
+                    if (/本段暫無足夠資料|請補充日誌後重試/.test(t)) return;
+                    t = t.replace(/^[-*•]\s+/, '').replace(/^\d+\.\s+/, '');
+                    if (isGarbageLine(t)) return;
+                    if (t && t.length >= 6) cleaned.push(t);
+                });
+                if (!cleaned.length) return '';
+                const lead = cleaned[0];
+                const rest = cleaned.slice(1, 14);
+                let html = `<div class="md-card-content"><p>${inline(lead)}</p>`;
+                if (rest.length) {
+                    html += '<ul>' + rest.map((t) => `<li>${inline(t)}</li>`).join('') + '</ul>';
+                }
+                html += '</div>';
+                return html;
+            };
+
+            let src = String(text || '')
+                .replace(/```[\s\S]*?```/g, '')
+                .replace(/([。！？；])\s*(#{1,6}\s*)?([一二三][、.．])/g, '$1\n## $3')
+                .replace(/([。！？；])\s*(不合規／風險分析|具體修補建議|事件經過摘要)/g, '$1\n## $2');
+
+            const buckets = { s1: [], s2: [], s3: [] };
+            let cur = 's1';
+            src.split('\n').forEach((line) => {
+                const raw = line.trim();
+                if (!raw) return;
+                // 【報告結束】／【回答結束】僅供後端停止生成，畫面不顯示
+                let bodyLine = raw.replace(/【(?:回答|報告)結束】/g, '').trim();
+                if (!bodyLine) return;
+                if (/^#{1,6}\s*$/.test(bodyLine) || isGarbageLine(bodyLine)) return;
+                if (/^#{1,6}\s+\S/.test(bodyLine) || /^[一二三四五]、\S/.test(bodyLine)) {
+                    const title = bodyLine.replace(/^#{1,6}\s+/, '').trim();
+                    const kind = classify(title);
+                    if (kind === 'hero' || !kind) return;
+                    cur = kind;
+                    return;
+                }
+                const cleaned = cleanLine(bodyLine);
+                if (cleaned && !isGarbageLine(cleaned)) buckets[cur].push(cleaned);
+            });
+
+            const defaults = {
+                s1: '依目前監控資料，尚未觀察到需立即升級的重大事件；建議持續觀察。',
+                s2: '目前無明確高風險不合規證據；請交叉比對控制項量化指標。',
+                s3: '維持現有監控與定期複核；若出現異常日誌再啟動 CAPA。'
+            };
+            let html = '<div class="md-block">';
+            ['s1', 's2', 's3'].forEach((key) => {
+                const meta = canon[key];
+                const body = renderBodyLines(buckets[key]) ||
+                    `<div class="md-card-content"><p>${inline(defaults[key])}</p></div>`;
+                html += `
+                    <section class="md-section-card tone-${meta.tone}">
+                        <div class="md-card-head">
+                            <span class="md-card-index">${meta.idx}</span>
+                            <h3 class="md-card-title">${escapeHtml(meta.title)}</h3>
+                        </div>
+                        <div class="md-card-body">${body}</div>
+                    </section>
+                `;
+            });
+            html += '</div>';
+            return html;
+        }
+
+        function renderAiAnalysis(text, citations) {
+            const box = document.getElementById('aiResponseText');
+            const ragBox = document.getElementById('aiRagBox');
+            if (box) box.innerHTML = renderMarkdownLite(text || '');
+            if (ragBox) {
+                if (citations && citations.length) {
+                    ragBox.style.display = 'block';
+                    ragBox.innerHTML = `<details><summary>📚 RAG 知識庫引用（${citations.length} 筆，僅標題）</summary><ol>` +
+                        citations.map((c, i) =>
+                            `<li>#${i + 1} score=${escapeHtml(String(c.score ?? ''))}｜${escapeHtml(c.title || c.id || '')}</li>`
+                        ).join('') +
+                        `</ol></details>`;
+                } else {
+                    ragBox.style.display = 'none';
+                    ragBox.innerHTML = '';
+                }
+            }
+        } 
+
+        let complianceDb = {
+            sec_gem_log: { title: "A.8.24 密碼學與網絡傳輸安全校驗", meta: [], log: "無資料", aiAnalysis: "尚無 AI 診斷數據，請點擊「執行地端診斷分析」。" },
+            recipe_audit: { title: "A.8.19 變更組態管理稽核", meta: [], log: "無資料", aiAnalysis: "尚無 AI 診斷數據，請點擊「執行地端診斷分析」。" },
+            access_control: { title: "A.5.15 存取控制（OT 管理面登入／AAA 事件）", meta: [], log: "無資料", aiAnalysis: "尚無 AI 診斷數據，請點擊「執行地端診斷分析」。", evidenceId: "" },
+            patch_management: { title: "A.8.8 技術弱點管理防禦日誌", meta: [], log: "無資料", aiAnalysis: "尚無 AI 診斷數據，請點擊「執行地端診斷分析」。" },
+            supplier_security: { title: "A.5.19 供應商資安關係稽核預警", meta: [], log: "無資料", aiAnalysis: "尚無 AI 診斷數據，請點擊「執行地端診斷分析」。" },
+            malware_defense: { title: "A.8.7 端點防範惡意軟體稽核", meta: [], log: "無資料", aiAnalysis: "尚無 AI 診斷數據，請點擊「執行地端診斷分析」。" }
+        };
+
+        document.addEventListener("DOMContentLoaded", function () {
+            // 被整合平台 iframe 載入時套用嵌入樣式
+            const params = new URLSearchParams(location.search);
+            if (params.get('embed') === '1' || window.self !== window.top) {
+                document.documentElement.classList.add('embedded');
+            }
+
+            // 並排縮放後重繪圖表
+            window.addEventListener('message', (ev) => {
+                if (!ev.data || ev.data.type !== 'platform-scale') return;
+                try { if (myChart) myChart.resize(); } catch (_) {}
+            });
+
+            document.getElementById("sysTime").innerText = `更新時間：${new Date().toLocaleString()}`;
+
+            const ctx = document.getElementById('complianceBarChart').getContext('2d');
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['A.5.19', 'A.5.15', 'A.8.7', 'A.8.8', 'A.8.19', 'A.8.24'],
+                    datasets: [
+                        { label: '次要不符合 (Minor NC)', data: [0, 0, 0, 0, 0, 0], backgroundColor: '#f59e0b', borderRadius: 4 },
+                        { label: '重大違規 (Major NC)', data: [0, 0, 0, 0, 0, 0], backgroundColor: '#ef4444', borderRadius: 4 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { ticks: { stepSize: 1 } } } }
+            });
+
+            restoreAiAnalyses();
+            loadReportLlmMenu();
+            fetchBackendData();
+            // 15 秒輪詢；分頁隱藏／彈窗開啟時暫停，避免畫面一直重載
+            setInterval(() => {
+                if (document.hidden) return;
+                if (document.getElementById('modalOverlay')?.classList.contains('active')) return;
+                if (document.getElementById('fullLogsModalOverlay')?.classList.contains('active')) return;
+                fetchBackendData();
+            }, 15000);
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) fetchBackendData();
+            });
+        });
+
+        let globalControlBundles = {};
+        let lastMonitorFingerprint = '';
+        const AI_STORAGE_KEY = 'ot_monitor_ai_v1';
+        const ARCHIVE_DISPLAY_LIMIT = 400;
+
+        function monitorFingerprint(data) {
+            try {
+                const m = data.metrics || {};
+                const counts = Object.keys(m).sort().map((k) => `${k}:${m[k].count}:${m[k].status}`).join('|');
+                const n = (data.parsed_logs || []).length;
+                const head = (data.parsed_logs || []).slice(0, 3).map((x) => `${x.time}|${x.raw}`).join(';');
+                return `${counts}#${n}#${head}`;
+            } catch (_) {
+                return String(Date.now());
+            }
+        }
+
+        function persistAiAnalyses() {
+            try {
+                const payload = {};
+                Object.keys(complianceDb).forEach((k) => {
+                    const a = complianceDb[k].aiAnalysis;
+                    if (a && !String(a).includes('尚無 AI 診斷數據')) {
+                        payload[k] = {
+                            aiAnalysis: a,
+                            ragCitations: complianceDb[k].ragCitations || []
+                        };
+                    }
+                });
+                localStorage.setItem(AI_STORAGE_KEY, JSON.stringify(payload));
+            } catch (_) {}
+        }
+
+        function restoreAiAnalyses() {
+            try {
+                const raw = localStorage.getItem(AI_STORAGE_KEY);
+                if (!raw) return;
+                const payload = JSON.parse(raw);
+                Object.keys(payload || {}).forEach((k) => {
+                    if (!complianceDb[k]) return;
+                    if (payload[k].aiAnalysis) {
+                        complianceDb[k].aiAnalysis = payload[k].aiAnalysis;
+                        complianceDb[k].ragCitations = payload[k].ragCitations || [];
+                    }
+                });
+            } catch (_) {}
+        }
+
+        async function fetchBackendData() {
+            try {
+                const response = await fetch('/api/monitor/data');
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    document.getElementById("otStatus").innerText = `❌ ${errData.error || '無法取得監控資料'}`;
+                    document.getElementById("otStatus").style.color = "#ef4444";
+                    return;
+                }
+                const data = await response.json();
+                const fp = monitorFingerprint(data);
+                // 資料沒變：只更新時間戳，不重繪表格／歷史區（避免「一直重新載入」）
+                if (fp === lastMonitorFingerprint && globalMetrics) {
+                    document.getElementById("sysTime").innerText = `更新時間：${new Date().toLocaleString()}`;
+                    return;
+                }
+                lastMonitorFingerprint = fp;
+
+                globalMetrics = data.metrics;
+                globalParsedLogs = data.parsed_logs || [];
+                globalControlBundles = data.control_bundles || {};
+                rawArchiveLines = globalParsedLogs.map(item => `[${item.file}] ${item.raw}`);
+
+                renderDashboard(data.metrics, globalParsedLogs, data.all_logs_content);
+            } catch (err) {
+                document.getElementById("otStatus").innerText = "❌ 狀態：無法連線至本地後端服務，請確認 Flask 是否啟動。";
+                document.getElementById("otStatus").style.color = "#ef4444";
+            }
+        }
+
+        function matchLogsForControl(key, parsedLogsList) {
+            // 優先使用後端組裝好的 bundle（含 SNMP→A.8.24 等正確對應）
+            if (globalControlBundles[key] && globalControlBundles[key].log) {
+                return globalControlBundles[key].log;
+            }
+
+            const controlHints = {
+                sec_gem_log: ['8.24', 'Crypto'],
+                recipe_audit: ['8.19', 'Logs'],
+                access_control: ['7.4', 'Access'],
+                patch_management: ['8.8'],
+                supplier_security: ['5.19'],
+                malware_defense: ['8.7']
+            };
+            const hints = controlHints[key] || [];
+            const matched = parsedLogsList.filter(l => {
+                if (l.key === key) return true;
+                const ctrl = l.control || '';
+                return hints.some(h => ctrl.includes(h));
+            }).map(l => l.raw);
+
+            if (!matched.length) return "目前該控制項沒有相關事件行數據。";
+            // 避免單次分析塞爆 context：最多取最新 6 筆，留給模型完整輸出
+            const limited = matched.slice(0, 6);
+            if (matched.length > 6) {
+                limited.push(`...另有 ${matched.length - 6} 筆同類事件已省略...`);
+            }
+            return limited.join('\n');
+        }
+
+        function renderDashboard(metrics, parsedLogsList, allLogsContent) {
+            Object.keys(metrics).forEach(key => {
+                if (!complianceDb[key]) return;
+
+                let cardVal = document.getElementById(`val-${key}`);
+                let cardDot = document.getElementById(`dot-${key}`);
+                if (cardVal && cardDot) {
+                    cardVal.innerText = metrics[key].text;
+                    
+                    let targetColor = "#10b981"; 
+                    if (metrics[key].status === "review") targetColor = "#f59e0b"; 
+                    if (metrics[key].status === "fail") targetColor = "#ef4444"; 
+                    
+                    cardVal.style.color = targetColor;
+                    cardDot.className = `status-dot ${metrics[key].status}`;
+                }
+
+                const bundle = globalControlBundles[key] || {};
+                complianceDb[key].meta = [
+                    ["主稽控制項", complianceDb[key].title],
+                    ["日誌事件量", `${metrics[key].count} 筆記錄`],
+                    ["事件明細筆數", `${bundle.event_count != null ? bundle.event_count : 0} 筆摘要`],
+                    ["合規性狀態評定", metrics[key].text]
+                ];
+                complianceDb[key].metricSummary = bundle.metric_summary ||
+                    `count=${metrics[key].count}, status=${metrics[key].status}, text=${metrics[key].text}`;
+                complianceDb[key].log = matchLogsForControl(key, parsedLogsList);
+                complianceDb[key].evidenceId = bundle.evidence_id || complianceDb[key].evidenceId || '';
+            });
+
+            // 呈現最新 5 筆日誌
+            let tableBody = document.getElementById("logTableBody");
+            if (parsedLogsList.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">OT/ 資料夾內為空或無符合 ISO 27001 之事件特徵。</td></tr>`;
+            } else {
+                let tableHtml = "";
+                parsedLogsList.slice(0, 5).forEach(item => {
+                    let keyMapping = getMappingKey(item.control, item.key);
+                    tableHtml += `<tr class="clickable-row" onclick="showDetails('${keyMapping}')">
+                        <td>${item.time}</td><td>${fileSnippet(item.file)}</td><td>${item.control}</td><td><span class="badge ${item.type}">${item.statusText}</span></td>
+                    </tr>`;
+                });
+                tableBody.innerHTML = tableHtml;
+            }
+
+            document.getElementById("openFullTableBtn").disabled = false;
+            executeArchiveFilter();
+            document.getElementById("archiveSearchInput").disabled = false;
+
+            // 圖表數據更新（無動畫，減少閃爍）
+            myChart.data.datasets[0].data = [metrics.supplier_security.count, metrics.access_control.count > 0 ? 1 : 0, 0, metrics.patch_management.count, metrics.recipe_audit.count, 0];
+            myChart.data.datasets[1].data = [0, metrics.access_control.count > 1 ? metrics.access_control.count - 1 : 0, metrics.malware_defense.count, 0, 0, 0];
+            myChart.update('none');
+
+            document.getElementById("downloadPdfBtn").disabled = false;
+            document.getElementById("downloadTxtBtn").disabled = false;
+            document.getElementById("sysTime").innerText = `更新時間：${new Date().toLocaleString()}`;
+
+            document.getElementById("otStatus").innerText = `🔄 連線成功：已讀取 ot/*.txt（有變更才重繪；診斷結果已本地保存）`;
+            document.getElementById("otStatus").style.color = "#10b981";
+        }
+
+        function getMappingKey(controlStr, itemKey) {
+            if (itemKey && complianceDb[itemKey]) return itemKey;
+            if (!controlStr) return "sec_gem_log";
+            if (controlStr.includes("A.8.24")) return "sec_gem_log";
+            if (controlStr.includes("A.8.19")) return "recipe_audit";
+            if (controlStr.includes("A.5.15") || controlStr.includes("A.7.4")) return "access_control";
+            if (controlStr.includes("A.8.8")) return "patch_management";
+            if (controlStr.includes("A.5.19")) return "supplier_security";
+            if (controlStr.includes("A.8.7")) return "malware_defense";
+            return "sec_gem_log";
+        }
+        function fileSnippet(name) {
+            return name.length > 25 ? name.substring(0, 22) + "..." : name;
+        }
+
+        function openFullLogsModal() {
+            if (globalParsedLogs.length === 0) return;
+            let modalTableBody = document.getElementById("fullLogTableBodyModal");
+            let tableHtml = "";
+            
+            globalParsedLogs.forEach(item => {
+                let keyMapping = getMappingKey(item.control, item.key);
+                tableHtml += `<tr class="clickable-row" onclick="closeFullLogsModal(); showDetails('${keyMapping}');">
+                    <td>${item.time}</td><td>${item.file}</td><td>${item.control}</td><td><span class="badge ${item.type}">${item.statusText}</span></td>
+                </tr>`;
+            });
+            modalTableBody.innerHTML = tableHtml;
+            document.getElementById("fullLogsModalOverlay").classList.add("active");
+        }
+
+        function closeFullLogsModal() {
+            document.getElementById("fullLogsModalOverlay").classList.remove("active");
+        }
+
+        function executeArchiveFilter() {
+            const query = document.getElementById("archiveSearchInput").value.trim().toLowerCase();
+            const container = document.getElementById("historicalLogContainer");
+            const counterLabel = document.getElementById("archiveSearchCounter");
+            const prevScroll = container.scrollTop;
+
+            if (!query) {
+                const shown = rawArchiveLines.slice(0, ARCHIVE_DISPLAY_LIMIT);
+                const more = Math.max(0, rawArchiveLines.length - shown.length);
+                container.innerText = shown.join('\n') || "暫無歷史串流。";
+                if (more > 0) {
+                    container.innerText += `\n...另有 ${more} 行未展開（搜尋可過濾全量樣本）...`;
+                }
+                counterLabel.innerText = `顯示: ${shown.length} / ${rawArchiveLines.length} 行`;
+                container.scrollTop = prevScroll;
+                return;
+            }
+            const filteredLines = rawArchiveLines.filter(line => line.toLowerCase().includes(query));
+            const shown = filteredLines.slice(0, ARCHIVE_DISPLAY_LIMIT);
+            container.innerText = shown.length > 0 ? shown.join('\n') : "⚠️ 未檢索到任何符合該搜尋關鍵字的歷史日誌。";
+            if (filteredLines.length > shown.length) {
+                container.innerText += `\n...另有 ${filteredLines.length - shown.length} 筆符合但未展開...`;
+            }
+            counterLabel.innerText = `匹配進度: ${filteredLines.length} / ${rawArchiveLines.length} 行`;
+            container.scrollTop = prevScroll;
+        }
+
+        let currentKey = '';
+        function showDetails(key) {
+            currentKey = key;
+            const data = complianceDb[key];
+            if (!data) return;
+            
+            document.getElementById('modalTitle').innerText = data.title;
+            document.getElementById('modalLog').innerText = data.log;
+            
+            let metaHtml = '';
+            data.meta.forEach(m => { metaHtml += `<div class="meta-item"><span>${m[0]}</span><span>${m[1]}</span></div>`; });
+            if (data.evidenceId) {
+                metaHtml += `<div class="meta-item"><span>evidence_id</span><span style="font-family:monospace;font-size:11px">${data.evidenceId}</span></div>`;
+            }
+            metaHtml += `<div class="meta-item"><span>合規原則</span><span>No Evidence, No Compliance Claim</span></div>`;
+            document.getElementById('modalMeta').innerHTML = metaHtml;
+            
+            const aiResultBox = document.getElementById('aiResultBox');
+            if (data.aiAnalysis && !data.aiAnalysis.includes("尚無 AI 診斷數據")) {
+                renderAiAnalysis(data.aiAnalysis, data.ragCitations || []);
+                aiResultBox.style.display = 'block';
+            } else {
+                aiResultBox.style.display = 'none';
+            }
+            
+            document.getElementById('modalGuardrail').style.display = 'none';
+            
+            const btn = document.getElementById('aiBtn');
+            btn.disabled = false;
+            document.getElementById('aiSpinner').style.display = 'none';
+            document.getElementById('aiBtnText').innerText = '執行地端診斷分析';
+            
+            document.getElementById('modalOverlay').classList.add('active');
+        }
+
+        function closeModal() { 
+            document.getElementById('modalOverlay').classList.remove('active'); 
+        }
+        
+        async function analyzeComplianceWithLocalLLM() {
+            const btn = document.getElementById('aiBtn');
+            const spinner = document.getElementById('aiSpinner');
+            const btnText = document.getElementById('aiBtnText');
+            const guardrailBox = document.getElementById('modalGuardrail');
+            const aiResultBox = document.getElementById('aiResultBox');
+            const responseText = document.getElementById('aiResponseText');
+            
+            if (!currentKey || !complianceDb[currentKey]) {
+                alert('請先選擇一個控制項卡片再執行診斷。');
+                return;
+            }
+
+            btn.disabled = true; 
+            spinner.style.display = 'inline-block';
+            const mdl = selectedReportLlm ? `（${selectedReportLlm}）` : '';
+            btnText.innerText = '地端 LLM 正在剖析中' + mdl + '...';
+            guardrailBox.style.display = 'none';
+            aiResultBox.style.display = 'none';
+            
+            const entry = complianceDb[currentKey];
+            const rawLogToAnalyze = entry.log;
+            
+            try {
+                const res = await fetch('/api/audit/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        control_key: currentKey,
+                        title: entry.title,
+                        log: rawLogToAnalyze,
+                        metric_summary: entry.metricSummary || '',
+                        model: selectedReportLlm || undefined
+                    })
+                });
+
+                const result = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    throw new Error(result.error || `伺服器回應錯誤: ${res.status}`);
+                }
+
+                const aiMarkdown = result.ai_analysis || '（模型未回傳內容）';
+                complianceDb[currentKey].aiAnalysis = aiMarkdown;
+                complianceDb[currentKey].ragCitations = result.rag_citations || [];
+                if (result.evidence_id) {
+                    complianceDb[currentKey].evidenceId = result.evidence_id;
+                }
+                persistAiAnalyses();
+
+                const hr = result.human_review || {};
+                const guard = result.guardrail || {};
+                if (hr.recommended) {
+                    guardrailBox.innerText = `🛡️ AI Reviewer：${hr.reason || 'LLM 診斷已由地端 AI Reviewer 或管線自動審核'}${result.evidence_id ? ' · ' + result.evidence_id : ''}`;
+                    guardrailBox.style.display = 'block';
+                } else if (result.status === 'blocked' || guard.blocked || guard.output_redacted ||
+                    (/wlc|radius|tacacs/i.test(rawLogToAnalyze) && currentKey === 'access_control')) {
+                    const reason = guard.reason || (guard.output_redacted ? '輸出已脫敏' : '偵測到敏感資安設備明細');
+                    guardrailBox.innerText = `⚠️ 護欄警示：${reason}（mode=${guard.mode || 'rules'}）`;
+                    guardrailBox.style.display = 'block';
+                }
+
+                // 報告本體美化；RAG 只顯示可摺疊標題，不塞進正文
+                renderAiAnalysis(aiMarkdown, result.rag_citations || []);
+                aiResultBox.style.display = 'block';
+
+            } catch (err) {
+                console.error("LLM 呼叫失敗:", err);
+                responseText.innerText = `❌ 地端 LLM 診斷失敗：${err.message}\n請確認 Flask 後端已啟動、模型載入成功，並重新整理後再試。`;
+                aiResultBox.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                spinner.style.display = 'none';
+                btnText.innerText = '重新執行地端診斷';
+            }
+        }
+
+        function analysisLooksBad(text) {
+            const t = String(text || '');
+            if (!t || t.includes('尚無 AI 診斷數據')) return true;
+            if (/MFG\s*\d+|MFG01|新增(?:新)?設定檔|刪除舊設定檔|內容寫診斷|開始輸入|格式撰寫/.test(t)) return true;
+            if (/誌」|【內部知識|禁止照抄|轉述重點/.test(t)) return true;
+            if (/\[HOSTNAME\]|\[IP_ADDRESS\]|\[PORT\]|\[SYSLOG_LEVEL\]|\[SYSLOG_MSG\]|SYSLOG:\s*\[ID/i.test(t)) return true;
+            if (/2023-05-15\s+10:30:00\s*\[INFO\]|2023年10月15日/.test(t)) return true;
+            if (/此處省略|省略了詳細|且出現了\s*的訊息|SSH\s*埠\s*\(\s*\)/.test(t)) return true;
+            if (/LOGIN_SUCCESS|登入成功/.test(t) && /登入失敗|暴力破解|brute/i.test(t) && !/LOGIN_FAILED|AUTHFAIL|denied/i.test(t)) return true;
+            if (/依目前監控數據，未觀察到需立即升級|尚未觀察到需立即升級/.test(t) &&
+                /SSL|UPDOWN|LOGIN|SNMP|埠|interface/i.test(t)) return true;
+            return false;
+        }
+
+        function sanitizeAnalysisForExport(text) {
+            let t = String(text || '');
+            t = t.replace(/[^\n]*內容寫診斷[^\n]*/g, '');
+            t = t.replace(/[^\n]*誌」[^\n]*/g, '');
+            t = t.replace(/[^\n]*(?:開始輸入|開始輸出|格式撰寫|禁止照抄)[^\n]*/g, '');
+            t = t.replace(/[^\n]*(?:此處省略|省略了詳細)[^\n]*/g, '');
+            t = t.replace(/且出現了\s*的訊息/g, '且出現異常訊息');
+            t = t.replace(/SSH\s*埠\s*\(\s*\)/g, 'SSH 管理埠');
+            t = t.replace(/\n{3,}/g, '\n\n').trim();
+            // 仍是幻覺模板 → 整段作廢，避免進 PDF
+            if (analysisLooksBad(t) || /P01機臺|192\.168\.1\.100.*SSH|目前無明確高風險不合規證據/.test(t) && /\[INFO\]|HOSTNAME|SYSLOG:\s*\[ID/.test(t)) {
+                return (
+                    '## 地端 LLM 智慧合規診斷報告\n\n' +
+                    '## 一、事件經過摘要\n' +
+                    '此段原診斷含虛構日誌／佔位符，已自動作廢。請重啟後端後再匯出，或依該控制項重新執行地端診斷。\n\n' +
+                    '## 二、不合規／風險分析\n' +
+                    '- 請以量化矩陣計數與原始 Cisco syslog（%FACILITY-SEV-MNEMONIC）為準。\n\n' +
+                    '## 三、具體修補建議\n' +
+                    '- 重啟 python app.py 後按「匯出 PDF」強制重算；勿沿用含 HOSTNAME／假時間戳的舊結果。\n'
+                );
+            }
+            return t || '（診斷內容已淨化；請重新執行地端診斷）';
+        }
+
+        function reportLlmLabel() {
+            const meta = reportLlmModels.find(
+                (m) => m.slug === selectedReportLlm || m.path === selectedReportLlm
+            );
+            if (meta && meta.label) {
+                const stage = meta.stage_label ? `[${meta.stage_label}] ` : '';
+                return stage + meta.label;
+            }
+            return selectedReportLlm || '目前已載入模型';
+        }
+
+        async function ensureReportLlmSelected() {
+            // 匯出前確認有選定模型；沒有則同步後端目前模型
+            const sel = document.getElementById('reportLlmSelect');
+            if (sel && sel.value) selectedReportLlm = sel.value;
+            if (!selectedReportLlm) {
+                await loadReportLlmMenu();
+            }
+            if (!selectedReportLlm && sel && sel.value) {
+                selectedReportLlm = sel.value;
+            }
+            if (!selectedReportLlm) {
+                throw new Error('請先在「分析模型」選擇要用的 LLM，再匯出報告');
+            }
+            localStorage.setItem(LLM_MODEL_KEY, selectedReportLlm);
+
+            // 強制切到指定模型（釋放舊模型後載入）
+            setReportLlmStatus(`匯出前切換模型：${reportLlmLabel()}…`, 'busy');
+            const res = await fetch('/api/llm/switch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ model: selectedReportLlm })
+            });
+            let data = {};
+            try { data = await res.json(); } catch (_) {}
+            if (!data.ok) {
+                throw new Error(data.error || ('模型切換失敗 HTTP ' + res.status));
+            }
+            selectedReportLlm = data.slug || selectedReportLlm;
+            localStorage.setItem(LLM_MODEL_KEY, selectedReportLlm);
+            setReportLlmStatus(data.message || `已切換：${reportLlmLabel()}`, 'ok');
+            return selectedReportLlm;
+        }
+
+        async function ensureAllLLMAnalyzed(forceRefresh = false) {
+            const keys = Object.keys(complianceDb);
+            // 匯出／強制重算：一律跑完全部控制項，不可沿用舊診斷
+            const targetKeys = forceRefresh
+                ? keys
+                : keys.filter(k => analysisLooksBad(complianceDb[k].aiAnalysis));
+
+            if (targetKeys.length === 0) {
+                return true;
+            }
+
+            const otStatus = document.getElementById("otStatus");
+            const downloadPdfBtn = document.getElementById("downloadPdfBtn");
+            const downloadTxtBtn = document.getElementById("downloadTxtBtn");
+
+            try {
+                if (forceRefresh) {
+                    await ensureReportLlmSelected();
+                }
+            } catch (e) {
+                alert(`⚠️ ${e.message || e}`);
+                setReportLlmStatus(e.message || '模型未就緒', 'err');
+                return false;
+            }
+
+            const modelName = reportLlmLabel();
+            otStatus.innerText = forceRefresh
+                ? `⏳ 匯出前以「${modelName}」重新分析 ${targetKeys.length} 項控制項…`
+                : `⏳ 正在補齊／修正地端診斷分析，請稍候...`;
+            otStatus.style.color = "#f59e0b";
+            downloadPdfBtn.disabled = true;
+            downloadTxtBtn.disabled = true;
+
+            const payloadItems = {};
+            targetKeys.forEach(k => {
+                payloadItems[k] = {
+                    log: complianceDb[k].log,
+                    title: complianceDb[k].title,
+                    metric_summary: complianceDb[k].metricSummary || ''
+                };
+            });
+
+            try {
+                const res = await fetch('/api/audit/analyze_all', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        items: payloadItems,
+                        keys: targetKeys,
+                        model: selectedReportLlm,
+                        force: true
+                    })
+                });
+
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(data.error || "批次診斷請求失敗");
+
+                const used = (data.llm_model && (data.llm_model.label || data.llm_model.slug))
+                    || modelName;
+                Object.keys(data.results || {}).forEach(k => {
+                    complianceDb[k].aiAnalysis = data.results[k];
+                    complianceDb[k].analyzedBy = used;
+                });
+                window._lastReportLlmLabel = used;
+                persistAiAnalyses();
+
+                otStatus.innerText = `✅ 已用「${used}」完成診斷，正在導出報表...`;
+                otStatus.style.color = "#10b981";
+                return true;
+
+            } catch (err) {
+                console.error("批次診斷失敗:", err);
+                alert(`⚠️ 執行全量診斷時發生錯誤：${err.message}`);
+                otStatus.innerText = `❌ 全量診斷失敗`;
+                otStatus.style.color = "#ef4444";
+                return false;
+            } finally {
+                downloadPdfBtn.disabled = false;
+                downloadTxtBtn.disabled = false;
+            }
+        }
+
+        function ensurePdfLibraries() {
+            const missing = [];
+            if (typeof window.jspdf === 'undefined' || !window.jspdf.jsPDF) missing.push('jspdf.umd.min.js');
+            if (typeof html2canvas !== 'function') missing.push('html2canvas.min.js');
+            if (missing.length) {
+                throw new Error(
+                    '缺少 PDF 匯出套件：' + missing.join('、') +
+                    '。請確認 static/vendor/ 目錄完整並重新整理頁面。'
+                );
+            }
+        }
+
+        function collectEvidenceSummary() {
+            const ids = Object.keys(complianceDb)
+                .map((k) => complianceDb[k].evidenceId)
+                .filter(Boolean);
+            if (!ids.length) return '尚無 evidence_id（請先載入監控資料）';
+            return ids.slice(0, 6).join(' · ') + (ids.length > 6 ? ' …' : '');
+        }
+
+        const PDF_EXPORT_TAGS = {
+            sec_gem_log: 'A.8.24 傳輸加密',
+            recipe_audit: 'A.8.19 組態／介面',
+            access_control: 'A.5.15 存取控制',
+            patch_management: 'A.8.8 弱點修補',
+            supplier_security: 'A.5.19 供應商關係',
+            malware_defense: 'A.8.7 惡意防護',
+        };
+
+        async function exportTextReport() {
+            if (!globalMetrics) return;
+
+            const ready = await ensureAllLLMAnalyzed(true);
+            if (!ready) return;
+
+            const nowTime = new Date().toLocaleString();
+            const sections = [
+                ['A.8.24 傳輸加密分析', 'sec_gem_log'],
+                ['A.8.19 組態／介面稽核', 'recipe_audit'],
+                ['A.5.15 存取控制', 'access_control'],
+                ['A.8.8 技術弱點修補', 'patch_management'],
+                ['A.5.19 供應商／供應鏈關係', 'supplier_security'],
+                ['A.8.7 惡意軟體防護', 'malware_defense'],
+            ];
+            let body = sections.map(([label, key]) => {
+                const ev = complianceDb[key].evidenceId ? `\nEvidence: ${complianceDb[key].evidenceId}` : '';
+                return `【${label}】${ev}\n${sanitizeAnalysisForExport(complianceDb[key].aiAnalysis)}`;
+            }).join('\n\n');
+            let reportText = `====================================================================\n` +
+                             `       ISO/IEC 27001:2022 半導體供應鏈內部技術合規稽核報告 (TXT)\n` +
+                             `====================================================================\n` +
+                             `產出時間：${nowTime}\n` +
+                             `分析引擎：${window._lastReportLlmLabel || reportLlmLabel()}\n` +
+                             `解析總量：${globalParsedLogs.length} 行內部事件紀錄\n` +
+                             `Evidence：${collectEvidenceSummary()}\n\n` +
+                             body + '\n';
+
+            const blob = new Blob([reportText], { type: 'text/plain;charset=utf-8' });
+            const anchor = document.createElement('a');
+            anchor.download = `ISO27001_Full_LLM_Report_${Date.now()}.txt`;
+            anchor.href = window.URL.createObjectURL(blob);
+            anchor.click();
+        }
+
+        function setPdfMetricCell(id, metric) {
+            const el = document.getElementById(id);
+            if (!el || !metric) return;
+            el.innerText = metric.text || '--';
+            el.style.color = metric.status === 'fail' ? '#ef4444'
+                : (metric.status === 'review' ? '#f59e0b' : '#10b981');
+        }
+
+        async function exportBeautifulPDFReport() {
+            if (!globalMetrics) return;
+
+            try {
+                ensurePdfLibraries();
+            } catch (e) {
+                alert(`⚠️ ${e.message || e}`);
+                return;
+            }
+
+            // 每次匯出 PDF：先切到指定 LLM，再強制重跑 6 項分析（不可跳過）
+            const ready = await ensureAllLLMAnalyzed(true);
+            if (!ready) return;
+
+            const tpl = document.getElementById('pdfRenderTemplate');
+            tpl.classList.add('pdf-exporting');
+
+            try {
+                document.getElementById("pdf-meta-time").innerText = new Date().toLocaleString();
+                const engineEl = document.getElementById("pdf-meta-engine");
+                if (engineEl) {
+                    engineEl.innerText =
+                        `地端 LLM：${window._lastReportLlmLabel || reportLlmLabel()}（匯出前剛完成分析）`;
+                }
+                document.getElementById("pdf-meta-lines").innerText =
+                    `${globalParsedLogs.length}（樣本列；全量計數見下表）`;
+                const evEl = document.getElementById("pdf-meta-evidence");
+                if (evEl) evEl.innerText = collectEvidenceSummary();
+
+                setPdfMetricCell('pdf-m-824', globalMetrics.sec_gem_log);
+                setPdfMetricCell('pdf-m-819', globalMetrics.recipe_audit);
+                setPdfMetricCell('pdf-m-74', globalMetrics.access_control);
+                setPdfMetricCell('pdf-m-88', globalMetrics.patch_management);
+                setPdfMetricCell('pdf-m-519', globalMetrics.supplier_security);
+                setPdfMetricCell('pdf-m-87', globalMetrics.malware_defense);
+
+                const exceptionContainer = document.getElementById("pdfExceptionContainer");
+                exceptionContainer.innerHTML = "";
+                const alerts = [];
+                if (globalMetrics.access_control.status === 'fail') {
+                    alerts.push('<b>[存取控制]</b> 驗證／登入事件偏高，請核對共用帳、Telnet 與來源白名單。');
+                }
+                if (globalMetrics.malware_defense.count > 0) {
+                    alerts.push('<b>[惡意防護]</b> 出現惡意／入侵相關 syslog，請依事件隔離與追查。');
+                }
+                if (globalMetrics.recipe_audit.status === 'review') {
+                    alerts.push('<b>[組態／介面]</b> 介面 UPDOWN 或組態事件偏多，請排查抖動埠與變更單。');
+                }
+                if (alerts.length) {
+                    exceptionContainer.innerHTML =
+                        `<div class="pdf-grid-title" style="color:#ef4444;">合規風險提示</div>` +
+                        `<div class="pdf-alert-block">${alerts.join('<br>')}</div>`;
+                }
+
+                const llmContainer = document.getElementById("pdfLLMAnalysisContainer");
+                const keys = ['sec_gem_log', 'recipe_audit', 'access_control', 'patch_management', 'supplier_security', 'malware_defense'];
+                let llmHtml = '';
+                for (let i = 0; i < keys.length; i++) {
+                    const key = keys[i];
+                    const tag = PDF_EXPORT_TAGS[key] || complianceDb[key].title;
+                    const analysis = sanitizeAnalysisForExport(complianceDb[key].aiAnalysis);
+                    const evLine = complianceDb[key].evidenceId
+                        ? `<div style="font-size:11px;color:#64748b;margin-bottom:6px;">Evidence: ${escapeHtml(complianceDb[key].evidenceId)}</div>`
+                        : '';
+                    let cardsHtml = renderMarkdownLite(analysis)
+                        .replace('class="md-block"', 'class="md-block pdf-ai-cards"')
+                        .replace(/class="md-section-card /g, 'class="md-section-card pdf-section-card ');
+                    llmHtml += `
+                        <div class="pdf-llm-analysis-item">
+                            <div class="pdf-llm-control-head pdf-llm-card-unit">
+                                <span class="pdf-llm-tag">${escapeHtml(tag)}</span>
+                            </div>
+                            ${evLine}
+                            ${cardsHtml}
+                        </div>
+                    `;
+                }
+                llmContainer.innerHTML = llmHtml;
+
+                // 第三段標題與第一個控制項合併，避免 PDF 只印標題、內容跳到下一頁
+                const llmSectionBlock = llmContainer.closest('.pdf-block');
+                const llmTitle = llmSectionBlock && llmSectionBlock.querySelector('.pdf-grid-title');
+                const firstLlmItem = llmContainer.querySelector('.pdf-llm-analysis-item');
+                let llmTitleAnchor = null;
+                if (llmTitle && firstLlmItem) {
+                    llmTitleAnchor = document.createElement('div');
+                    llmTitleAnchor.className = 'pdf-llm-section-head pdf-llm-card-unit';
+                    llmTitleAnchor.appendChild(llmTitle.cloneNode(true));
+                    firstLlmItem.insertBefore(llmTitleAnchor, firstLlmItem.firstChild);
+                }
+
+                // 等 DOM 佈局完成再截圖
+                await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const margin = 12;
+                const printableWidth = 210 - margin * 2;
+                const printableHeight = 297 - margin * 2;
+                let currentY = margin;
+                let pageIndex = 0;
+
+                const elementsToRender = [];
+                document.querySelectorAll('#pdfRenderTemplate > .pdf-block').forEach((block) => {
+                    if (block.id === 'pdfExceptionContainer' && !block.innerHTML.trim()) return;
+                    if (block.querySelector('#pdfLLMAnalysisContainer')) {
+                        block.querySelectorAll('.pdf-llm-analysis-item').forEach((item) => {
+                            elementsToRender.push(item);
+                        });
+                    } else {
+                        elementsToRender.push(block);
+                    }
+                });
+
+                for (const elem of elementsToRender) {
+                    if (!elem || !elem.offsetHeight) continue;
+
+                    const canvas = await html2canvas(elem, {
+                        scale: 1.5,
+                        useCORS: true,
+                        logging: false,
+                        backgroundColor: '#ffffff',
+                        windowWidth: 794
+                    });
+
+                    // JPEG 大幅縮小體積；超高區塊等比縮進單頁
+                    let imgData = canvas.toDataURL('image/jpeg', 0.82);
+                    let drawW = printableWidth;
+                    let drawH = (canvas.height * drawW) / canvas.width;
+                    if (drawH > printableHeight) {
+                        const scale = printableHeight / drawH;
+                        drawH = printableHeight;
+                        drawW = drawW * scale;
+                    }
+
+                    if (currentY > margin && currentY + drawH > margin + printableHeight) {
+                        pdf.addPage();
+                        pageIndex += 1;
+                        currentY = margin;
+                    }
+
+                    // 只畫在「目前這一頁」，避免舊版 jsPDF 把圖層疊到每一頁
+                    pdf.setPage(pageIndex + 1);
+                    pdf.addImage(imgData, 'JPEG', margin, currentY, drawW, drawH, undefined, 'FAST');
+                    currentY += drawH + 4;
+                }
+
+                pdf.save(`ISO27001_OT_Compliance_Report_${Date.now()}.pdf`);
+                document.getElementById('otStatus').innerText =
+                    `✅ PDF 已匯出（已重算診斷、壓縮影像）`;
+            } catch (err) {
+                console.error('PDF 匯出失敗:', err);
+                alert(`PDF 匯出失敗：${err.message || err}`);
+            } finally {
+                tpl.classList.remove('pdf-exporting');
+            }
+        }
+    </script>
+</body>
+</html>

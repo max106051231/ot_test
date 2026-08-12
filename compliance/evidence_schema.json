@@ -1,0 +1,48 @@
+{
+  "version": "1.0",
+  "principle": "No Evidence, No Compliance Claim",
+  "evidence_id_format": "EV-{site}-{control_key}-{collected_at_utc}-{integrity_hash8}",
+  "id_components": {
+    "site": "部署站點代碼，預設 ot-fab",
+    "control_key": "內部控制項 key 或 annex_a_id（如 access_control / A.8.24）",
+    "collected_at_utc": "ISO8601 緊湊格式 YYYYMMDDTHHMMSSZ",
+    "integrity_hash8": "SHA-256(payload_canonical_json) 前 8 字元"
+  },
+  "required_fields": [
+    "evidence_id",
+    "annex_a_id",
+    "control_key",
+    "source_type",
+    "source_file",
+    "collected_at",
+    "collector",
+    "payload_hash",
+    "prev_hash"
+  ],
+  "optional_fields": [
+    "log_line_ref",
+    "device_id",
+    "event_count",
+    "metric_summary",
+    "llm_analysis_ref",
+    "rag_doc_ids",
+    "review_status",
+    "reviewer",
+    "reviewed_at"
+  ],
+  "source_types": [
+    "syslog_line",
+    "syslog_aggregate",
+    "config_snapshot",
+    "rag_citation",
+    "llm_diagnosis",
+    "human_review_note"
+  ],
+  "hash_chain": {
+    "algorithm": "SHA-256",
+    "chain_field": "prev_hash",
+    "genesis": "0000000000000000000000000000000000000000000000000000000000000000",
+    "description": "每筆 evidence 的 payload_hash 連結前一筆 prev_hash，供稽核追溯與防篡改"
+  },
+  "uniqueness": "evidence_id 由 site+control+timestamp+payload_hash 決定；同 payload 重送會產生相同 hash8 可去重"
+}

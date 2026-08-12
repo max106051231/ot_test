@@ -1,0 +1,2112 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semi-Shield 合規架構 | No Evidence, No Compliance Claim</title>
+    <style>
+        :root {
+            --bg: #050b14;
+            --panel: #0a1524;
+            --text: #e8eef7;
+            --muted: #8aa0b8;
+            --accent: #4ec8f0;
+            --accent2: #2dd4bf;
+            --border: rgba(100, 140, 180, 0.18);
+            --warn: #f59e0b;
+            --ok: #22c55e;
+            --err: #ef4444;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            font-family: "Noto Sans TC", "Segoe UI", "Microsoft JhengHei", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        html.embedded body { background: transparent; }
+        html.embedded .wrap { padding-top: 12px; }
+        html.embedded .page-nav { display: none; }
+        .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 20px 48px; }
+        h1 { font-size: 1.6rem; margin: 0 0 8px; }
+        h2 { font-size: 1.15rem; color: var(--accent); margin: 28px 0 12px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+        .tagline { color: var(--muted); margin-bottom: 20px; }
+        .page-nav { margin-bottom: 16px; }
+        .page-nav a {
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 0.85rem;
+            margin-right: 12px;
+        }
+        .principle {
+            background: linear-gradient(135deg, rgba(78,200,240,.12), rgba(45,212,191,.08));
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px 18px;
+            margin-bottom: 24px;
+        }
+        .principle strong { color: var(--accent2); }
+        .banner {
+            display: none;
+            padding: 10px 14px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 0.88rem;
+        }
+        .banner.err { display: block; background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.35); color: #fecaca; }
+        .banner.ok { display: block; background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.3); color: #bbf7d0; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+        .card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 16px;
+        }
+        .card h3 { margin: 0 0 8px; font-size: 0.95rem; }
+        .metric { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+        .metric small { font-size: 0.75rem; color: var(--muted); font-weight: 400; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: top; }
+        th { background: rgba(78,200,240,.08); color: var(--accent); }
+        .mono { font-family: ui-monospace, Consolas, monospace; font-size: 0.8rem; }
+        .layer { margin: 8px 0; padding-left: 12px; border-left: 3px solid var(--accent2); }
+        .layer-clickable {
+            cursor: pointer;
+            padding: 10px 12px;
+            margin: 6px 0;
+            border-radius: 8px;
+            border-left: 3px solid var(--accent2);
+            transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+        }
+        .layer-clickable:hover {
+            background: rgba(78, 200, 240, 0.08);
+            border-left-color: var(--accent);
+            box-shadow: 0 0 16px rgba(78, 200, 240, 0.12);
+        }
+        .layer-clickable.active {
+            background: rgba(78, 200, 240, 0.12);
+            border-left-color: var(--accent);
+            box-shadow: 0 0 0 1px rgba(78, 200, 240, 0.15);
+        }
+        .layer-clickable::after {
+            content: ' ▸ 點擊查看詳細資料';
+            float: right;
+            font-size: 0.72rem;
+            color: var(--accent);
+            opacity: 0.75;
+        }
+        .arch-preview-detail {
+            min-height: 48px;
+            margin: 12px 0 8px;
+            transition: opacity 0.2s;
+        }
+        .arch-preview-detail:empty::before {
+            content: '↑ 點擊拓撲節點、路徑遙測或左側 01–05，詳細資料會顯示於此';
+            display: block;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px dashed rgba(78, 200, 240, 0.22);
+            color: var(--muted);
+            font-size: 0.82rem;
+        }
+        .arch-preview-detail.has-content:empty::before { content: none; }
+        .arch-node-pill {
+            display: inline-block;
+            margin: 4px 6px 4px 0;
+            padding: 5px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(78, 200, 240, 0.25);
+            background: rgba(78, 200, 240, 0.08);
+            color: var(--text);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+        }
+        .arch-node-pill:hover { border-color: var(--accent); background: rgba(78, 200, 240, 0.15); }
+        .arch-node-pill.active { border-color: var(--accent2); background: rgba(45, 212, 191, 0.12); }
+        .arch-detail-section { margin-top: 12px; }
+        .arch-detail-section h5 {
+            margin: 0 0 8px;
+            font-size: 0.78rem;
+            letter-spacing: 0.06em;
+            color: var(--accent2);
+            text-transform: uppercase;
+        }
+        .arch-meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 8px 0;
+            font-size: 0.78rem;
+        }
+        .arch-meta-tag {
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: rgba(78, 200, 240, 0.08);
+            border: 1px solid var(--border);
+            color: var(--muted);
+        }
+        .isms-topo-expand-btn {
+            padding: 4px 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(78, 200, 240, 0.35);
+            background: rgba(78, 200, 240, 0.1);
+            color: #bae6fd;
+            font-size: 9px;
+            cursor: pointer;
+            letter-spacing: 0.06em;
+        }
+        .isms-topo-expand-btn:hover { background: rgba(78, 200, 240, 0.2); }
+        .arch-modal-split .modal-body {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 0;
+        }
+        @media (min-width: 900px) {
+            .arch-modal-split .modal-body.has-selection {
+                grid-template-columns: 1.15fr 0.85fr;
+            }
+            .arch-modal-split .modal-body.has-selection #archDetailPanel {
+                border-left: 1px solid var(--border);
+                padding-left: 16px;
+                max-height: min(70vh, 680px);
+                overflow-y: auto;
+            }
+            .arch-modal-split .modal-body.has-selection .arch-flow-wrap {
+                max-height: min(70vh, 680px);
+                overflow: auto;
+            }
+        }
+        .section-clickable { cursor: pointer; }
+        .section-clickable:hover { color: var(--accent2); }
+        .arch-card-hint {
+            font-size: 0.78rem;
+            color: var(--muted);
+            margin: 0 0 10px;
+        }
+        .arch-flow-wrap {
+            position: relative;
+            margin: 0 0 16px;
+            padding: 0;
+            border-radius: 14px;
+            border: 1px solid rgba(78, 200, 240, 0.22);
+            overflow-x: auto;
+            overflow-y: hidden;
+            box-shadow:
+                0 0 0 1px rgba(78, 200, 240, 0.06) inset,
+                0 12px 40px rgba(0, 0, 0, 0.35),
+                0 0 48px rgba(78, 200, 240, 0.06);
+        }
+        .arch-flow-wrap::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            border-radius: inherit;
+            background: linear-gradient(135deg, rgba(78, 200, 240, 0.07), transparent 42%, rgba(45, 212, 191, 0.05));
+        }
+        .isms-topo {
+            --topo-bg: #071018;
+            --topo-grid: rgba(78, 200, 240, 0.06);
+            --topo-grid-major: rgba(78, 200, 240, 0.11);
+            --topo-text: #e8eef7;
+            --topo-muted: #8aa0b8;
+            --topo-live: #34d399;
+            --topo-red: #f87171;
+            --topo-amber: #fbbf24;
+            position: relative;
+            min-width: 760px;
+            background-color: var(--topo-bg);
+            background-image:
+                linear-gradient(var(--topo-grid) 1px, transparent 1px),
+                linear-gradient(90deg, var(--topo-grid) 1px, transparent 1px),
+                linear-gradient(var(--topo-grid-major) 1px, transparent 1px),
+                linear-gradient(90deg, var(--topo-grid-major) 1px, transparent 1px),
+                radial-gradient(ellipse 80% 50% at 50% -10%, rgba(78, 200, 240, 0.14), transparent 55%);
+            background-size: 16px 16px, 16px 16px, 80px 80px, 80px 80px, 100% 100%;
+            color: var(--topo-text);
+            font-family: ui-monospace, Consolas, "Courier New", monospace;
+            font-size: 11px;
+        }
+        .isms-topo-compact { min-width: 0; font-size: 10px; }
+        .isms-topo-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(78, 200, 240, 0.12);
+            background: linear-gradient(180deg, rgba(15, 28, 42, 0.95), rgba(10, 18, 28, 0.88));
+            backdrop-filter: blur(8px);
+        }
+        .isms-topo-head-left { display: flex; flex-direction: column; gap: 2px; }
+        .isms-topo-head strong {
+            font-size: 11px;
+            letter-spacing: 0.14em;
+            color: #67e8f9;
+            font-weight: 700;
+        }
+        .isms-topo-head-sub { font-size: 9px; color: var(--topo-muted); letter-spacing: 0.06em; }
+        .isms-topo-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 9px; color: var(--topo-muted); }
+        .isms-topo-legend span { display: inline-flex; align-items: center; gap: 5px; }
+        .isms-topo-legend i {
+            width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+            box-shadow: 0 0 8px currentColor;
+        }
+        .isms-topo-legend .leg-live i { background: var(--topo-live); color: var(--topo-live); }
+        .isms-topo-legend .leg-warn i { background: var(--topo-amber); color: var(--topo-amber); }
+        .isms-topo-legend .leg-down i { background: var(--topo-red); color: var(--topo-red); }
+        .isms-topo-body { display: grid; grid-template-columns: 148px 1fr; min-height: 420px; }
+        .isms-topo-rail {
+            background: linear-gradient(180deg, #0c1624 0%, #081018 100%);
+            border-right: 1px solid rgba(78, 200, 240, 0.1);
+            box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.03);
+        }
+        .isms-topo-rail-btn {
+            display: block;
+            width: 100%;
+            text-align: left;
+            border: 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            background: transparent;
+            color: inherit;
+            padding: 16px 12px;
+            cursor: pointer;
+            transition: background 0.2s, box-shadow 0.2s;
+            position: relative;
+        }
+        .isms-topo-rail-btn::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 8px; bottom: 8px;
+            width: 3px;
+            border-radius: 0 3px 3px 0;
+            background: transparent;
+            transition: background 0.2s, box-shadow 0.2s;
+        }
+        .isms-topo-rail-btn:hover { background: rgba(78, 200, 240, 0.06); }
+        .isms-topo-rail-btn.active {
+            background: linear-gradient(90deg, rgba(78, 200, 240, 0.12), transparent);
+        }
+        .isms-topo-rail-btn.layer-L1.active::before { background: #38bdf8; box-shadow: 0 0 12px #38bdf8; }
+        .isms-topo-rail-btn.layer-L2.active::before { background: #fbbf24; box-shadow: 0 0 12px #fbbf24; }
+        .isms-topo-rail-btn.layer-L3.active::before { background: #34d399; box-shadow: 0 0 12px #34d399; }
+        .isms-topo-rail-btn.layer-L4.active::before { background: #a78bfa; box-shadow: 0 0 12px #a78bfa; }
+        .isms-topo-rail-btn.layer-L5.active::before { background: #2dd4bf; box-shadow: 0 0 12px #2dd4bf; }
+        .isms-topo-rail-num {
+            font-size: 22px;
+            font-weight: 800;
+            line-height: 1;
+            background: linear-gradient(135deg, #e0f2fe, #67e8f9);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .isms-topo-rail-title { font-size: 9px; letter-spacing: 0.08em; margin-top: 8px; color: #cbd5e1; font-weight: 600; }
+        .isms-topo-rail-sub { font-size: 8px; color: #64748b; margin-top: 4px; line-height: 1.4; }
+        .isms-topo-canvas { padding: 10px 14px 16px; }
+        .isms-topo-row {
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 8px;
+            padding: 10px 8px;
+            margin-bottom: 4px;
+            border-bottom: 1px dashed rgba(78, 200, 240, 0.1);
+            border-radius: 10px;
+            transition: background 0.25s, box-shadow 0.25s;
+        }
+        .isms-topo-row:last-child { border-bottom: 0; margin-bottom: 0; }
+        .isms-topo-row.focused {
+            background: rgba(78, 200, 240, 0.05);
+            box-shadow: 0 0 0 1px rgba(78, 200, 240, 0.12) inset;
+        }
+        .isms-topo-row.layer-L1.focused { box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.2) inset, 0 0 24px rgba(56, 189, 248, 0.06); }
+        .isms-topo-row.layer-L2.focused { box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.2) inset, 0 0 24px rgba(251, 191, 36, 0.06); }
+        .isms-topo-row.layer-L3.focused { box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.2) inset, 0 0 24px rgba(52, 211, 153, 0.06); }
+        .isms-topo-row.layer-L4.focused { box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.2) inset, 0 0 24px rgba(167, 139, 250, 0.06); }
+        .isms-topo-row.layer-L5.focused { box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.2) inset, 0 0 24px rgba(45, 212, 191, 0.06); }
+        .isms-topo-row-label {
+            font-size: 8px;
+            letter-spacing: 0.12em;
+            color: var(--topo-muted);
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .isms-topo-row-label::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(78, 200, 240, 0.25), transparent);
+        }
+        .isms-topo-track {
+            display: flex;
+            align-items: stretch;
+            flex-wrap: nowrap;
+            gap: 0;
+            min-height: 108px;
+            padding: 4px 0;
+        }
+        .isms-topo-node {
+            flex: 0 0 156px;
+            text-align: left;
+            background: linear-gradient(165deg, rgba(18, 32, 48, 0.96), rgba(10, 18, 28, 0.98));
+            border: 1px solid rgba(78, 200, 240, 0.22);
+            border-radius: 10px;
+            padding: 0;
+            cursor: pointer;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+            transition: transform 0.18s, box-shadow 0.18s, border-color 0.18s;
+            color: var(--topo-text);
+            overflow: hidden;
+            position: relative;
+        }
+        .isms-topo-node::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: var(--layer-accent, #38bdf8);
+            opacity: 0.85;
+        }
+        .isms-topo-node.layer-L1 { --layer-accent: #38bdf8; }
+        .isms-topo-node.layer-L2 { --layer-accent: #fbbf24; }
+        .isms-topo-node.layer-L3 { --layer-accent: #34d399; }
+        .isms-topo-node.layer-L4 { --layer-accent: #a78bfa; }
+        .isms-topo-node.layer-L5 { --layer-accent: #2dd4bf; }
+        .isms-topo-node-inner { padding: 10px 10px 8px; }
+        .isms-topo-compact .isms-topo-node { flex-basis: 136px; }
+        .isms-topo-compact .isms-topo-node-inner { padding: 8px 8px 6px; }
+        .isms-topo-node:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4), 0 0 24px rgba(78, 200, 240, 0.12);
+            border-color: rgba(78, 200, 240, 0.45);
+        }
+        .isms-topo-node.active {
+            border-color: var(--layer-accent, #2dd4bf);
+            box-shadow: 0 0 0 2px rgba(78, 200, 240, 0.15), 0 0 28px rgba(78, 200, 240, 0.18);
+        }
+        .isms-topo-node.status-warn { border-color: rgba(251, 191, 36, 0.5); }
+        .isms-topo-node.status-warn::before { background: var(--topo-amber); }
+        .isms-topo-node.status-down { border-color: rgba(248, 113, 113, 0.55); }
+        .isms-topo-node.status-down::before { background: var(--topo-red); }
+        .isms-topo-node-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
+        .isms-topo-node-icon {
+            width: 26px; height: 26px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 7px;
+            background: rgba(78, 200, 240, 0.1);
+            border: 1px solid rgba(78, 200, 240, 0.18);
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+        .isms-topo-node-id {
+            font-weight: 700;
+            font-size: 10px;
+            color: #bae6fd;
+            letter-spacing: 0.04em;
+        }
+        .isms-topo-node-name { font-size: 10px; font-weight: 600; margin-bottom: 4px; line-height: 1.3; color: #f1f5f9; }
+        .isms-topo-node-spec { font-size: 9px; color: var(--topo-muted); line-height: 1.4; min-height: 26px; }
+        .isms-topo-node-foot {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+            padding: 6px 10px 8px;
+            background: rgba(0, 0, 0, 0.22);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 8px;
+            color: var(--topo-muted);
+        }
+        .isms-topo-node-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            font-size: 8px;
+        }
+        .isms-topo-node-status::before {
+            content: '';
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+        .isms-topo-node-status.live { color: var(--topo-live); }
+        .isms-topo-node-status.live::before { animation: topo-pulse 2s ease-in-out infinite; box-shadow: 0 0 8px var(--topo-live); }
+        .isms-topo-node-status.warn { color: var(--topo-amber); }
+        .isms-topo-node-status.warn::before { animation: topo-pulse 1.2s ease-in-out infinite; }
+        .isms-topo-node-status.down { color: var(--topo-red); }
+        .isms-topo-node-status.idle { color: #94a3b8; }
+        @keyframes topo-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.55; transform: scale(0.85); }
+        }
+        @keyframes topo-flow {
+            0% { background-position: 0 0; }
+            100% { background-position: 16px 0; }
+        }
+        .isms-topo-link {
+            flex: 1 1 76px;
+            min-width: 60px;
+            max-width: 120px;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+            align-self: center;
+        }
+        .isms-topo-link::before {
+            content: '';
+            position: absolute;
+            left: 2px; right: 2px; top: 50%;
+            height: 2px;
+            transform: translateY(-50%);
+            background: repeating-linear-gradient(90deg, rgba(78, 200, 240, 0.15) 0, rgba(78, 200, 240, 0.15) 4px, transparent 4px, transparent 10px);
+            animation: topo-flow 1.2s linear infinite;
+        }
+        .isms-topo-link.active::before {
+            background: repeating-linear-gradient(90deg, rgba(45, 212, 191, 0.55) 0, rgba(45, 212, 191, 0.55) 4px, transparent 4px, transparent 10px);
+        }
+        .isms-topo-telemetry {
+            position: relative;
+            z-index: 1;
+            background: linear-gradient(180deg, rgba(16, 28, 42, 0.98), rgba(8, 14, 22, 0.98));
+            border: 1px solid rgba(78, 200, 240, 0.28);
+            border-radius: 8px;
+            padding: 6px 8px;
+            min-width: 72px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.18s, box-shadow 0.18s, transform 0.18s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+        .isms-topo-telemetry:hover {
+            transform: scale(1.04);
+            border-color: rgba(45, 212, 191, 0.55);
+            box-shadow: 0 0 20px rgba(45, 212, 191, 0.15);
+        }
+        .isms-topo-telemetry.active {
+            border-color: #2dd4bf;
+            box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.2), 0 0 24px rgba(45, 212, 191, 0.2);
+        }
+        .isms-topo-telemetry.status-warn { border-color: rgba(251, 191, 36, 0.5); }
+        .isms-topo-telemetry.status-down { border-color: rgba(248, 113, 113, 0.5); }
+        .isms-topo-telemetry-dir { font-size: 7px; color: var(--topo-muted); letter-spacing: 0.05em; }
+        .isms-topo-telemetry-metric { font-size: 9px; font-weight: 700; margin: 3px 0; color: #e2e8f0; }
+        .isms-topo-telemetry-time { font-size: 8px; color: #64748b; }
+        .isms-topo-vbridge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 8px 2px 10px;
+            font-size: 8px;
+            letter-spacing: 0.1em;
+            color: #64748b;
+            text-transform: uppercase;
+        }
+        .isms-topo-vbridge::before {
+            content: '↓';
+            color: #38bdf8;
+            font-size: 11px;
+            text-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+        }
+        .isms-topo-vbridge::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, rgba(56, 189, 248, 0.35), transparent);
+        }
+        .arch-node-detail {
+            margin-top: 14px;
+            padding: 14px 16px 14px 18px;
+            border-radius: 12px;
+            border: 1px solid rgba(78, 200, 240, 0.18);
+            background: linear-gradient(135deg, rgba(78, 200, 240, 0.07), rgba(45, 212, 191, 0.04));
+            font-size: 0.86rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .arch-node-detail::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 4px;
+            background: linear-gradient(180deg, #38bdf8, #2dd4bf);
+            border-radius: 4px 0 0 4px;
+        }
+        .arch-node-detail h4 { margin: 0 0 10px; color: var(--accent); font-size: 0.98rem; letter-spacing: 0.02em; }
+        .arch-node-detail p { margin: 6px 0; line-height: 1.55; }
+        .arch-detail-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin: 12px 0;
+        }
+        .arch-detail-chip {
+            background: linear-gradient(145deg, rgba(78, 200, 240, 0.08), rgba(10, 18, 28, 0.5));
+            border: 1px solid rgba(78, 200, 240, 0.14);
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 0.82rem;
+            transition: border-color 0.15s;
+        }
+        .arch-detail-chip:hover { border-color: rgba(78, 200, 240, 0.3); }
+        .arch-detail-chip strong { color: var(--accent2); display: block; margin-bottom: 4px; font-size: 0.75rem; letter-spacing: 0.04em; }
+        .modal-panel.arch-modal { width: min(1180px, 100%); }
+        .arch-api-line {
+            font-family: ui-monospace, Consolas, monospace;
+            font-size: 0.78rem;
+            color: var(--accent);
+            margin-top: 10px;
+        }
+        .agent { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+        .agent span {
+            background: rgba(78,200,240,.1);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 0.82rem;
+        }
+        ul.compact { margin: 8px 0; padding-left: 20px; }
+        ul.compact li { margin: 4px 0; }
+        .btn {
+            display: inline-block;
+            margin-top: 12px;
+            margin-right: 8px;
+            padding: 8px 14px;
+            background: rgba(78,200,240,.15);
+            border: 1px solid var(--accent);
+            color: var(--text);
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .loading { color: var(--muted); }
+        .badge-ok { color: var(--ok); }
+        .badge-warn { color: var(--warn); }
+        .badge-auto { color: var(--accent2); font-weight: 600; }
+        .action-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin: 0 0 28px;
+            padding: 14px 16px;
+            background: rgba(78, 200, 240, 0.06);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+        }
+        .action-bar .btn {
+            margin: 0;
+        }
+        .action-bar-note {
+            flex: 1 1 220px;
+            font-size: 0.82rem;
+            color: var(--muted);
+            min-width: 200px;
+        }
+        .scan-placeholder {
+            grid-column: 1 / -1;
+            border-style: dashed;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+        .scan-placeholder p { margin: 0; }
+        .card-clickable {
+            cursor: pointer;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .card-clickable:hover {
+            border-color: rgba(78, 200, 240, 0.45);
+            box-shadow: 0 0 0 1px rgba(78, 200, 240, 0.12);
+        }
+        .card-hint {
+            font-size: 0.72rem;
+            color: var(--accent);
+            margin-top: 8px;
+            opacity: 0.85;
+        }
+        .coverage-actions {
+            margin: 8px 0 16px;
+        }
+        .coverage-actions .btn { margin-top: 0; }
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            background: rgba(5, 11, 20, 0.82);
+            backdrop-filter: blur(4px);
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-panel {
+            width: min(920px, 100%);
+            max-height: min(88vh, 900px);
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+        }
+        .modal-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 16px 18px;
+            border-bottom: 1px solid var(--border);
+        }
+        .modal-head h3 { margin: 0; font-size: 1.05rem; color: var(--accent); }
+        .modal-head p { margin: 6px 0 0; font-size: 0.82rem; color: var(--muted); }
+        .modal-close {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .modal-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 12px 18px 0;
+        }
+        .modal-tab {
+            background: rgba(78, 200, 240, 0.08);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+            cursor: pointer;
+        }
+        .modal-tab.active {
+            color: var(--text);
+            border-color: var(--accent);
+            background: rgba(78, 200, 240, 0.18);
+        }
+        .modal-body {
+            overflow-y: auto;
+            padding: 14px 18px 18px;
+        }
+        .flash-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+            gap: 12px;
+        }
+        .flash-card {
+            background: rgba(5, 11, 20, 0.55);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 14px;
+            cursor: pointer;
+            transition: border-color 0.15s;
+        }
+        .flash-card:hover { border-color: rgba(78, 200, 240, 0.35); }
+        .flash-card.expanded {
+            border-color: var(--accent2);
+            grid-column: 1 / -1;
+        }
+        .flash-id {
+            font-family: ui-monospace, Consolas, monospace;
+            font-size: 0.95rem;
+            color: var(--accent);
+            font-weight: 700;
+        }
+        .flash-title { font-size: 0.92rem; margin: 6px 0 8px; font-weight: 600; }
+        .flash-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+        .flash-badge {
+            font-size: 0.68rem;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            color: var(--muted);
+        }
+        .flash-badge.gap { color: var(--warn); border-color: rgba(245, 158, 11, 0.35); }
+        .flash-badge.domain { color: var(--accent2); }
+        .flash-detail {
+            display: none;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px dashed var(--border);
+            font-size: 0.82rem;
+            color: var(--muted);
+        }
+        .flash-card.expanded .flash-detail { display: block; }
+        .flash-detail strong { color: var(--text); }
+        .flash-detail p { margin: 6px 0; }
+        .flash-evidence {
+            font-family: ui-monospace, Consolas, monospace;
+            font-size: 0.75rem;
+            color: var(--accent2);
+            word-break: break-word;
+        }
+        .metric-analysis { font-size: 0.88rem; }
+        .metric-hero {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+            padding: 12px 14px;
+            background: rgba(78, 200, 240, 0.06);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+        }
+        .metric-hero .big {
+            font-size: 1.6rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        .status-badge {
+            font-size: 0.72rem;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+        }
+        .status-badge.ok { color: var(--ok); border-color: rgba(34,197,94,.35); }
+        .status-badge.warn { color: var(--warn); border-color: rgba(245,158,11,.35); }
+        .status-badge.na { color: var(--muted); }
+        .metric-analysis h4 {
+            margin: 16px 0 6px;
+            font-size: 0.82rem;
+            color: var(--accent2);
+        }
+        .metric-analysis p { margin: 6px 0; color: var(--muted); }
+        .metric-analysis .mono-block {
+            font-family: ui-monospace, Consolas, monospace;
+            font-size: 0.78rem;
+            padding: 8px 10px;
+            background: rgba(0,0,0,.2);
+            border-radius: 6px;
+        }
+        .breakdown-table { width: 100%; margin-top: 6px; font-size: 0.82rem; }
+        .breakdown-table td:first-child { color: var(--accent); width: 38%; }
+        .metric-link-btn {
+            margin-top: 14px;
+            padding: 8px 14px;
+            background: rgba(78,200,240,.12);
+            border: 1px solid var(--accent);
+            color: var(--text);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.82rem;
+        }
+        tr.row-clickable { cursor: pointer; }
+        tr.row-clickable:hover td { background: rgba(78,200,240,.06); }
+        .section-clickable { cursor: pointer; }
+        .section-clickable:hover { color: var(--accent2); }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <div class="page-nav">
+            <a href="/platform?view=compliance" data-platform-view="compliance">← 整合平台</a>
+            <a href="/platform?view=monitor" data-platform-view="monitor">監控戰情室</a>
+            <a href="/platform?view=chat" data-platform-view="chat">AI 對話</a>
+        </div>
+
+        <div id="statusBanner" class="banner"></div>
+
+        <h1>Semi-Shield ISMS 合規技術架構</h1>
+        <p class="tagline">Wazuh + OpenCTI + Local LLM + Agentic RAG · 地端 OT／ISO 27001 合規 Agent</p>
+
+        <div class="principle">
+            <strong>設計原則：No Evidence, No Compliance Claim</strong><br>
+            每項 ISO 控制項宣稱必須具備 <span class="mono">evidence_id</span>、可追溯 hash chain、
+            且 LLM 診斷經 Human Review 後方可納入稽核報告。
+            PDF／TXT 匯出請至 <a href="/platform?view=monitor" data-platform-view="monitor" style="color:var(--accent)">監控戰情室</a>。
+        </div>
+
+        <div class="action-bar">
+            <button type="button" class="btn" id="runPipeline">▶ 執行地端合規管線</button>
+            <button type="button" class="btn" id="runAiReview">🤖 AI 自動審核</button>
+            <a class="btn" href="/platform?view=monitor" data-platform-view="monitor" id="linkExportPdf">📄 前往匯出 PDF／TXT 報告</a>
+            <span class="action-bar-note" id="reviewerModeNote">管線掃描 OT 日誌並寫入 evidence；無分析師時可用 AI Reviewer 自動審核 pending 項目。</span>
+        </div>
+
+        <div id="scanResults">
+        <h2>量化目標（KPI）</h2>
+        <div class="grid" id="kpiGrid"></div>
+
+        <h2>Annex A 覆蓋率</h2>
+        <div class="grid" id="coverageGrid"></div>
+
+        <h2 id="monitoredSectionTitle" class="section-clickable" title="點擊查看監控對映總覽">OT 自動監控對映（6 控制項）</h2>
+        <div class="card" style="overflow-x:auto;">
+            <table id="monitoredTable">
+                <thead>
+                    <tr>
+                        <th>Annex A</th>
+                        <th>控制項</th>
+                        <th>control_key</th>
+                        <th>Evidence 類型</th>
+                        <th>自動化</th>
+                    </tr>
+                </thead>
+                <tbody><tr><td colspan="5" class="loading">—</td></tr></tbody>
+            </table>
+        </div>
+
+        <h2>Evidence 追溯</h2>
+        <div class="grid" id="evidenceGrid"></div>
+        <div class="card" style="margin-top:12px;overflow-x:auto;">
+            <table id="evidenceTable">
+                <thead>
+                    <tr><th>evidence_id</th><th>控制項</th><th>事件數</th><th>時間</th><th>狀態</th></tr>
+                </thead>
+                <tbody><tr><td colspan="5" class="loading">—</td></tr></tbody>
+            </table>
+        </div>
+        </div>
+
+        <h2 class="section-clickable" id="archSectionTitle" title="點擊查看全栈流程圖">五層架構</h2>
+        <div class="card" id="archLayersCard">
+            <p class="arch-card-hint">深色藍圖拓撲 · 點擊節點／路徑遙測 · 左側 01–05 聚焦層級</p>
+            <div class="arch-flow-wrap" id="archTopoPreview"></div>
+            <div id="archPreviewDetail" class="arch-preview-detail"></div>
+        </div>
+
+        <h2>Agent Workflow（4 Agents）</h2>
+        <div id="agentFlow" class="loading">載入中…</div>
+
+        <h2>Guardrails Reviewer 機制</h2>
+        <div class="card" id="guardrailBox"><div class="loading">載入中…</div></div>
+
+        <h2>vs 傳統 AI 報告</h2>
+        <table id="vsTable"><tbody><tr><td class="loading">載入中…</td></tr></tbody></table>
+
+        <h2>商業 GRC 方案對標</h2>
+        <table id="grcTable"><tbody><tr><td class="loading">載入中…</td></tr></tbody></table>
+
+        <p style="margin-top:24px;color:var(--muted);font-size:0.85rem;">
+            API：<span class="mono">/api/compliance/metrics · /api/compliance/matrix · /api/evidence · /api/review/queue</span>
+        </p>
+    </div>
+
+    <div class="modal-overlay" id="archModal" aria-hidden="true">
+        <div class="modal-panel arch-modal arch-modal-split" role="dialog" aria-labelledby="archModalTitle">
+            <div class="modal-head">
+                <div>
+                    <h3 id="archModalTitle">架構流程圖</h3>
+                    <p id="archModalSubtitle">—</p>
+                </div>
+                <button type="button" class="modal-close" id="closeArchModal">關閉</button>
+            </div>
+            <div class="modal-body" id="archModalBody">
+                <div class="arch-flow-wrap" id="archFlowDiagram"></div>
+                <div id="archDetailPanel"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="metricModal" aria-hidden="true">
+        <div class="modal-panel" role="dialog" aria-labelledby="metricModalTitle">
+            <div class="modal-head">
+                <div>
+                    <h3 id="metricModalTitle">指標詳細分析</h3>
+                    <p id="metricModalSubtitle">—</p>
+                </div>
+                <button type="button" class="modal-close" id="closeMetricModal">關閉</button>
+            </div>
+            <div class="modal-tabs" id="metricModalTabs"></div>
+            <div class="modal-body">
+                <div id="metricAnalysisPanel" class="metric-analysis"></div>
+                <div class="flash-grid" id="metricFlashGrid"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(location.search);
+        if (params.get('embed') === '1' || window.self !== window.top) {
+            document.documentElement.classList.add('embedded');
+        }
+
+        function wirePlatformNavLinks() {
+            const embedded = document.documentElement.classList.contains('embedded');
+            document.querySelectorAll('[data-platform-view]').forEach((link) => {
+                const view = link.dataset.platformView;
+                if (!view) return;
+                if (embedded) {
+                    link.href = `/platform?view=${view}`;
+                    link.target = '_top';
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        try {
+                            const topPath = (window.top.location.pathname || '').replace(/\/$/, '') || '/';
+                            if (topPath === '/platform' || topPath.endsWith('/platform')) {
+                                window.top.postMessage({ type: 'platform-nav', view }, '*');
+                                return;
+                            }
+                        } catch (_) {}
+                        window.top.location.href = `/platform?view=${view}`;
+                    });
+                } else {
+                    link.href = view === 'monitor' ? '/monitor' : view === 'chat' ? '/chat' : '/compliance';
+                    link.removeAttribute('target');
+                }
+            });
+        }
+        wirePlatformNavLinks();
+
+        let metricsAnalysisData = null;
+        let coverageGapsData = null;
+        let workflowData = null;
+        let coverageModalTab = 'not_in_matrix';
+        function escapeHtml(s) {
+            return String(s ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        let archTopoState = { focusLayer: null, selectedNode: null, selectedLink: null };
+        let archSafetySnapshot = null;
+
+        const ARCH_LAYERS = {
+            overview: {
+                title: 'Semi-Shield 五層架構總覽',
+                subtitle: 'OT 監控拓撲風格 · 可點擊節點／路徑區塊',
+                summary: 'Semi-Shield ISMS 以「No Evidence, No Compliance Claim」為核心，五層分工：UI 操作、護欄審核、ISO 對映、RAG 推理、Agent 自動管線。',
+                chips: [
+                    { label: '原則', value: 'No Evidence, No Compliance Claim' },
+                    { label: '部署', value: '地端 Ollama + Flask' },
+                    { label: 'Phase 1', value: 'A.5 + A.8 · 50 項 MVP' },
+                    { label: '輸出', value: 'PDF/TXT + evidence_id' },
+                ],
+                apis: '/platform · /monitor · /chat · /compliance · /api/compliance/pipeline',
+            },
+            L1: {
+                title: '① Web Console 展示層',
+                subtitle: 'platform / monitor / chat / compliance — 統一操作入口',
+                summary: 'Web Console 提供四大模組：整合平台切換視圖、OT 監控儀表板、AI 對話診斷、合規 KPI 與 Evidence 追溯（本頁）。',
+                chips: [
+                    { label: 'Platform', value: 'iframe 整合 monitor / chat / compliance' },
+                    { label: 'Monitor', value: 'OT.html · 6 控制項即時圖表' },
+                    { label: 'Chat', value: 'RAG + 護欄 + 多模型選擇' },
+                    { label: 'Compliance', value: 'KPI · 矩陣 · 管線 · AI 審核' },
+                ],
+                apis: '/platform · /monitor · /chat · /compliance',
+            },
+            L2: {
+                title: '② Guardrails + Human Review',
+                subtitle: 'RoBERTa 微調 + 硬性規則 + review_queue / AI Reviewer',
+                summary: '輸入／輸出雙層護欄：ML 分類 + 規則攔截惡意注入；borderline 進 review_queue。無分析師時由 AI Reviewer 依 evidence 自動核准或駁回。',
+                chips: [
+                    { label: '輸入', value: 'RoBERTa + 硬規則 + allowlist' },
+                    { label: '輸出', value: '敏感資訊脫敏' },
+                    { label: '審核', value: 'review_queue.jsonl' },
+                    { label: '自動化', value: 'POST /api/review/auto' },
+                ],
+                apis: '/api/safety/status · /api/review/queue · /api/review/auto',
+            },
+            L3: {
+                title: '③ ISO 27001:2022 Compliance Mapping Matrix',
+                subtitle: 'Annex A 控制項定義 · OT syslog regex · evidence 對映',
+                summary: '將 OT 日誌事件對映至 ISO 27001:2022 Annex A 控制項；每項宣稱必須附 evidence_id 與 payload hash chain。',
+                chips: [
+                    { label: '矩陣', value: 'annex_a_controls.json · 71 項' },
+                    { label: 'Phase 1', value: '50 項 in_scope MVP' },
+                    { label: '自動化', value: '6 項 syslog_regex 監控' },
+                    { label: '缺口', value: 'A.6/A.7 待 Phase 2' },
+                ],
+                apis: '/api/compliance/matrix · /api/compliance/metrics · /api/evidence',
+            },
+            L4: {
+                title: '④ RAG & Agent Reasoning',
+                subtitle: '知識庫檢索 + Ollama 本地 LLM · Grounded 診斷',
+                summary: 'Auditor Agent 使用 RAG 從 OT 知識庫取證，再交由地端 Ollama 模型生成控制項診斷；敏感資料不離廠。',
+                chips: [
+                    { label: 'RAG', value: 'train_rag/index · meta.json' },
+                    { label: 'LLM', value: 'Ollama · 多模型 Modelfile' },
+                    { label: 'Grounding', value: 'rag_citations 可追溯' },
+                    { label: 'Edge', value: 'CPU 0.5B–1.5B 可選' },
+                ],
+                apis: '/api/chat · /api/llm/models · OT_ENABLE_RAG=1',
+            },
+            L5: {
+                title: '⑤ Agent Workflow 管線',
+                subtitle: 'Collector → Auditor → Reviewer → Reporter · 地端順序編排',
+                summary: 'agent_orchestrator.py 編排四階段 Agent：收集 OT 證據 → LLM 稽核診斷 → 護欄審核 → 彙整報告。Phase 2 可升級 LangGraph / CrewAI。',
+                chips: [
+                    { label: 'Collector', value: 'scan_ot · register_evidence' },
+                    { label: 'Auditor', value: 'retrieve_rag · ask_llm' },
+                    { label: 'Reviewer', value: 'guardrail · enqueue · AI Reviewer' },
+                    { label: 'Reporter', value: 'KPI · evidence 附錄 · 匯出' },
+                ],
+                apis: 'POST /api/compliance/pipeline · GET /api/compliance/workflow',
+            },
+        };
+
+        const ARCH_TOPO = {
+            layers: [
+                {
+                    id: 'L1', num: '01', title: 'WEB CONSOLE', subtitle: 'Platform · Monitor · Chat',
+                    rowLabel: 'EXPECTED UI PATH',
+                    bridge: 'EXPECTED GUARDRAIL PATH',
+                    nodes: [
+                        { id: 'web-platform', icon: '⬡', code: 'WEB-01', name: 'Platform Shell', spec: ':2000 /platform', field: 'FIELD · HTTP', status: 'live', statusText: 'LIVE', layerId: 'L1',
+                          detail: '整合殼層：iframe 切換 monitor / chat / compliance，postMessage 跨頁導航。' },
+                        { id: 'web-monitor', icon: '◈', code: 'MON-01', name: 'OT Monitor', spec: '/monitor · OT.html', field: 'FIELD · REST', status: 'live', statusText: 'LIVE', layerId: 'L1',
+                          detail: '6 項 OT 控制項儀表板、syslog 圖表、AI 診斷與 PDF 匯出。' },
+                        { id: 'web-chat', icon: '◉', code: 'CHT-01', name: 'AI Chat', spec: '/chat · agent_chat', field: 'FIELD · SSE', status: 'live', statusText: 'LIVE', layerId: 'L1',
+                          detail: 'RAG 對話、護欄狀態、多模型選擇、Mermaid 圖表嵌入。' },
+                        { id: 'web-compliance', icon: '▣', code: 'CMP-01', name: 'Compliance', spec: '/compliance', field: 'FIELD · REST', status: 'live', statusText: 'LIVE', layerId: 'L1',
+                          detail: 'KPI、Annex A 矩陣、Evidence 追溯、合規管線與 AI 審核。' },
+                    ],
+                    links: [
+                        { id: 'l1-a', from: 'web-platform', to: 'web-monitor', dir: 'WEB → MON', metric: 'iframe 12 ms', status: 'live' },
+                        { id: 'l1-b', from: 'web-monitor', to: 'web-chat', dir: 'MON → CHT', metric: 'nav 8 ms', status: 'live' },
+                        { id: 'l1-c', from: 'web-chat', to: 'web-compliance', dir: 'CHT → CMP', metric: 'nav 9 ms', status: 'live' },
+                    ],
+                },
+                {
+                    id: 'L2', num: '02', title: 'GUARDRAILS + REVIEW', subtitle: 'RoBERTa · Rules · Queue',
+                    rowLabel: 'EXPECTED SECURITY PATH',
+                    bridge: 'EXPECTED COMPLIANCE PATH',
+                    nodes: [
+                        { id: 'gr-roberta', icon: '⬢', code: 'GRD-01', name: 'RoBERTa ML', spec: 'fine_tuned_guardrail', field: 'FIELD · ML', status: 'live', statusText: 'LIVE', layerId: 'L2',
+                          detail: '微調 RoBERTa 分類惡意／注入請求，threshold 可調。' },
+                        { id: 'gr-rules', icon: '▤', code: 'GRD-02', name: 'Hard Rules', spec: 'allowlist + regex', field: 'FIELD · RULE', status: 'live', statusText: 'LIVE', layerId: 'L2',
+                          detail: '硬性規則與平台 allowlist，補 ML 邊界案例。' },
+                        { id: 'gr-queue', icon: '▥', code: 'RVQ-01', name: 'review_queue', spec: 'data/review_queue.jsonl', field: 'FIELD · AUDIT', status: 'warn', statusText: 'QUEUE', layerId: 'L2',
+                          detail: 'borderline / control_status / guardrail_block 待審項目。' },
+                        { id: 'gr-airev', icon: '◆', code: 'AIR-01', name: 'AI Reviewer', spec: 'ENABLE_AI_REVIEWER=1', field: 'FIELD · AUTO', status: 'live', statusText: 'LIVE', layerId: 'L2',
+                          detail: '無分析師時自動核准具 evidence 項目；護欄攔截維持 rejected。' },
+                    ],
+                    links: [
+                        { id: 'l2-a', from: 'gr-roberta', to: 'gr-rules', dir: 'ML → RULE', metric: 'score pass', status: 'live' },
+                        { id: 'l2-b', from: 'gr-rules', to: 'gr-queue', dir: 'RULE → RVQ', metric: 'borderline', status: 'warn' },
+                        { id: 'l2-c', from: 'gr-queue', to: 'gr-airev', dir: 'RVQ → AI', metric: 'POST /auto', status: 'live' },
+                    ],
+                },
+                {
+                    id: 'L3', num: '03', title: 'ISO 27001 MATRIX', subtitle: 'Annex A · Evidence Map',
+                    rowLabel: 'EXPECTED MAPPING PATH',
+                    bridge: 'EXPECTED REASONING PATH',
+                    nodes: [
+                        { id: 'iso-scan', icon: '⬡', code: 'SCN-01', name: 'OT Scanner', spec: 'scan_ot_directory', field: 'FIELD · SYSLOG', status: 'live', statusText: 'LIVE', layerId: 'L3',
+                          detail: '讀取 ot/*.txt C9300 flash syslog 聚合。' },
+                        { id: 'iso-regex', icon: '▦', code: 'MAP-01', name: 'Regex Mapper', spec: '6 control_keys', field: 'FIELD · REGEX', status: 'live', statusText: 'LIVE', layerId: 'L3',
+                          detail: 'syslog 正規表示式對映 sec_gem_log 等 6 鍵。' },
+                        { id: 'iso-matrix', icon: '▣', code: 'ISO-01', name: 'Annex A Matrix', spec: '71 defs · MVP 50', field: 'FIELD · GRC', status: 'live', statusText: 'LIVE', layerId: 'L3',
+                          detail: 'annex_a_controls.json · Phase 1 A.5+A.8。' },
+                        { id: 'iso-evidence', icon: '◈', code: 'EVD-01', name: 'Evidence Reg.', spec: 'evidence_id + hash', field: 'FIELD · CHAIN', status: 'live', statusText: 'LIVE', layerId: 'L3',
+                          detail: 'No Evidence, No Compliance Claim — payload_hash 追溯。' },
+                    ],
+                    links: [
+                        { id: 'l3-a', from: 'iso-scan', to: 'iso-regex', dir: 'SCN → MAP', metric: 'parse 42 ms', status: 'live' },
+                        { id: 'l3-b', from: 'iso-regex', to: 'iso-matrix', dir: 'MAP → ISO', metric: '6 mapped', status: 'live' },
+                        { id: 'l3-c', from: 'iso-matrix', to: 'iso-evidence', dir: 'ISO → EVD', metric: 'hash chain', status: 'live' },
+                    ],
+                },
+                {
+                    id: 'L4', num: '04', title: 'RAG + LLM REASONING', subtitle: 'Knowledge · Ollama',
+                    rowLabel: 'EXPECTED INFERENCE PATH',
+                    bridge: 'EXPECTED AGENT PATH',
+                    nodes: [
+                        { id: 'ai-kb', icon: '⬢', code: 'RAG-01', name: 'Knowledge Base', spec: 'train_rag/index', field: 'FIELD · INDEX', status: 'live', statusText: 'LIVE', layerId: 'L4',
+                          detail: 'OT 知識庫 + meta.json · Top-K 檢索。' },
+                        { id: 'ai-rag', icon: '◉', code: 'RAG-02', name: 'RAG Engine', spec: 'retrieve_rag_for_query', field: 'FIELD · RETR', status: 'live', statusText: 'LIVE', layerId: 'L4',
+                          detail: 'Agentic RAG 拼接上下文供 LLM grounding。' },
+                        { id: 'ai-ollama', icon: '▣', code: 'LLM-01', name: 'Ollama Local', spec: '127.0.0.1:11434', field: 'FIELD · LLM', status: 'live', statusText: 'LIVE', layerId: 'L4',
+                          detail: 'qwen2.5 / gemma / phi · 敏感資料不離地端。' },
+                    ],
+                    links: [
+                        { id: 'l4-a', from: 'ai-kb', to: 'ai-rag', dir: 'KB → RETR', metric: 'Top-K 5', status: 'live' },
+                        { id: 'l4-b', from: 'ai-rag', to: 'ai-ollama', dir: 'RETR → LLM', metric: 'turbo 320t', status: 'live' },
+                    ],
+                },
+                {
+                    id: 'L5', num: '05', title: 'AGENT WORKFLOW', subtitle: 'Collector → Reporter',
+                    rowLabel: 'EXPECTED PIPELINE PATH',
+                    bridge: null,
+                    nodes: [
+                        { id: 'ag-collector', icon: '⬡', code: 'AGT-01', name: 'Collector', spec: 'agent-collector', field: 'FIELD · SCAN', status: 'live', statusText: 'LIVE', layerId: 'L5',
+                          detail: '掃描 OT / Wazuh → register_evidence。' },
+                        { id: 'ag-auditor', icon: '◈', code: 'AGT-02', name: 'Auditor', spec: 'agent-auditor', field: 'FIELD · LLM', status: 'live', statusText: 'LIVE', layerId: 'L5',
+                          detail: 'RAG + Local LLM 控制項診斷。' },
+                        { id: 'ag-reviewer', icon: '▥', code: 'AGT-03', name: 'Reviewer', spec: 'agent-reviewer', field: 'FIELD · REV', status: 'live', statusText: 'LIVE', layerId: 'L5',
+                          detail: 'Guardrails + review_queue + AI Reviewer。' },
+                        { id: 'ag-reporter', icon: '▣', code: 'AGT-04', name: 'Reporter', spec: 'agent-reporter', field: 'FIELD · RPT', status: 'live', statusText: 'LIVE', layerId: 'L5',
+                          detail: 'PDF/TXT 合規報告 + evidence 附錄。' },
+                    ],
+                    links: [
+                        { id: 'l5-a', from: 'ag-collector', to: 'ag-auditor', dir: 'COL → AUD', metric: 'pipeline', status: 'live' },
+                        { id: 'l5-b', from: 'ag-auditor', to: 'ag-reviewer', dir: 'AUD → REV', metric: 'diagnosis', status: 'live' },
+                        { id: 'l5-c', from: 'ag-reviewer', to: 'ag-reporter', dir: 'REV → RPT', metric: 'export', status: 'live' },
+                    ],
+                },
+            ],
+        };
+
+        function archTopoNowTime() {
+            const d = new Date();
+            return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+        }
+
+        function archFindNode(nodeId) {
+            for (const layer of ARCH_TOPO.layers) {
+                const node = (layer.nodes || []).find(n => n.id === nodeId);
+                if (node) return { node, layer };
+            }
+            return { node: null, layer: null };
+        }
+
+        function archFindLink(linkId) {
+            for (const layer of ARCH_TOPO.layers) {
+                const link = (layer.links || []).find(l => l.id === linkId);
+                if (link) return { link, layer };
+            }
+            return { link: null, layer: null };
+        }
+
+        function archNodeStatusClass(status) {
+            if (status === 'down') return 'status-down';
+            if (status === 'warn') return 'status-warn';
+            if (status === 'idle') return 'status-idle';
+            return '';
+        }
+
+        function archStatusTextClass(status) {
+            if (status === 'down') return 'down';
+            if (status === 'warn') return 'warn';
+            if (status === 'idle') return 'idle';
+            return 'live';
+        }
+
+        function archRenderNode(node, selectedNode) {
+            const active = selectedNode === node.id ? ' active' : '';
+            const layerCls = node.layerId ? ` layer-${node.layerId}` : '';
+            return `<button type="button" class="isms-topo-node${layerCls}${active} ${archNodeStatusClass(node.status)}" data-topo-node="${escapeHtml(node.id)}" title="點擊查看 ${escapeHtml(node.name)}">
+                <div class="isms-topo-node-inner">
+                    <div class="isms-topo-node-head">
+                        <span class="isms-topo-node-icon">${node.icon || '⬡'}</span>
+                        <span class="isms-topo-node-id">${escapeHtml(node.code)}</span>
+                    </div>
+                    <div class="isms-topo-node-name">${escapeHtml(node.name)}</div>
+                    <div class="isms-topo-node-spec">${escapeHtml(node.spec)}</div>
+                </div>
+                <div class="isms-topo-node-foot">
+                    <span>${escapeHtml(node.field)}</span>
+                    <span class="isms-topo-node-status ${archStatusTextClass(node.status)}">${escapeHtml(node.statusText || 'LIVE')}</span>
+                </div>
+            </button>`;
+        }
+
+        function archRenderLink(link, selectedLink) {
+            const active = selectedLink === link.id ? ' active' : '';
+            return `<div class="isms-topo-link${active}" data-topo-link-wrap="${escapeHtml(link.id)}">
+                <button type="button" class="isms-topo-telemetry ${archNodeStatusClass(link.status)}${active}" data-topo-link="${escapeHtml(link.id)}" title="路徑遙測">
+                    <div class="isms-topo-telemetry-dir">${escapeHtml(link.dir)}</div>
+                    <div class="isms-topo-telemetry-metric">${escapeHtml(link.metric)}</div>
+                    <div class="isms-topo-telemetry-time">${archTopoNowTime()}</div>
+                </button>
+            </div>`;
+        }
+
+        function archRenderLayerRow(layer, state) {
+            const focused = state.focusLayer === layer.id ? ' focused' : '';
+            const parts = [];
+            (layer.nodes || []).forEach((node, idx) => {
+                parts.push(archRenderNode(node, state.selectedNode));
+                const link = (layer.links || [])[idx];
+                if (link) parts.push(archRenderLink(link, state.selectedLink));
+            });
+            const bridge = layer.bridge
+                ? `<div class="isms-topo-vbridge">${escapeHtml(layer.bridge)}</div>` : '';
+            return `${bridge}<div class="isms-topo-row${focused} layer-${layer.id}" data-topo-layer-row="${escapeHtml(layer.id)}">
+                <div class="isms-topo-row-label">${escapeHtml(layer.rowLabel)}</div>
+                <div class="isms-topo-track">${parts.join('')}</div>
+            </div>`;
+        }
+
+        function archRenderTopology(container, state, compact) {
+            if (!container) return;
+            const cls = compact ? 'isms-topo isms-topo-compact' : 'isms-topo';
+            const rail = ARCH_TOPO.layers.map(layer => {
+                const active = state.focusLayer === layer.id ? ' active' : '';
+                return `<button type="button" class="isms-topo-rail-btn layer-${layer.id}${active}" data-topo-focus="${escapeHtml(layer.id)}">
+                    <div class="isms-topo-rail-num">${escapeHtml(layer.num)}</div>
+                    <div class="isms-topo-rail-title">${escapeHtml(layer.title)}</div>
+                    <div class="isms-topo-rail-sub">${escapeHtml(layer.subtitle)}</div>
+                </button>`;
+            }).join('');
+            const rows = ARCH_TOPO.layers.map(layer => archRenderLayerRow(layer, state)).join('');
+            container.innerHTML = `<div class="${cls}">
+                <div class="isms-topo-head">
+                    <div class="isms-topo-head-left">
+                        <strong>SEMI-SHIELD ISMS · LAYER TOPOLOGY</strong>
+                        <span class="isms-topo-head-sub">INTERACTIVE · CLICK NODE OR PATH</span>
+                    </div>
+                    <div class="isms-topo-legend">
+                        <span class="leg-live"><i></i>LIVE</span>
+                        <span class="leg-warn"><i></i>WARN</span>
+                        <span class="leg-down"><i></i>DOWN</span>
+                        <button type="button" class="isms-topo-expand-btn" data-arch-expand>⛶ 全屏詳細</button>
+                    </div>
+                </div>
+                <div class="isms-topo-body">
+                    <div class="isms-topo-rail">${rail}</div>
+                    <div class="isms-topo-canvas">${rows}</div>
+                </div>
+            </div>`;
+        }
+
+        function archLayerTopo(id) {
+            return ARCH_TOPO.layers.find(l => l.id === id) || null;
+        }
+
+        function archRelatedLinks(nodeId) {
+            const out = [];
+            for (const layer of ARCH_TOPO.layers) {
+                for (const link of layer.links || []) {
+                    if (link.from === nodeId || link.to === nodeId) {
+                        out.push({ link, layer });
+                    }
+                }
+            }
+            return out;
+        }
+
+        function archNodePillsHtml(layerId, activeNodeId) {
+            const topo = archLayerTopo(layerId);
+            if (!topo) return '';
+            return (topo.nodes || []).map(n =>
+                `<button type="button" class="arch-node-pill${activeNodeId === n.id ? ' active' : ''}" data-topo-node-pill="${escapeHtml(n.id)}">${escapeHtml(n.code)} · ${escapeHtml(n.name)}</button>`
+            ).join('');
+        }
+
+        function archScrollDetailIntoView() {
+            const el = document.getElementById('archPreviewDetail');
+            if (el && el.innerHTML.trim()) {
+                el.classList.add('has-content');
+                el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        function archHighlightLayerText(layerId) {
+            document.querySelectorAll('[data-arch-layer]').forEach(x => {
+                x.classList.toggle('active', layerId && x.dataset.archLayer === layerId);
+            });
+        }
+
+        function archUpdateModalLayout() {
+            const body = document.getElementById('archModalBody');
+            if (!body) return;
+            const hasSelection = !!(archTopoState.selectedNode || archTopoState.selectedLink || archTopoState.focusLayer);
+            body.classList.toggle('has-selection', hasSelection);
+        }
+
+        function archPushDetail(kind, id) {
+            archRenderSelectionDetail(document.getElementById('archPreviewDetail'), kind, id);
+            archRenderSelectionDetail(document.getElementById('archDetailPanel'), kind, id);
+            const preview = document.getElementById('archPreviewDetail');
+            if (preview && preview.innerHTML.trim()) {
+                preview.classList.add('has-content');
+            }
+            archUpdateModalLayout();
+            archScrollDetailIntoView();
+        }
+
+        function renderArchDetailPanel(layer, layerId, targetEl, activeNodeId) {
+            const panel = targetEl || document.getElementById('archDetailPanel');
+            const topo = archLayerTopo(layerId);
+            const chips = (layer.chips || []).map(c => `
+                <div class="arch-detail-chip"><strong>${escapeHtml(c.label)}</strong>${escapeHtml(c.value)}</div>
+            `).join('');
+            let agentExtra = '';
+            if (workflowData && workflowData.agents && layerId === 'L5') {
+                agentExtra = '<div class="arch-detail-section"><h5>Agent 職責（API 即時）</h5><ul class="compact">' +
+                    workflowData.agents.map(a =>
+                        `<li><strong>${escapeHtml(a.role)}</strong> — ${escapeHtml(a.duty)}</li>`
+                    ).join('') + '</ul></div>';
+            }
+            const nodeSection = topo && topo.nodes && topo.nodes.length
+                ? `<div class="arch-detail-section"><h5>本層節點（可點擊）</h5><div>${archNodePillsHtml(layerId, activeNodeId)}</div></div>`
+                : '';
+            const pathSection = topo && topo.links && topo.links.length
+                ? `<div class="arch-detail-section"><h5>路徑遙測</h5><ul class="compact">${topo.links.map(lk =>
+                    `<li><button type="button" class="arch-node-pill" data-topo-link-pill="${escapeHtml(lk.id)}">${escapeHtml(lk.dir)} · ${escapeHtml(lk.metric)}</button></li>`
+                ).join('')}</ul></div>`
+                : '';
+            panel.innerHTML = `
+                <div class="arch-node-detail">
+                    <h4>${escapeHtml(layer.title || '—')}</h4>
+                    <p>${escapeHtml(layer.summary || '—')}</p>
+                    <div class="arch-detail-grid">${chips}</div>
+                    ${nodeSection}
+                    ${pathSection}
+                    ${agentExtra}
+                    ${layer.apis ? `<p class="arch-api-line">API / 路由：${escapeHtml(layer.apis)}</p>` : ''}
+                </div>
+            `;
+        }
+
+        function archRenderSelectionDetail(targetEl, kind, id) {
+            if (!targetEl) return;
+            if (kind === 'node') {
+                const { node, layer } = archFindNode(id);
+                if (!node) { targetEl.innerHTML = ''; return; }
+                const layerMeta = ARCH_LAYERS[node.layerId] || {};
+                const related = archRelatedLinks(node.id);
+                const linkList = related.length
+                    ? `<div class="arch-detail-section"><h5>關聯路徑</h5><ul class="compact">${related.map(({ link }) =>
+                        `<li><button type="button" class="arch-node-pill" data-topo-link-pill="${escapeHtml(link.id)}">${escapeHtml(link.dir)} · ${escapeHtml(link.metric)}</button></li>`
+                    ).join('')}</ul></div>`
+                    : '';
+                targetEl.innerHTML = `<div class="arch-node-detail">
+                    <h4>${escapeHtml(node.code)} · ${escapeHtml(node.name)}</h4>
+                    <p>${escapeHtml(node.detail || '—')}</p>
+                    <div class="arch-meta-row">
+                        <span class="arch-meta-tag">${escapeHtml(node.spec)}</span>
+                        <span class="arch-meta-tag">${escapeHtml(node.field)}</span>
+                        <span class="arch-meta-tag">狀態 ${escapeHtml(node.statusText)}</span>
+                    </div>
+                    <p style="color:var(--muted);font-size:0.82rem"><strong>所屬層</strong>：${escapeHtml(layerMeta.title || layer?.title || '')}</p>
+                    ${linkList}
+                    <div class="arch-detail-section"><h5>同層節點</h5><div>${archNodePillsHtml(node.layerId, node.id)}</div></div>
+                    ${layerMeta.apis ? `<p class="arch-api-line">API：${escapeHtml(layerMeta.apis)}</p>` : ''}
+                </div>`;
+                return;
+            }
+            if (kind === 'link') {
+                const { link, layer } = archFindLink(id);
+                if (!link) { targetEl.innerHTML = ''; return; }
+                const fromN = archFindNode(link.from).node;
+                const toN = archFindNode(link.to).node;
+                const layerMeta = ARCH_LAYERS[layer?.id] || {};
+                targetEl.innerHTML = `<div class="arch-node-detail">
+                    <h4>路徑遙測 · ${escapeHtml(link.dir)}</h4>
+                    <p><strong>起點</strong>：${escapeHtml(fromN?.name || link.from)}<br>
+                    <strong>終點</strong>：${escapeHtml(toN?.name || link.to)}</p>
+                    <div class="arch-meta-row">
+                        <span class="arch-meta-tag">${escapeHtml(link.metric)}</span>
+                        <span class="arch-meta-tag">${archTopoNowTime()}</span>
+                        <span class="arch-meta-tag">${escapeHtml(layer?.rowLabel || '')}</span>
+                    </div>
+                    <div class="arch-detail-section"><h5>跳至節點</h5>
+                        <button type="button" class="arch-node-pill" data-topo-node-pill="${escapeHtml(link.from)}">${escapeHtml(fromN?.code || link.from)}</button>
+                        <button type="button" class="arch-node-pill" data-topo-node-pill="${escapeHtml(link.to)}">${escapeHtml(toN?.code || link.to)}</button>
+                    </div>
+                    ${layerMeta.summary ? `<p style="font-size:0.84rem;color:var(--muted)">${escapeHtml(layerMeta.summary)}</p>` : ''}
+                </div>`;
+                return;
+            }
+            if (kind === 'layer') {
+                const layerMeta = ARCH_LAYERS[id] || {};
+                if (!layerMeta.title) { targetEl.innerHTML = ''; return; }
+                renderArchDetailPanel(layerMeta, id, targetEl, archTopoState.selectedNode);
+                return;
+            }
+            if (kind === 'overview') {
+                const layer = ARCH_LAYERS.overview;
+                renderArchDetailPanel(layer, 'overview', targetEl, null);
+            }
+        }
+
+        function archSyncTopologyViews() {
+            archRenderTopology(document.getElementById('archTopoPreview'), archTopoState, true);
+            archRenderTopology(document.getElementById('archFlowDiagram'), archTopoState, false);
+            bindArchTopologyInteractions(document.getElementById('archTopoPreview'));
+            bindArchTopologyInteractions(document.getElementById('archFlowDiagram'));
+        }
+
+        function archSelectNode(nodeId) {
+            archTopoState.selectedNode = nodeId;
+            archTopoState.selectedLink = null;
+            const { node } = archFindNode(nodeId);
+            if (node) {
+                archTopoState.focusLayer = node.layerId;
+                archHighlightLayerText(node.layerId);
+            }
+            archSyncTopologyViews();
+            archPushDetail('node', nodeId);
+        }
+
+        function archSelectLink(linkId) {
+            archTopoState.selectedLink = linkId;
+            archTopoState.selectedNode = null;
+            const { layer } = archFindLink(linkId);
+            if (layer) {
+                archTopoState.focusLayer = layer.id;
+                archHighlightLayerText(layer.id);
+            }
+            archSyncTopologyViews();
+            archPushDetail('link', linkId);
+        }
+
+        function archFocusLayer(layerId) {
+            archTopoState.focusLayer = layerId;
+            archTopoState.selectedNode = null;
+            archTopoState.selectedLink = null;
+            archHighlightLayerText(layerId);
+            archSyncTopologyViews();
+            const row = document.querySelector(`[data-topo-layer-row="${layerId}"]`);
+            if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            archPushDetail('layer', layerId);
+        }
+
+        function bindArchTopologyInteractions(container) {
+            if (!container || container.dataset.topoBound === '1') return;
+            container.dataset.topoBound = '1';
+            container.addEventListener('click', (e) => {
+                const expandBtn = e.target.closest('[data-arch-expand]');
+                if (expandBtn) {
+                    e.stopPropagation();
+                    openArchDetail(archTopoState.focusLayer || 'overview', { openModal: true });
+                    return;
+                }
+                const nodeBtn = e.target.closest('[data-topo-node]');
+                if (nodeBtn) {
+                    e.stopPropagation();
+                    archSelectNode(nodeBtn.dataset.topoNode);
+                    return;
+                }
+                const linkBtn = e.target.closest('[data-topo-link]');
+                if (linkBtn) {
+                    e.stopPropagation();
+                    archSelectLink(linkBtn.dataset.topoLink);
+                    return;
+                }
+                const focusBtn = e.target.closest('[data-topo-focus]');
+                if (focusBtn) {
+                    e.stopPropagation();
+                    archFocusLayer(focusBtn.dataset.topoFocus);
+                }
+            });
+        }
+
+        function bindArchDetailInteractions() {
+            const card = document.getElementById('archLayersCard');
+            const modal = document.getElementById('archModal');
+            const handler = (e) => {
+                const nodePill = e.target.closest('[data-topo-node-pill]');
+                if (nodePill) {
+                    e.preventDefault();
+                    archSelectNode(nodePill.dataset.topoNodePill);
+                    return;
+                }
+                const linkPill = e.target.closest('[data-topo-link-pill]');
+                if (linkPill) {
+                    e.preventDefault();
+                    archSelectLink(linkPill.dataset.topoLinkPill);
+                }
+            };
+            if (card && !card.dataset.detailBound) {
+                card.dataset.detailBound = '1';
+                card.addEventListener('click', handler);
+            }
+            if (modal && !modal.dataset.detailBound) {
+                modal.dataset.detailBound = '1';
+                modal.addEventListener('click', handler);
+            }
+        }
+
+        function refreshArchTopoLiveStatus() {
+            const hr = metricsAnalysisData?.generated_from?.human_review;
+            const queueNode = archFindNode('gr-queue').node;
+            if (queueNode && hr) {
+                const p = hr.pending || 0;
+                queueNode.status = p > 0 ? 'warn' : 'live';
+                queueNode.statusText = p > 0 ? `PEND ${p}` : 'LIVE';
+            }
+            if (archSafetySnapshot) {
+                const gr = archFindNode('gr-roberta').node;
+                if (gr) {
+                    const enabled = archSafetySnapshot.guardrail_enabled !== false;
+                    gr.status = enabled ? 'live' : 'down';
+                    gr.statusText = enabled ? 'LIVE' : 'DOWN';
+                }
+            }
+            const evNode = archFindNode('iso-evidence').node;
+            const trace = metricsAnalysisData?.generated_from?.traceability;
+            if (evNode && trace && trace.total_evidence_records != null) {
+                evNode.spec = `${trace.total_evidence_records} records · hash chain`;
+            }
+            if (document.getElementById('archTopoPreview')?.innerHTML) {
+                archSyncTopologyViews();
+            }
+        }
+
+        function openArchDetail(layerId, opts) {
+            const options = opts || {};
+            const lid = layerId || archTopoState.focusLayer || 'overview';
+            const layer = ARCH_LAYERS[lid] || ARCH_LAYERS.overview;
+            document.getElementById('archModalTitle').textContent = layer.title;
+            document.getElementById('archModalSubtitle').textContent = layer.subtitle || '';
+
+            if (lid === 'overview') {
+                archTopoState.focusLayer = null;
+                archTopoState.selectedNode = null;
+                archTopoState.selectedLink = null;
+                archHighlightLayerText(null);
+                archSyncTopologyViews();
+                archPushDetail('overview', 'overview');
+            } else {
+                archFocusLayer(lid);
+            }
+
+            if (options.openModal) {
+                const modal = document.getElementById('archModal');
+                modal.classList.add('open');
+                modal.setAttribute('aria-hidden', 'false');
+            }
+        }
+
+        function closeArchModal() {
+            const modal = document.getElementById('archModal');
+            modal.classList.remove('open');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        function wireArchLayers() {
+            document.getElementById('archSectionTitle').addEventListener('click', () => {
+                openArchDetail('overview', { openModal: true });
+            });
+            document.getElementById('closeArchModal').addEventListener('click', closeArchModal);
+            document.getElementById('archModal').addEventListener('click', (e) => {
+                if (e.target.id === 'archModal') closeArchModal();
+            });
+            bindArchDetailInteractions();
+        }
+
+        const COVERAGE_TABS = [
+            { id: 'not_in_matrix', label: '未納入矩陣', key: 'not_in_matrix', countKey: 'not_in_matrix_count' },
+            { id: 'phase2_in_matrix', label: 'Phase 2 定義', key: 'phase2_in_matrix', countKey: 'phase2_in_matrix_count' },
+            { id: 'not_automated', label: '未自動化', key: 'not_automated', countKey: 'not_automated_count' },
+        ];
+
+        function statusLabel(st) {
+            if (st === 'ok') return '達標';
+            if (st === 'warn') return '待改善';
+            return '待資料';
+        }
+
+        function gapTypeLabel(gapType) {
+            if (gapType === 'not_in_matrix') return '未納入矩陣';
+            if (gapType === 'phase2_in_matrix') return 'Phase 2';
+            if (gapType === 'not_automated') return '未自動化';
+            return gapType || '—';
+        }
+
+        function metricCardHtml(id, title, value, hint, smallText) {
+            return `<div class="card card-clickable" data-metric-id="${escapeHtml(id)}" title="點擊查看詳細分析">
+                <h3>${escapeHtml(title)}</h3>
+                <div class="metric">${escapeHtml(value)}${smallText ? `<small>${escapeHtml(smallText)}</small>` : ''}</div>
+                <div class="card-hint">${escapeHtml(hint || '點擊查看詳細分析')}</div>
+            </div>`;
+        }
+
+        function bindMetricCards(root) {
+            (root || document).querySelectorAll('[data-metric-id]').forEach(el => {
+                if (el.dataset.metricBound) return;
+                el.dataset.metricBound = '1';
+                el.addEventListener('click', () => openMetricDetail(el.dataset.metricId));
+            });
+        }
+
+        function renderFlashcards(items, gridId) {
+            const grid = document.getElementById(gridId || 'metricFlashGrid');
+            if (!items || !items.length) {
+                grid.innerHTML = '<p style="color:var(--muted);font-size:0.88rem">此分類無項目。</p>';
+                grid.style.display = 'grid';
+                return;
+            }
+            grid.innerHTML = items.map((c, idx) => `
+                <div class="flash-card" data-idx="${idx}" tabindex="0">
+                    <div class="flash-badges">
+                        <span class="flash-badge domain">${escapeHtml(c.domain_label || c.domain || '')}</span>
+                        <span class="flash-badge gap">${escapeHtml(gapTypeLabel(c.gap_type))}</span>
+                        ${c.monitored ? '<span class="flash-badge">syslog 監控</span>' : ''}
+                    </div>
+                    <div class="flash-id">${escapeHtml(c.annex_a_id)}</div>
+                    <div class="flash-title">${escapeHtml(c.title)}</div>
+                    <div class="flash-detail">
+                        <p><strong>缺口摘要</strong>：${escapeHtml(c.summary || '—')}</p>
+                        <p><strong>詳細說明</strong>：${escapeHtml(c.detail || '—')}</p>
+                        <p><strong>規劃</strong>：${escapeHtml(c.phase_plan || '—')}</p>
+                        <p><strong>Evidence 建議</strong>：<span class="flash-evidence">${escapeHtml(c.evidence_hint || (c.evidence_types || []).join(' · '))}</span></p>
+                        ${c.control_key ? `<p><strong>control_key</strong>：<span class="mono">${escapeHtml(c.control_key)}</span></p>` : ''}
+                    </div>
+                </div>
+            `).join('');
+            grid.style.display = 'grid';
+            grid.querySelectorAll('.flash-card').forEach((card) => {
+                const toggle = () => {
+                    const open = card.classList.contains('expanded');
+                    grid.querySelectorAll('.flash-card.expanded').forEach(el => el.classList.remove('expanded'));
+                    if (!open) card.classList.add('expanded');
+                };
+                card.addEventListener('click', toggle);
+                card.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+                });
+            });
+        }
+
+        function renderMetricAnalysis(m) {
+            const panel = document.getElementById('metricAnalysisPanel');
+            const grid = document.getElementById('metricFlashGrid');
+            grid.style.display = 'none';
+            grid.innerHTML = '';
+            document.getElementById('metricModalTabs').innerHTML = '';
+            panel.style.display = 'block';
+
+            const breakdownRows = (m.breakdown || []).map(b => `
+                <tr><td>${escapeHtml(b.label)}</td><td>${escapeHtml(b.value)}</td><td>${escapeHtml(b.note || '')}</td></tr>
+            `).join('');
+
+            panel.innerHTML = `
+                <div class="metric-hero">
+                    <span class="status-badge ${escapeHtml(m.status || 'na')}">${statusLabel(m.status)}</span>
+                    <div><span class="big">${escapeHtml(m.current_display)}</span>
+                    <span style="color:var(--muted);margin-left:8px">目標 ${escapeHtml(m.target_display)}</span></div>
+                </div>
+                <p><strong>摘要</strong>：${escapeHtml(m.summary || '—')}</p>
+                <h4>計算方式</h4>
+                <p class="mono-block">${escapeHtml(m.formula || '—')}</p>
+                <h4>詳細說明</h4>
+                <p>${escapeHtml(m.detail || '—')}</p>
+                ${breakdownRows ? `<h4>分解</h4><table class="breakdown-table"><tbody>${breakdownRows}</tbody></table>` : ''}
+                ${(m.recommendations || []).length ? `<h4>建議</h4><ul class="compact">${m.recommendations.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>` : ''}
+                ${m.flashcard_tab ? `<button type="button" class="metric-link-btn" id="metricFlashcardLink">📇 查看「${escapeHtml(COVERAGE_TABS.find(t => t.id === m.flashcard_tab)?.label || '識字卡')}」</button>` : ''}
+            `;
+            const link = document.getElementById('metricFlashcardLink');
+            if (link && m.flashcard_tab) {
+                link.addEventListener('click', () => showFlashcardTab(m.flashcard_tab));
+            }
+        }
+
+        function renderCoverageModalTabs() {
+            const tabs = document.getElementById('metricModalTabs');
+            if (!coverageGapsData) {
+                tabs.innerHTML = '';
+                return;
+            }
+            tabs.innerHTML = COVERAGE_TABS.map(t => {
+                const n = coverageGapsData[t.countKey] ?? (coverageGapsData[t.key] || []).length;
+                return `<button type="button" class="modal-tab${coverageModalTab === t.id ? ' active' : ''}" data-tab="${t.id}">${t.label} (${n})</button>`;
+            }).join('');
+            tabs.querySelectorAll('.modal-tab').forEach(btn => {
+                btn.addEventListener('click', () => showFlashcardTab(btn.dataset.tab));
+            });
+        }
+
+        function coverageGapsDataKey(tabId) {
+            const t = COVERAGE_TABS.find(x => x.id === tabId);
+            return t ? t.key : 'not_in_matrix';
+        }
+
+        function showFlashcardTab(tab) {
+            if (!coverageGapsData) return;
+            coverageModalTab = tab || 'not_in_matrix';
+            document.getElementById('metricAnalysisPanel').style.display = 'none';
+            renderCoverageModalTabs();
+            renderFlashcards(coverageGapsData[coverageGapsDataKey(coverageModalTab)]);
+        }
+
+        function openMetricDetail(metricId) {
+            const m = metricsAnalysisData?.by_id?.[metricId];
+            if (!m) return;
+
+            document.getElementById('metricModalTitle').textContent = m.title || '指標詳細分析';
+            document.getElementById('metricModalSubtitle').textContent =
+                m.category === 'kpi' ? '量化目標 KPI' :
+                m.category === 'coverage' ? 'Annex A 覆蓋率' :
+                m.category === 'evidence' ? 'Evidence 追溯' :
+                m.category === 'monitored' ? 'OT 自動監控' : '合規指標';
+
+            renderMetricAnalysis(m);
+
+            const modal = document.getElementById('metricModal');
+            modal.classList.add('open');
+            modal.setAttribute('aria-hidden', 'false');
+        }
+
+        function closeMetricModal() {
+            const modal = document.getElementById('metricModal');
+            modal.classList.remove('open');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        document.getElementById('closeMetricModal').addEventListener('click', closeMetricModal);
+        document.getElementById('metricModal').addEventListener('click', (e) => {
+            if (e.target.id === 'metricModal') closeMetricModal();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeMetricModal();
+                closeArchModal();
+            }
+        });
+
+        document.getElementById('monitoredSectionTitle').addEventListener('click', () => {
+            openMetricDetail('mon_overview');
+        });
+
+        async function loadMetricsAnalysis() {
+            try {
+                metricsAnalysisData = await loadJson('/api/compliance/metrics');
+                coverageGapsData = metricsAnalysisData.coverage_gaps || coverageGapsData;
+                refreshArchTopoLiveStatus();
+            } catch (_) {
+                metricsAnalysisData = null;
+            }
+        }
+
+        function showBanner(msg, kind) {
+            const el = document.getElementById('statusBanner');
+            el.textContent = msg;
+            el.className = 'banner ' + (kind || 'err');
+        }
+
+        function apiHtmlErrorHint() {
+            if (location.protocol === 'file:') {
+                return '請勿直接開啟 HTML 檔，改從 http://localhost:2000/compliance 進入';
+            }
+            return '請重啟 run_ollama.bat 載入最新 API（/api/review/auto 等）';
+        }
+
+        async function parseJsonResponse(r) {
+            const ct = (r.headers.get('content-type') || '').toLowerCase();
+            if (!ct.includes('application/json')) {
+                const text = await r.text();
+                if (/^\s*</.test(text)) {
+                    throw new Error('API 回傳 HTML 而非 JSON。' + apiHtmlErrorHint());
+                }
+                throw new Error(`非 JSON 回應 (HTTP ${r.status})`);
+            }
+            const j = await r.json();
+            if (!r.ok) {
+                throw new Error(j.error || `${r.url || 'API'} HTTP ${r.status}`);
+            }
+            return j;
+        }
+
+        async function loadJson(url) {
+            const r = await fetch(url);
+            return parseJsonResponse(r);
+        }
+
+        function scanPlaceholderHtml() {
+            return (
+                '<div class="card scan-placeholder">' +
+                '<p>請先按上方 <strong>▶ 執行地端合規管線</strong> 掃描 OT 日誌並寫入 evidence，' +
+                '完成後才會顯示 KPI、覆蓋率、監控對映與 Evidence 追溯數據。</p>' +
+                '</div>'
+            );
+        }
+
+        function showScanPlaceholder() {
+            const ph = scanPlaceholderHtml();
+            document.getElementById('kpiGrid').innerHTML = ph;
+            document.querySelector('#monitoredTable tbody').innerHTML =
+                '<tr><td colspan="5" class="loading">請先執行地端合規管線</td></tr>';
+            document.getElementById('evidenceGrid').innerHTML = ph;
+            document.querySelector('#evidenceTable tbody').innerHTML =
+                '<tr><td colspan="5" class="loading">管線掃描完成後顯示</td></tr>';
+        }
+
+        async function renderCoverageFromApi() {
+            await loadMetricsAnalysis();
+            try {
+                const matrix = await loadJson('/api/compliance/matrix');
+                coverageGapsData = matrix.coverage_gaps || coverageGapsData;
+                renderCoverage(matrix);
+            } catch (_) {}
+            renderKpiFromMetrics();
+        }
+
+        async function loadAndRenderScanResults() {
+            const matrix = await loadJson('/api/compliance/matrix');
+            coverageGapsData = matrix.coverage_gaps || coverageGapsData;
+            const evidence = await loadJson('/api/evidence?limit=50');
+            await loadMetricsAnalysis();
+            renderKpiFromMetrics();
+            renderCoverage(matrix);
+            renderMonitored(matrix.controls);
+            renderEvidenceStats(evidence.traceability || {}, evidence.items || []);
+            try { sessionStorage.setItem('compliance_scan_done', '1'); } catch (_) {}
+        }
+
+        async function initScanSection() {
+            showScanPlaceholder();
+            await renderCoverageFromApi();
+            try {
+                const evidence = await loadJson('/api/evidence?limit=1');
+                const hasRecords = (evidence.traceability?.total_evidence_records || 0) > 0
+                    || (evidence.items || []).length > 0;
+                if (hasRecords) {
+                    await loadAndRenderScanResults();
+                }
+            } catch (_) {}
+        }
+
+        function renderKpiFromMetrics() {
+            const grid = document.getElementById('kpiGrid');
+            const kpis = (metricsAnalysisData?.items || []).filter(x => x.category === 'kpi');
+            if (!kpis.length) {
+                grid.innerHTML = scanPlaceholderHtml();
+                return;
+            }
+            grid.innerHTML = kpis.map(k => metricCardHtml(
+                k.id,
+                k.title,
+                k.current_display,
+                `目標 ${k.target_display} · 點擊詳細分析`,
+                k.status === 'warn' ? ' ⚠' : (k.status === 'ok' ? ' ✓' : '')
+            )).join('');
+            bindMetricCards(grid);
+        }
+
+        function renderKpi(targets) {
+            renderKpiFromMetrics();
+        }
+
+        function renderCoverage(c) {
+            const grid = document.getElementById('coverageGrid');
+            const cov = c.coverage || c;
+            const notInMatrix = cov.not_in_matrix_count ?? (coverageGapsData?.not_in_matrix_count ?? 22);
+            const matrixPct = Math.round((cov.coverage_rate_matrix || 0) * 100);
+            grid.innerHTML = [
+                metricCardHtml('cov_matrix_defined', '矩陣定義', `${cov.matrix_defined || 0}`, `未納入 ${notInMatrix} 項 · 點擊詳細分析`, ' / 93 Annex A'),
+                metricCardHtml('cov_phase1_mvp', 'Phase 1 MVP', `${cov.phase1_mvp_count || 0}`, `Phase 2 定義 ${cov.phase2_in_matrix_count ?? '—'} 項`, ' 項 in_scope'),
+                metricCardHtml('cov_automated_monitoring', 'OT 自動監控', `${cov.automated_monitoring_count || 6}`, `未自動化 ${cov.not_automated_count ?? '—'} 項`, ' syslog 對映'),
+                metricCardHtml('cov_matrix_rate', '矩陣覆蓋率', `${matrixPct}%`, `缺口 ${notInMatrix} 項 · 點擊識字卡`, ' 目標 ≥80%'),
+            ].join('');
+            bindMetricCards(grid);
+        }
+
+        function renderMonitored(controls) {
+            const tb = document.querySelector('#monitoredTable tbody');
+            const rows = (controls || []).filter(c => c.monitored);
+            if (!rows.length) {
+                tb.innerHTML = '<tr><td colspan="5">尚無自動監控控制項</td></tr>';
+                return;
+            }
+            tb.innerHTML = rows.map(c => `
+                <tr class="row-clickable" data-metric-id="mon_${escapeHtml(c.control_key || '')}">
+                    <td class="mono">${escapeHtml(c.annex_a_id || '')}</td>
+                    <td>${escapeHtml(c.title || '')}</td>
+                    <td class="mono">${escapeHtml(c.control_key || '—')}</td>
+                    <td>${escapeHtml((c.evidence_types || []).join(', '))}</td>
+                    <td class="badge-auto">${escapeHtml(c.automation || 'manual')}</td>
+                </tr>`).join('');
+            tb.querySelectorAll('tr[data-metric-id]').forEach(tr => {
+                tr.addEventListener('click', () => openMetricDetail(tr.dataset.metricId));
+            });
+        }
+
+        function renderEvidenceStats(trace, items) {
+            const grid = document.getElementById('evidenceGrid');
+            const rate = Math.round((trace.traceability_rate || 0) * 100);
+            grid.innerHTML = [
+                metricCardHtml('ev_total_records', 'Evidence 紀錄', `${trace.total_evidence_records || 0}`, '點擊查看分組與詳細分析', ''),
+                metricCardHtml('ev_with_evidence_id', '含 evidence_id', `${trace.with_evidence_id || 0}`, '點擊查看 ID 格式與覆蓋', ''),
+                metricCardHtml('ev_traceability_rate', '追溯率', trace.total_evidence_records ? `${rate}%` : '—', '目標 100% · 點擊詳細分析', ''),
+                metricCardHtml('ev_pending_review', '待審', `${trace.pending_review || 0}`, '可點「AI 自動審核」或詳細分析', ''),
+            ].join('');
+            bindMetricCards(grid);
+            const tb = document.querySelector('#evidenceTable tbody');
+            const list = (items || []).slice(-8).reverse();
+            if (!list.length) {
+                tb.innerHTML = '<tr><td colspan="5">尚無 evidence（請至監控戰情室載入 OT 日誌）</td></tr>';
+                return;
+            }
+            tb.innerHTML = list.map(r => `
+                <tr>
+                    <td class="mono">${r.evidence_id || ''}</td>
+                    <td>${r.control_key || r.annex_a_id || ''}</td>
+                    <td>${r.event_count ?? '—'}</td>
+                    <td>${(r.collected_at || '').slice(0, 19).replace('T', ' ')}</td>
+                    <td>${r.review_status === 'pending' ? '<span class="badge-warn">pending</span>' : '<span class="badge-ok">ok</span>'}</td>
+                </tr>`).join('');
+        }
+
+        function renderAgents(wf) {
+            const el = document.getElementById('agentFlow');
+            const agents = wf.agents || [];
+            el.innerHTML = '<div class="agent">' + agents.map(a =>
+                `<span><strong>${a.role}</strong> — ${a.duty}</span>`
+            ).join('') + '</div>';
+            if (wf.pipeline) {
+                el.innerHTML += '<ul class="compact">' + wf.pipeline.map(p => `<li>${p}</li>`).join('') + '</ul>';
+            }
+        }
+
+        function renderGuardrail(g) {
+            const box = document.getElementById('guardrailBox');
+            const m = g.guardrail_mechanism || {};
+            const hr = g.human_review || {};
+            const rm = g.reviewer_mode || {};
+            box.innerHTML = `<p>模式：<strong>${g.guardrail_enabled === false ? 'disabled' : (g.guardrail_mode || 'n/a')}</strong></p>
+                <p><strong>審核模式</strong>：<strong>${escapeHtml(rm.label || 'Human Analyst')}</strong>
+                <span style="color:var(--muted);font-size:0.85rem"> — ${escapeHtml(rm.note || '')}</span></p>
+                <p><strong>輸入層</strong></p><ul class="compact">${(m.input_layers||[]).map(x=>`<li>${x}</li>`).join('')}</ul>
+                <p><strong>輸出層</strong></p><ul class="compact">${(m.output_layers||[]).map(x=>`<li>${x}</li>`).join('')}</ul>
+                <p><strong>Human Review</strong></p><ul class="compact">${(m.human_review||[]).map(x=>`<li>${x}</li>`).join('')}</ul>
+                <p style="color:var(--muted);font-size:0.85rem">待審：${hr.pending ?? rm.pending_queue ?? 0} · 採納率目標 ≥75%</p>`;
+        }
+
+        async function runAiReviewBatch() {
+            const btn = document.getElementById('runAiReview');
+            btn.disabled = true;
+            btn.textContent = 'AI 審核中…';
+            showBanner('AI Reviewer 正在處理 pending 項目…', 'ok');
+            try {
+                const r = await fetch('/api/review/auto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+                const j = await parseJsonResponse(r);
+                if (j.ok) {
+                    showBanner(j.summary || 'AI 審核完成', 'ok');
+                    await loadAndRenderScanResults();
+                } else {
+                    showBanner('AI 審核失敗：' + (j.error || 'unknown'), 'err');
+                }
+            } catch (err) {
+                showBanner('錯誤：' + err.message, 'err');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🤖 AI 自動審核';
+            }
+        }
+
+        document.getElementById('runAiReview').addEventListener('click', (e) => {
+            e.preventDefault();
+            runAiReviewBatch();
+        });
+
+        function renderVs(rows) {
+            const tb = document.querySelector('#vsTable tbody');
+            tb.innerHTML = '<tr><th>維度</th><th>傳統 AI 報告</th><th>Semi-Shield</th></tr>' +
+                (rows || []).map(r => `<tr><td>${r.dimension}</td><td>${r.traditional}</td><td>${r.semi_shield}</td></tr>`).join('');
+        }
+
+        function renderGrc(rows) {
+            const tb = document.querySelector('#grcTable tbody');
+            tb.innerHTML = '<tr><th>方案</th><th>重點</th><th>Local LLM</th><th>OT Syslog</th><th>Evidence</th><th>Human Review AI</th></tr>' +
+                (rows || []).map(r => `<tr><td>${r.vendor}</td><td>${r.focus}</td><td>${r.local_llm?'✓':'—'}</td><td>${r.ot_syslog_mapping?'✓':'—'}</td><td>${r.evidence_traceability||'—'}</td><td>${r.human_review_ai?'✓':'—'}</td></tr>`).join('');
+        }
+
+        document.getElementById('runPipeline').addEventListener('click', async (e) => {
+            e.preventDefault();
+            if (!confirm('執行完整合規管線（掃描 OT + LLM 診斷 + Review Queue）？可能需數分鐘。')) return;
+            const btn = e.target;
+            btn.disabled = true;
+            btn.textContent = '執行中…';
+            showBanner('合規管線執行中，請稍候…', 'ok');
+            try {
+                const r = await fetch('/api/compliance/pipeline', { method: 'POST' });
+                const j = await parseJsonResponse(r);
+                if (j.ok) {
+                    const stages = (j.stages || []).map(s => s.stage).join(' → ');
+                    let msg = `管線完成：${stages}。Evidence：${Object.keys(j.evidence_map || {}).length} 項`;
+                    if (j.ai_review && j.ai_review.summary) {
+                        msg += ' · ' + j.ai_review.summary;
+                    }
+                    showBanner(msg, 'ok');
+                    await loadAndRenderScanResults();
+                } else {
+                    showBanner('管線失敗：' + (j.error || 'unknown'), 'err');
+                }
+            } catch (err) {
+                showBanner('錯誤：' + err.message, 'err');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '▶ 執行地端合規管線';
+            }
+        });
+
+        (async () => {
+            await initScanSection();
+
+            const jobs = [
+                {
+                    name: 'grc',
+                    run: async () => {
+                        const grc = await loadJson('/api/compliance/grc');
+                        renderVs(grc.vs_traditional_ai_report);
+                        renderGrc(grc.commercial_grc_comparison);
+                    },
+                },
+                {
+                    name: 'workflow',
+                    run: async () => {
+                        const wf = await loadJson('/api/compliance/workflow');
+                        workflowData = wf;
+                        renderAgents(wf);
+                    },
+                },
+                {
+                    name: 'safety',
+                    run: async () => {
+                        const safety = await loadJson('/api/safety/status');
+                        archSafetySnapshot = safety;
+                        renderGuardrail(safety);
+                        refreshArchTopoLiveStatus();
+                        if (safety.offline_ready === false) {
+                            showBanner(
+                                '離線前端套件缺檔：' + (safety.offline?.missing || []).join('、') +
+                                '（PDF 匯出可能失敗）',
+                                'err'
+                            );
+                        }
+                    },
+                },
+            ];
+
+            const errors = [];
+            await Promise.all(jobs.map(async (job) => {
+                try {
+                    await job.run();
+                } catch (e) {
+                    console.error(job.name, e);
+                    errors.push(`${job.name}: ${e.message || e}`);
+                    if (job.name === 'grc') {
+                        document.querySelector('#vsTable tbody').innerHTML =
+                            '<tr><td colspan="3" style="color:var(--err)">載入失敗</td></tr>';
+                        document.querySelector('#grcTable tbody').innerHTML =
+                            '<tr><td colspan="6" style="color:var(--err)">載入失敗</td></tr>';
+                    }
+                    if (job.name === 'workflow') {
+                        document.getElementById('agentFlow').innerHTML =
+                            '<span style="color:var(--err)">Agent Workflow 載入失敗</span>';
+                    }
+                    if (job.name === 'safety') {
+                        document.getElementById('guardrailBox').innerHTML =
+                            '<p style="color:var(--muted)">護欄狀態暫不可用（' +
+                            (e.message || e) + '）</p>';
+                    }
+                }
+            }));
+
+            if (errors.length) {
+                showBanner(
+                    '部分區塊載入失敗：' + errors.join(' · ') +
+                    '。請確認 python app.py 已啟動並重新整理。',
+                    errors.length === jobs.length ? 'err' : 'ok'
+                );
+            }
+
+            wireArchLayers();
+            archSyncTopologyViews();
+        })();
+    </script>
+</body>
+</html>

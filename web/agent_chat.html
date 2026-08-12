@@ -1,0 +1,3032 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semi-Shield ISMS AI Agent 智能專家系統</title>
+    <script src="/static/vendor/chart.umd.min.js"></script>
+    <script src="/static/vendor/mermaid.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #07111f;
+            --chat-bg: #0c1829;
+            --panel-bg: #0a1524;
+            --header-bg: rgba(8, 18, 32, 0.92);
+            --text-main: #e8eef7;
+            --text-muted: #8aa0b8;
+            --border-color: rgba(100, 140, 180, 0.18);
+            --border-strong: rgba(56, 189, 248, 0.35);
+            --tech-blue: #4ec8f0;
+            --tech-teal: #2dd4bf;
+            --agent-glow: #0ea5e9;
+            --user-bubble: #0b6ea8;
+            --agent-bubble: rgba(18, 32, 52, 0.92);
+            --sidebar-bg: #060e18;
+            --radius-sm: 8px;
+            --radius-md: 14px;
+            --radius-lg: 18px;
+            --ease: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        body {
+            font-family: "Noto Sans TC", "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+            background:
+                radial-gradient(1200px 600px at 12% -10%, rgba(14, 165, 233, 0.16), transparent 55%),
+                radial-gradient(900px 500px at 90% 110%, rgba(45, 212, 191, 0.08), transparent 50%),
+                linear-gradient(165deg, #050b14 0%, var(--bg-color) 45%, #0a1628 100%);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            box-sizing: border-box;
+            -webkit-font-smoothing: antialiased;
+        }
+        body * { box-sizing: border-box; }
+
+        /* 整合平台 iframe 嵌入模式：佔滿整個面板 */
+        html.embedded, html.embedded body {
+            height: 100%;
+            width: 100%;
+        }
+        html.embedded body {
+            display: block;
+            padding: 0;
+            background: var(--chat-bg);
+            overflow: hidden;
+        }
+        html.embedded .chat-container {
+            max-width: none;
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
+            min-width: 0;
+        }
+
+        .chat-container {
+            width: 100%;
+            max-width: 920px;
+            height: 85vh;
+            background:
+                linear-gradient(180deg, rgba(16, 36, 58, 0.55) 0%, transparent 120px),
+                var(--chat-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            box-shadow:
+                0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+                0 24px 48px -18px rgba(0, 0, 0, 0.55);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 16px 20px;
+            background: var(--header-bg);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            /* 功能選單需蓋過下方訊息氣泡，否則會穿模／點不到 */
+            position: relative;
+            z-index: 200;
+            overflow: visible;
+        }
+
+        .agent-profile {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .agent-avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: linear-gradient(145deg, var(--tech-blue), #0369a1 60%, var(--tech-teal));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 15px;
+            letter-spacing: 0.02em;
+            box-shadow: 0 8px 20px rgba(14, 165, 233, 0.28);
+            flex-shrink: 0;
+        }
+
+        .agent-status-info h2 {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 700;
+            letter-spacing: 0.01em;
+            color: #f0f7ff;
+        }
+
+        .agent-status-info p {
+            margin: 4px 0 0 0;
+            font-size: 11px;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            line-height: 1.4;
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background-color: #34d399;
+            display: inline-block;
+            box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.55);
+            animation: pulse-dot 2.2s var(--ease) infinite;
+        }
+        @keyframes pulse-dot {
+            0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5); }
+            70% { box-shadow: 0 0 0 7px rgba(52, 211, 153, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+        }
+
+        .clear-btn {
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 7px 12px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: color 0.2s, border-color 0.2s, background 0.2s;
+        }
+        .clear-btn:hover {
+            color: #fda4af;
+            border-color: rgba(244, 63, 94, 0.45);
+            background: rgba(244, 63, 94, 0.08);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .feature-btn {
+            background: rgba(56, 189, 248, 0.06);
+            border: 1px solid var(--border-color);
+            color: var(--tech-blue);
+            padding: 7px 13px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: border-color 0.2s, background 0.2s, transform 0.15s var(--ease);
+        }
+        .feature-btn:hover {
+            border-color: var(--border-strong);
+            background: rgba(56, 189, 248, 0.14);
+        }
+        .feature-btn:active { transform: translateY(1px); }
+        .feature-btn:disabled {
+            opacity: 0.55;
+            cursor: wait;
+        }
+
+        .feature-menu {
+            display: none;
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            width: min(380px, 92vw);
+            max-height: min(70vh, 520px);
+            overflow: auto;
+            background: rgba(8, 18, 32, 0.98);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            box-shadow: 0 24px 56px rgba(0, 0, 0, 0.65);
+            z-index: 300;
+            padding: 14px;
+            animation: msg-in 0.2s var(--ease) both;
+            /* 自成層疊，避免被訊息氣泡蓋住 */
+            isolation: isolate;
+        }
+        .feature-menu.open { display: block; }
+        .feature-menu-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 190;
+            background: rgba(2, 8, 18, 0.45);
+        }
+        .feature-menu-backdrop.open { display: block; }
+        .chat-messages.menu-dimmed {
+            pointer-events: none;
+        }
+        .feature-menu h3 {
+            margin: 0 0 6px 0;
+            font-size: 13px;
+            color: #e8eef7;
+            font-weight: 700;
+        }
+        .feature-menu .menu-hint {
+            margin: 0 0 10px 0;
+            font-size: 11px;
+            color: var(--text-muted);
+            line-height: 1.45;
+        }
+        .model-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 240px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(100, 140, 180, 0.45) transparent;
+        }
+        .model-list::-webkit-scrollbar { width: 8px; }
+        .model-list::-webkit-scrollbar-thumb {
+            background: rgba(100, 140, 180, 0.4);
+            border-radius: 999px;
+        }
+        .model-list::-webkit-scrollbar-track { background: transparent; }
+        .model-option {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 8px 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            background: #111827;
+        }
+        .model-option:hover { border-color: #475569; }
+        .model-option.active {
+            border-color: var(--tech-blue);
+            background: rgba(56, 189, 248, 0.1);
+        }
+        .model-option.unavailable {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+        .model-option input { margin-top: 2px; accent-color: var(--tech-blue); }
+        .model-option .meta { min-width: 0; }
+        .model-option .name {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px 6px;
+            font-size: 13px;
+            color: #f1f5f9;
+            font-weight: 600;
+        }
+        .model-option .slug {
+            font-size: 11px;
+            color: var(--text-muted);
+            word-break: break-all;
+            margin-top: 2px;
+        }
+        .model-group-title {
+            margin: 10px 0 4px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            color: #7dd3fc;
+        }
+        .model-group-title:first-child { margin-top: 0; }
+        .model-badge {
+            display: inline-block;
+            font-size: 10px;
+            padding: 1px 6px;
+            border-radius: 999px;
+            margin-left: 0;
+            vertical-align: middle;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .model-badge.finetuned {
+            background: rgba(52, 211, 153, 0.18);
+            color: #6ee7b7;
+        }
+        .model-badge.alias {
+            background: rgba(56, 189, 248, 0.16);
+            color: #7dd3fc;
+        }
+        .model-badge.base {
+            background: rgba(251, 191, 36, 0.16);
+            color: #fcd34d;
+        }
+        .model-status-hint {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+        .model-menu-status {
+            margin: 0 0 10px 0;
+            padding: 8px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            min-height: 18px;
+            line-height: 1.45;
+            border-radius: 8px;
+            background: rgba(7, 17, 31, 0.75);
+            border: 1px solid var(--border-color);
+        }
+        .model-menu-status.busy {
+            color: #fbbf24;
+            border-color: rgba(251, 191, 36, 0.35);
+            background: rgba(251, 191, 36, 0.08);
+        }
+        .model-menu-status.ok {
+            color: #34d399;
+            border-color: rgba(52, 211, 153, 0.35);
+            background: rgba(52, 211, 153, 0.08);
+        }
+        .model-menu-status.err {
+            color: #f87171;
+            border-color: rgba(248, 113, 113, 0.35);
+            background: rgba(248, 113, 113, 0.08);
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 22px 28px 28px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+            scroll-behavior: smooth;
+            position: relative;
+            z-index: 1;
+            min-width: 0;
+            background:
+                radial-gradient(ellipse 70% 40% at 50% 0%, rgba(56, 189, 248, 0.04), transparent 70%);
+        }
+        .chat-messages::-webkit-scrollbar { width: 8px; }
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: rgba(100, 140, 180, 0.28);
+            border-radius: 999px;
+        }
+        .chat-messages::-webkit-scrollbar-track { background: transparent; }
+
+        .message {
+            display: flex;
+            gap: 10px;
+            max-width: min(640px, 72%);
+            animation: msg-in 0.35s var(--ease) both;
+        }
+        @keyframes msg-in {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: none; }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .message.agent {
+            align-self: flex-start;
+            align-items: flex-start;
+        }
+
+        .msg-content-col {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .reply-model-bar {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .reply-model-bar:empty { display: none; }
+
+        .bubble-head {
+            display: none;
+        }
+        .reply-model-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 8px;
+            letter-spacing: 0.02em;
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            background: rgba(8, 22, 40, 0.92);
+            color: #e0f2fe;
+            max-width: 100%;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .message.has-visual {
+            max-width: min(820px, 92%);
+        }
+
+        .msg-avatar {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 800;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .user .msg-avatar {
+            background: rgba(14, 116, 144, 0.35);
+            color: #7dd3fc;
+            border: 1px solid rgba(56, 189, 248, 0.25);
+        }
+        .agent .msg-avatar {
+            background: linear-gradient(145deg, var(--tech-blue), #0284c7);
+            color: #fff;
+        }
+
+        .bubble {
+            padding: 13px 16px;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            line-height: 1.68;
+            letter-spacing: 0.01em;
+            white-space: pre-wrap;
+            min-width: 0;
+        }
+
+        .user .bubble {
+            background: linear-gradient(160deg, #0e7490 0%, var(--user-bubble) 55%, #075985 100%);
+            color: #f8fcff;
+            border-radius: 16px 16px 4px 16px;
+            box-shadow: 0 8px 18px rgba(2, 88, 140, 0.22);
+        }
+
+        .agent .bubble {
+            background: var(--agent-bubble);
+            color: var(--text-main);
+            border-radius: 16px 16px 16px 4px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+        }
+
+        .bubble-text { white-space: pre-wrap; }
+
+        .agent .bubble {
+            white-space: normal;
+        }
+        .agent .bubble p {
+            margin: 0 0 0.7em;
+        }
+        .agent .bubble p:last-child { margin-bottom: 0; }
+        .agent .bubble strong { color: #f1f8ff; font-weight: 700; }
+
+        .reply-model-tag .tag-stage {
+            font-size: 9px;
+            padding: 1px 5px;
+            border-radius: 999px;
+            font-weight: 700;
+        }
+        .reply-model-tag .tag-stage.finetuned {
+            background: rgba(52, 211, 153, 0.18);
+            color: #6ee7b7;
+        }
+        .reply-model-tag .tag-stage.base {
+            background: rgba(251, 191, 36, 0.16);
+            color: #fcd34d;
+        }
+        .reply-model-tag .tag-stage.system {
+            background: rgba(148, 163, 184, 0.16);
+            color: #cbd5e1;
+        }
+        .reply-model-tag .tag-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .reply-model-tag.guardrail {
+            border-color: rgba(251, 191, 36, 0.35);
+            color: #fde68a;
+        }
+
+        .rich-report {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .report-section-title {
+            margin: 0;
+            font-size: 15px;
+            font-weight: 700;
+            color: #e2e8f0;
+            letter-spacing: 0.02em;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+        }
+
+        .status-card {
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 12px;
+            border-top: 3px solid #64748b;
+        }
+        .status-card.pass { border-top-color: #10b981; }
+        .status-card.review { border-top-color: #f59e0b; }
+        .status-card.fail { border-top-color: #ef4444; }
+
+        .status-card .key {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            word-break: break-all;
+        }
+        .status-card .value {
+            font-size: 14px;
+            font-weight: 700;
+            color: #f8fafc;
+            margin-bottom: 8px;
+        }
+        .status-card .desc {
+            font-size: 12px;
+            color: #cbd5e1;
+            line-height: 1.45;
+        }
+        .status-badge {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 999px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+        .status-badge.pass { background: rgba(16,185,129,.15); color: #34d399; }
+        .status-badge.review { background: rgba(245,158,11,.15); color: #fbbf24; }
+        .status-badge.fail { background: rgba(239,68,68,.15); color: #f87171; }
+
+        .action-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .action-card {
+            background: #111827;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+        .action-card h4 {
+            margin: 0 0 8px 0;
+            font-size: 13px;
+            color: var(--tech-blue);
+        }
+        .action-card .action-body {
+            font-size: 13px;
+            color: #e2e8f0;
+            line-height: 1.55;
+        }
+        .action-card ul {
+            margin: 6px 0 0 18px;
+            padding: 0;
+            color: #cbd5e1;
+        }
+        .action-card li { margin: 4px 0; }
+
+        .md-block {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+        }
+        .md-block .report-hero {
+            margin: 0;
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(56,189,248,.16), rgba(14,165,233,.08));
+            border: 1px solid rgba(56,189,248,.3);
+            color: #7dd3fc;
+            font-size: 16px;
+            font-weight: 800;
+            letter-spacing: 0.02em;
+        }
+        .md-section-card {
+            background: #0f172a;
+            border: 1px solid #1e293b;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+        }
+        .md-section-card.tone-0 { border-top: 3px solid #38bdf8; }
+        .md-section-card.tone-1 { border-top: 3px solid #34d399; }
+        .md-section-card.tone-2 { border-top: 3px solid #f59e0b; }
+        .md-section-card.tone-3 { border-top: 3px solid #a78bfa; }
+        .md-section-card.tone-4 { border-top: 3px solid #f472b6; }
+        .md-card-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: rgba(15, 23, 42, 0.95);
+            border-bottom: 1px solid #1e293b;
+        }
+        .md-card-index {
+            flex: 0 0 auto;
+            min-width: 28px;
+            height: 28px;
+            padding: 0 8px;
+            border-radius: 999px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 800;
+            color: #0f172a;
+            background: #38bdf8;
+        }
+        .md-section-card.tone-1 .md-card-index { background: #34d399; }
+        .md-section-card.tone-2 .md-card-index { background: #fbbf24; }
+        .md-section-card.tone-3 .md-card-index { background: #c4b5fd; }
+        .md-section-card.tone-4 .md-card-index { background: #f9a8d4; }
+        .md-card-title {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 700;
+            color: #f1f5f9;
+            line-height: 1.35;
+        }
+        .md-card-body {
+            padding: 12px 14px 14px;
+        }
+        .md-card-body .md-card-content {
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid #1e293b;
+            border-radius: 10px;
+            padding: 12px 14px;
+        }
+        .md-card-body h3, .md-card-body h4 {
+            margin: 8px 0 6px;
+            color: #e2e8f0;
+        }
+        .md-card-body h3 { font-size: 14px; }
+        .md-card-body h4 { font-size: 13px; color: var(--tech-blue); }
+        .md-card-body p {
+            margin: 0 0 8px;
+            color: #e2e8f0;
+            line-height: 1.65;
+            white-space: pre-wrap;
+        }
+        .md-card-body p:last-child { margin-bottom: 0; }
+        .md-card-body ul, .md-card-body ol {
+            margin: 8px 0 0 0;
+            padding-left: 18px;
+            color: #cbd5e1;
+        }
+        .md-card-body li {
+            margin: 4px 0;
+            line-height: 1.55;
+            padding: 0;
+            background: transparent;
+            border-radius: 0;
+            list-style-position: outside;
+        }
+        .md-card-body li::marker { color: #38bdf8; }
+        .md-card-body strong { color: #f8fafc; }
+        .md-card-body pre.md-code {
+            margin: 8px 0 4px;
+            padding: 10px 12px;
+            background: #0b1220;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 12px;
+            line-height: 1.45;
+            color: #94a3b8;
+            max-height: 220px;
+        }
+        .md-card-body pre.md-code code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .md-block .end-mark {
+            margin-top: 0;
+            font-size: 12px;
+            color: #64748b;
+            text-align: right;
+            padding: 0 4px;
+        }
+
+        .viz-block {
+            margin-top: 12px;
+            padding: 12px;
+            background: #0f172a;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        .viz-title {
+            font-size: 13px;
+            color: var(--tech-blue);
+            margin: 0 0 10px 0;
+            font-weight: 600;
+        }
+
+        .chart-wrap {
+            position: relative;
+            width: 100%;
+            height: 260px;
+        }
+
+        .mermaid-wrap {
+            overflow-x: auto;
+            background: #111827;
+            border-radius: 6px;
+            padding: 12px;
+        }
+
+        .mermaid-wrap svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        /* 防止 Mermaid 語法錯誤時炸彈圖示殘留在對話區 */
+        #chatBox > svg,
+        #chatBox > div[id^="dmermaid"],
+        #chatBox svg[aria-roledescription="error"],
+        #chatBox .viz-block:has(.error-icon),
+        #chatBox .mermaid-wrap:has(.error-icon) {
+            display: none !important;
+        }
+
+        .tool-call {
+            background-color: #0f172a;
+            border-left: 3px solid var(--tech-blue);
+            padding: 8px 12px;
+            font-family: monospace;
+            font-size: 12px;
+            color: #38bdf8;
+            border-radius: 4px;
+            margin: 5px 0;
+            width: fit-content;
+        }
+
+        .rag-cite {
+            background: rgba(6, 24, 20, 0.85);
+            border: 1px solid rgba(16, 185, 129, 0.28);
+            border-left: 3px solid #34d399;
+            padding: 10px 14px;
+            font-size: 12px;
+            color: #6ee7b7;
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            margin: 2px 0 2px 44px;
+            width: fit-content;
+            max-width: min(640px, 72%);
+            animation: msg-in 0.35s var(--ease) both;
+        }
+        .rag-cite summary {
+            cursor: pointer;
+            color: #6ee7b7;
+            font-weight: 650;
+            letter-spacing: 0.01em;
+        }
+        .rag-cite ol {
+            margin: 8px 0 0 18px;
+            padding: 0;
+            color: #94a3b8;
+            line-height: 1.55;
+        }
+
+        .guard-banner {
+            background: rgba(69, 10, 10, 0.75);
+            border-left: 3px solid #f43f5e;
+            padding: 8px 12px;
+            font-size: 12px;
+            color: #fda4af;
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            margin: 5px 0;
+            width: fit-content;
+        }
+
+        .chat-input-area {
+            padding: 14px 18px 16px;
+            background: linear-gradient(180deg, rgba(8, 18, 32, 0.4), var(--header-bg));
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 10px;
+            align-items: stretch;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: rgba(7, 17, 31, 0.9);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 13px 16px;
+            color: var(--text-main);
+            font-size: 14px;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .chat-input::placeholder { color: #64748b; }
+        .chat-input:focus {
+            border-color: var(--border-strong);
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+        }
+
+        .send-btn {
+            background: linear-gradient(145deg, #22d3ee, #0284c7 55%, #0369a1);
+            color: #fff;
+            border: none;
+            padding: 0 22px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.04em;
+            cursor: pointer;
+            transition: filter 0.2s, transform 0.15s var(--ease), box-shadow 0.2s;
+            box-shadow: 0 8px 18px rgba(14, 165, 233, 0.28);
+            min-width: 72px;
+        }
+
+        .send-btn:hover {
+            filter: brightness(1.08);
+            box-shadow: 0 10px 22px rgba(14, 165, 233, 0.38);
+        }
+        .send-btn:active { transform: translateY(1px); }
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: none;
+            box-shadow: none;
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 5px;
+            padding: 6px 4px;
+            align-items: center;
+        }
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background-color: var(--tech-blue);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+            opacity: 0.85;
+        }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0.35); opacity: 0.35; }
+            40% { transform: scale(1.0); opacity: 1; }
+        }
+
+        /* ===== 對話紀錄右側欄 ===== */
+        .app-shell {
+            display: flex;
+            width: 100%;
+            max-width: 1280px;
+            height: 85vh;
+            gap: 0;
+            align-items: stretch;
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            box-shadow:
+                0 0 0 1px rgba(255, 255, 255, 0.04),
+                0 28px 60px -20px rgba(0, 0, 0, 0.65);
+        }
+        html.embedded .app-shell {
+            max-width: none;
+            width: 100%;
+            height: 100%;
+            border-radius: 0;
+            box-shadow: none;
+            min-width: 0;
+        }
+        .app-shell .chat-container {
+            flex: 1 1 auto;
+            width: auto;
+            max-width: none;
+            height: 100%;
+            border-radius: 0;
+            border: none;
+            box-shadow: none;
+        }
+        html.embedded .app-shell .chat-container {
+            border-radius: 0;
+        }
+        .history-sidebar {
+            width: 268px;
+            flex: 0 0 268px;
+            background:
+                linear-gradient(180deg, rgba(14, 165, 233, 0.05) 0%, transparent 80px),
+                var(--sidebar-bg);
+            border-left: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        html.embedded .history-sidebar {
+            border-radius: 0;
+        }
+        .history-header {
+            padding: 16px 14px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            background: rgba(8, 18, 32, 0.75);
+        }
+        .history-header h3 {
+            margin: 0;
+            font-size: 12px;
+            color: #c5d4e6;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .history-new-btn {
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            color: var(--tech-blue);
+            padding: 5px 11px;
+            border-radius: 999px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 700;
+            white-space: nowrap;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .history-new-btn:hover {
+            background: rgba(56, 189, 248, 0.2);
+            border-color: var(--tech-blue);
+        }
+        .history-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .history-list::-webkit-scrollbar { width: 6px; }
+        .history-list::-webkit-scrollbar-thumb {
+            background: rgba(100, 140, 180, 0.25);
+            border-radius: 999px;
+        }
+        .history-item {
+            border: 1px solid transparent;
+            border-radius: 12px;
+            background: rgba(15, 28, 44, 0.65);
+            padding: 10px 11px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            transition: border-color 0.2s, background 0.2s, transform 0.15s var(--ease);
+        }
+        .history-item:hover {
+            border-color: rgba(100, 140, 180, 0.35);
+            background: rgba(22, 40, 62, 0.85);
+            transform: translateX(-1px);
+        }
+        .history-item.active {
+            border-color: var(--border-strong);
+            background: rgba(14, 116, 144, 0.18);
+            box-shadow: inset 3px 0 0 var(--tech-blue);
+        }
+        .history-item-title {
+            font-size: 12.5px;
+            color: #e8eef7;
+            font-weight: 600;
+            line-height: 1.4;
+            word-break: break-word;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .history-item-meta {
+            font-size: 10px;
+            color: var(--text-muted);
+            letter-spacing: 0.02em;
+        }
+        .history-item-actions {
+            display: flex;
+            gap: 6px;
+            margin-top: 4px;
+        }
+        .history-item-actions button {
+            flex: 1;
+            background: rgba(7, 17, 31, 0.5);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            border-radius: 6px;
+            padding: 4px 0;
+            font-size: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .history-item-actions button:hover {
+            color: var(--tech-blue);
+            border-color: rgba(56, 189, 248, 0.45);
+        }
+        .history-item-actions button.danger:hover {
+            color: #ef4444;
+            border-color: #ef4444;
+        }
+        .history-empty {
+            padding: 28px 12px;
+            font-size: 12px;
+            color: var(--text-muted);
+            text-align: center;
+            line-height: 1.6;
+        }
+        .history-toggle-btn {
+            display: none;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 7px 10px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        @media (max-width: 900px) {
+            .app-shell { max-width: 100%; height: 100vh; border-radius: 0; }
+            .history-sidebar {
+                position: fixed;
+                right: 0;
+                top: 0;
+                bottom: 0;
+                z-index: 50;
+                border-left: 1px solid var(--border-color);
+                border-radius: 0;
+                transform: translateX(100%);
+                transition: transform 0.25s var(--ease);
+                box-shadow: -12px 0 40px rgba(0, 0, 0, 0.45);
+            }
+            .history-sidebar.open { transform: translateX(0); }
+            .history-toggle-btn { display: inline-block; }
+            .app-shell .chat-container { border-radius: 0; }
+            .chat-messages { padding: 16px 14px 20px; }
+            .message { max-width: 88%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="feature-menu-backdrop" id="featureMenuBackdrop" onclick="closeFeatureMenu()"></div>
+    <div class="app-shell">
+        <div class="chat-container">
+            <div class="chat-header">
+                <div class="agent-profile">
+                    <div class="agent-avatar">AI</div>
+                    <div class="agent-status-info">
+                        <h2>Semi-Shield Cyber Agent</h2>
+                        <p><span class="status-dot"></span> <span id="safetyStatusText">實時連線：OT + RAG + 護欄 · 支援多種圖形</span></p>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button type="button" class="history-toggle-btn" id="historyToggleBtn" onclick="toggleHistorySidebar(event)">紀錄</button>
+                    <button type="button" class="feature-btn" id="featureMenuBtn" onclick="toggleFeatureMenu(event)">功能選單 ▾</button>
+                    <button class="clear-btn" onclick="clearChat()">重設對話</button>
+                    <div class="feature-menu" id="featureMenu" role="menu" aria-label="功能選單" onclick="event.stopPropagation()">
+                        <h3>回覆模型</h3>
+                        <p class="menu-hint" id="modelMenuHint">Ollama 後端：建議 qwen2.5:3b 或 qwen3_4b_ot。Gemma 2B OT 若對話異常請執行 rebuild_gemma_ot.bat。</p>
+                        <div class="model-menu-status" id="modelMenuStatus">尚未載入清單</div>
+                        <div class="model-list" id="modelList">
+                            <div class="menu-hint">載入模型清單中…</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-messages" id="chatBox"></div>
+
+            <div class="chat-input-area">
+                <input type="text" class="chat-input" id="userInput" placeholder="例如：畫出各種圖形（長條、圓餅、折線、雷達）..." onkeydown="if(event.key === 'Enter') sendMessage()">
+                <button class="send-btn" id="sendBtn" onclick="sendMessage()">發送</button>
+            </div>
+        </div>
+
+        <aside class="history-sidebar" id="historySidebar" aria-label="對話紀錄">
+            <div class="history-header">
+                <h3>對話紀錄</h3>
+                <button type="button" class="history-new-btn" onclick="createNewChat()">＋ 新增</button>
+            </div>
+            <div class="history-list" id="historyList">
+                <div class="history-empty">尚無對話紀錄</div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        const chatBox = document.getElementById('chatBox');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const chartInstances = [];
+        const LLM_MODEL_KEY = 'ot_agent_llm_model';
+        let selectedLlmModel = localStorage.getItem(LLM_MODEL_KEY) || '';
+        let llmModelsCache = [];
+        let llmCachedSlugs = [];
+        let modelSwitching = false;
+
+
+        // ===== 對話紀錄（右側欄，localStorage）=====
+        const CHAT_HISTORY_KEY = 'ot_agent_chat_sessions_v1';
+        const WELCOME_TEXT = '您好！我是您的 ISO 27001 專家 Agent。可請我「畫出各種圖形」、「圓餅圖看事件占比」、「折線圖比較控制項」或「用流程圖說明修補步驟」；支援長條/圓餅/折線/雷達/環圈/極區圖與 Mermaid 流程圖。';
+        let chatSessions = [];
+        let activeChatId = '';
+        let historyHydrating = false;
+
+        function uid() {
+            return 'c_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+        }
+
+        function loadChatStore() {
+            try {
+                const raw = localStorage.getItem(CHAT_HISTORY_KEY);
+                if (!raw) return { sessions: [], activeId: '' };
+                const data = JSON.parse(raw);
+                return {
+                    sessions: Array.isArray(data.sessions) ? data.sessions : [],
+                    activeId: data.activeId || ''
+                };
+            } catch (_) {
+                return { sessions: [], activeId: '' };
+            }
+        }
+
+        function saveChatStore() {
+            try {
+                localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify({
+                    sessions: chatSessions,
+                    activeId: activeChatId
+                }));
+            } catch (e) {
+                console.warn('對話紀錄儲存失敗', e);
+            }
+        }
+
+        function getActiveSession() {
+            return chatSessions.find((s) => s.id === activeChatId) || null;
+        }
+
+        function makeEmptySession(title) {
+            const now = Date.now();
+            return {
+                id: uid(),
+                title: title || '新對話',
+                titleLocked: false, // 手動改名後鎖定，不再被第一則提問覆蓋
+                createdAt: now,
+                updatedAt: now,
+                messages: [{ role: 'agent', text: WELCOME_TEXT, ts: now }]
+            };
+        }
+
+        function formatChatTime(ts) {
+            try {
+                const d = new Date(ts || Date.now());
+                const pad = (n) => String(n).padStart(2, '0');
+                return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            } catch (_) {
+                return '';
+            }
+        }
+
+        function deriveTitleFromText(text) {
+            const t = String(text || '').replace(/\s+/g, ' ').trim();
+            if (!t) return '新對話';
+            return t.length > 28 ? t.slice(0, 28) + '…' : t;
+        }
+
+        function renderHistoryList() {
+            const list = document.getElementById('historyList');
+            if (!list) return;
+            if (!chatSessions.length) {
+                list.innerHTML = '<div class="history-empty">尚無對話紀錄<br>點「＋ 新增」開始</div>';
+                return;
+            }
+            const sorted = [...chatSessions].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+            list.innerHTML = sorted.map((s) => {
+                const active = s.id === activeChatId ? ' active' : '';
+                const count = (s.messages || []).filter((m) => m.role === 'user').length;
+                const title = escapeHtml(s.title || '未命名對話');
+                const meta = escapeHtml(`${formatChatTime(s.updatedAt)} · ${count} 則提問`);
+                const idJs = JSON.stringify(s.id);
+                return `
+                    <div class="history-item${active}" onclick='switchChatSession(${idJs})'>
+                        <div class="history-item-title">${title}</div>
+                        <div class="history-item-meta">${meta}</div>
+                        <div class="history-item-actions" onclick="event.stopPropagation()">
+                            <button type="button" onclick='renameChatSession(${idJs})'>編輯</button>
+                            <button type="button" class="danger" onclick='deleteChatSession(${idJs})'>刪除</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function destroyCharts() {
+            while (chartInstances.length) {
+                const c = chartInstances.pop();
+                try { c.destroy(); } catch (_) {}
+            }
+        }
+
+        async function renderSessionMessages(session) {
+            historyHydrating = true;
+            destroyCharts();
+            chatBox.innerHTML = '';
+            const msgs = (session && session.messages) || [];
+            for (const m of msgs) {
+                if (m.role === 'user') {
+                    appendBubble('user', 'U', m.text || '', true);
+                } else {
+                    await appendAgentReply(m.text || '', {
+                        skipPersist: true,
+                        llmModel: m.llmModel || getSelectedLlmInfo(),
+                    });
+                }
+            }
+            if (!msgs.length) {
+                appendBubble('agent', '🤖', WELCOME_TEXT, true);
+            }
+            historyHydrating = false;
+            chatBox.scrollTop = chatBox.scrollHeight;
+            purgeMermaidErrorArtifacts();
+        }
+
+        function pushMessageToActive(role, text, meta) {
+            if (historyHydrating) return;
+            const s = getActiveSession();
+            if (!s) return;
+            const clean = String(text || '');
+            if (!clean) return;
+            s.messages = s.messages || [];
+            const msg = { role, text: clean, ts: Date.now() };
+            if (role === 'agent' && meta && meta.llmModel) {
+                msg.llmModel = normalizeLlmModelInfo(meta.llmModel);
+            }
+            s.messages.push(msg);
+            s.updatedAt = Date.now();
+            if (role === 'user' && !s.titleLocked) {
+                const userCount = s.messages.filter((m) => m.role === 'user').length;
+                // 僅首則提問自動取名；手動「編輯」後 titleLocked=true，之後不再改
+                if (userCount === 1) {
+                    s.title = deriveTitleFromText(clean);
+                }
+            }
+            saveChatStore();
+            renderHistoryList();
+        }
+
+        async function createNewChat() {
+            const s = makeEmptySession('新對話');
+            chatSessions.unshift(s);
+            activeChatId = s.id;
+            saveChatStore();
+            renderHistoryList();
+            await renderSessionMessages(s);
+            userInput.focus();
+        }
+
+        async function switchChatSession(id) {
+            if (!id || id === activeChatId) return;
+            const s = chatSessions.find((x) => x.id === id);
+            if (!s) return;
+            activeChatId = id;
+            saveChatStore();
+            renderHistoryList();
+            await renderSessionMessages(s);
+            const side = document.getElementById('historySidebar');
+            if (side && window.matchMedia('(max-width: 900px)').matches) {
+                side.classList.remove('open');
+            }
+        }
+
+        function renameChatSession(id) {
+            const s = chatSessions.find((x) => x.id === id);
+            if (!s) return;
+            const next = prompt('編輯對話名稱', s.title || '未命名對話');
+            if (next == null) return;
+            const title = String(next).trim();
+            if (!title) return;
+            s.title = title.slice(0, 60);
+            s.titleLocked = true; // 手動命名後固定，不再被第一則輸入覆蓋
+            s.updatedAt = Date.now();
+            saveChatStore();
+            renderHistoryList();
+        }
+
+        async function deleteChatSession(id) {
+            const s = chatSessions.find((x) => x.id === id);
+            if (!s) return;
+            if (!confirm(`確定刪除「${s.title || '未命名對話'}」？此操作無法復原。`)) return;
+            chatSessions = chatSessions.filter((x) => x.id !== id);
+            if (activeChatId === id) {
+                if (chatSessions.length) {
+                    activeChatId = chatSessions[0].id;
+                    saveChatStore();
+                    renderHistoryList();
+                    await renderSessionMessages(chatSessions[0]);
+                } else {
+                    await createNewChat();
+                    return;
+                }
+            } else {
+                saveChatStore();
+                renderHistoryList();
+            }
+        }
+
+        function toggleHistorySidebar(ev) {
+            if (ev) ev.stopPropagation();
+            const side = document.getElementById('historySidebar');
+            if (!side) return;
+            side.classList.toggle('open');
+        }
+
+        async function initChatHistory() {
+            const store = loadChatStore();
+            chatSessions = store.sessions || [];
+            activeChatId = store.activeId || '';
+            // 舊資料：標題若已不是預設、且與第一則提問不同 → 視為手動命名並鎖定
+            chatSessions.forEach((s) => {
+                if (!s || s.titleLocked) return;
+                const t = String(s.title || '').trim();
+                if (!t || t === '新對話' || t === '未命名對話') return;
+                const firstUser = (s.messages || []).find((m) => m.role === 'user');
+                const auto = firstUser ? deriveTitleFromText(firstUser.text) : '';
+                if (t !== auto) s.titleLocked = true;
+            });
+            if (!chatSessions.length) {
+                await createNewChat();
+                return;
+            }
+            if (!activeChatId || !chatSessions.some((s) => s.id === activeChatId)) {
+                activeChatId = chatSessions[0].id;
+            }
+            saveChatStore();
+            renderHistoryList();
+            await renderSessionMessages(getActiveSession());
+        }
+
+
+        function setModelMenuStatus(text, kind) {
+            const el = document.getElementById('modelMenuStatus');
+            if (!el) return;
+            el.textContent = text || '';
+            el.className = 'model-menu-status' + (kind ? ' ' + kind : '');
+            // 強制重繪，避免切換過程中畫面卡在舊提示
+            void el.offsetWidth;
+        }
+
+        function setFeatureMenuOpen(open) {
+            const menu = document.getElementById('featureMenu');
+            const backdrop = document.getElementById('featureMenuBackdrop');
+            const box = document.getElementById('chatBox');
+            if (menu) menu.classList.toggle('open', !!open);
+            if (backdrop) backdrop.classList.toggle('open', !!open);
+            if (box) box.classList.toggle('menu-dimmed', !!open);
+        }
+
+        function closeFeatureMenu() {
+            if (modelSwitching) return; // 切換中勿關，以免看不到進度
+            setFeatureMenuOpen(false);
+        }
+
+        function toggleFeatureMenu(ev) {
+            if (ev) ev.stopPropagation();
+            const menu = document.getElementById('featureMenu');
+            if (!menu) return;
+            const open = !menu.classList.contains('open');
+            setFeatureMenuOpen(open);
+            if (open) loadModelMenu();
+        }
+
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('featureMenu');
+            const btn = document.getElementById('featureMenuBtn');
+            if (menu && menu.classList.contains('open')) {
+                if (!(menu.contains(e.target) || (btn && btn.contains(e.target)))) {
+                    closeFeatureMenu();
+                }
+            }
+            const side = document.getElementById('historySidebar');
+            const hbtn = document.getElementById('historyToggleBtn');
+            if (side && side.classList.contains('open') && window.matchMedia('(max-width: 900px)').matches) {
+                if (!(side.contains(e.target) || (hbtn && hbtn.contains(e.target)))) {
+                    side.classList.remove('open');
+                }
+            }
+        });
+
+        function isModelOptionActive(m, current) {
+            const curSlug = (current && current.slug) || selectedLlmModel || '';
+            const curPath = (current && current.path) || '';
+            const curLoad = (current && current.load_path) || '';
+            const curStage = (current && current.stage) || '';
+            const mStage = m.stage === 'base' ? 'base' : 'finetuned';
+            const curStageNorm = curStage === 'base' ? 'base' : 'finetuned';
+            // 微調前／微調後不可互標「使用中」（避免 base_model_id 誤判）
+            if (curStage && mStage && curStageNorm !== mStage && m.stage !== 'alias') return false;
+            if (m.active === true) return true;
+            if (m.active === false && curStage) return false;
+            if (m.slug && m.slug === curSlug) return true;
+            if (curPath && (m.path === curPath || m.load_path === curPath)) return true;
+            if (curLoad && (m.path === curLoad || m.load_path === curLoad)) return true;
+            if (selectedLlmModel && m.slug === selectedLlmModel) {
+                if (curStage && mStage && curStageNorm !== mStage && m.stage !== 'alias') return false;
+                return true;
+            }
+            if (selectedLlmModel && (m.path === selectedLlmModel || m.load_path === selectedLlmModel)) {
+                if (curStage && mStage && curStageNorm !== mStage && m.stage !== 'alias') return false;
+                return true;
+            }
+            return false;
+        }
+
+        function renderModelOption(m, current) {
+            const active = isModelOptionActive(m, current);
+            const unavailable = m.available === false;
+            const checked = active && !unavailable ? 'checked' : '';
+            const activeCls = active ? ' active' : '';
+            const disCls = unavailable ? ' unavailable' : '';
+            const slugJs = JSON.stringify(String(m.slug || m.path || ''));
+            const stage = m.stage === 'base' ? 'base' : (m.stage === 'alias' ? 'alias' : 'finetuned');
+            const stageText = m.stage_label || (stage === 'base' ? '微調前' : (stage === 'alias' ? 'Semi-Shield 別名' : '微調後'));
+            const sub = unavailable
+                ? (m.unavailable_reason || '本機無快取，無法載入')
+                : (m.desc || m.slug || m.path);
+            const statusBits = [
+                active ? '使用中' : '',
+                unavailable ? '不可用' : '',
+            ].filter(Boolean).join(' · ');
+            return `
+                <label class="model-option${activeCls}${disCls}" title="${escapeHtml(sub)}">
+                    <input type="radio" name="llmModel" value="${escapeHtml(m.slug || m.path)}" ${checked}
+                        ${unavailable ? 'disabled' : ''}
+                        onchange='selectLlmModel(${slugJs})'>
+                    <span class="meta">
+                        <div class="name">
+                            <span class="model-title">${escapeHtml(m.label || m.slug)}</span>
+                            <span class="model-badge ${stage}">${escapeHtml(stageText)}</span>
+                            ${statusBits ? `<span class="model-status-hint">${escapeHtml(statusBits)}</span>` : ''}
+                        </div>
+                        <div class="slug">${escapeHtml(sub)}</div>
+                    </span>
+                </label>
+            `;
+        }
+
+        function renderModelList(models, current, groups) {
+            const list = document.getElementById('modelList');
+            if (!list) return;
+            const finetuned = (groups && groups.finetuned) || models.filter((m) => m.stage !== 'base');
+            const base = (groups && groups.base) || models.filter((m) => m.stage === 'base');
+            if (!finetuned.length && !base.length) {
+                list.innerHTML = '<div class="menu-hint">尚未掃描到可載入模型。請執行 import_ollama_models.bat</div>';
+                return;
+            }
+            let html = '';
+            if (finetuned.length) {
+                html += '<div class="model-group-title">微調後（Semi-Shield / 本地 OT）</div>';
+                html += finetuned.map((m) => renderModelOption(m, current)).join('');
+            }
+            if (base.length) {
+                html += '<div class="model-group-title">微調前（Ollama 官方基底）</div>';
+                html += base.map((m) => renderModelOption(m, current)).join('');
+            }
+            list.innerHTML = html;
+        }
+
+        async function loadModelMenu(opts) {
+            const keepStatus = !!(opts && opts.keepStatus);
+            if (!keepStatus) setModelMenuStatus('讀取模型清單…', 'busy');
+            try {
+                const res = await fetch('/api/llm/models', { cache: 'no-store' });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || '無法取得模型清單');
+                llmModelsCache = data.models || [];
+                llmCachedSlugs = (data.cached_models || []).map((c) => c.slug).filter(Boolean);
+                const current = data.current || {};
+                if (current.slug) {
+                    selectedLlmModel = current.slug;
+                    localStorage.setItem(LLM_MODEL_KEY, selectedLlmModel);
+                } else if (current.path) {
+                    selectedLlmModel = current.path;
+                    localStorage.setItem(LLM_MODEL_KEY, selectedLlmModel);
+                }
+                renderModelList(llmModelsCache, current, data.groups || null);
+                if (!keepStatus) {
+                    const cacheHint = llmCachedSlugs.length
+                        ? ` · 快取 ${llmCachedSlugs.length}/${data.cache_max || '?'}`
+                        : '';
+                    const deviceHint = current.device ? ` · ${current.device}` : '';
+                    const loadedOk = current.loaded !== false;
+                    const stageHint = current.stage_label ? ` · ${current.stage_label}` : '';
+                    setModelMenuStatus(
+                        current.label
+                            ? `目前：${current.label}${stageHint}${loadedOk ? '' : '（未就緒）'}${deviceHint}${cacheHint}`
+                            : '請選擇模型',
+                        loadedOk ? 'ok' : 'err'
+                    );
+                    const hintEl = document.getElementById('modelMenuHint');
+                    if (hintEl && data.hint) hintEl.textContent = data.hint;
+                }
+                updateHeaderModelHint(current);
+                return data;
+            } catch (e) {
+                if (!keepStatus) setModelMenuStatus(e.message || '讀取失敗', 'err');
+                return null;
+            }
+        }
+
+        function updateHeaderModelHint(info) {
+            const el = document.getElementById('safetyStatusText');
+            if (!el || !info) return;
+            const label = info.label || info.slug || '';
+            if (!label) return;
+            const stage = info.stage_label ? `${info.stage_label}/` : '';
+            const base = el.textContent.replace(/\s*·\s*模型：.*$/, '');
+            el.textContent = `${base} · 模型：${stage}${label}`;
+        }
+
+        async function selectLlmModel(slug) {
+            if (!slug || modelSwitching) return;
+            setFeatureMenuOpen(true);
+            const meta = llmModelsCache.find((m) => m.slug === slug || m.path === slug);
+            if (meta && meta.available === false) {
+                setModelMenuStatus(meta.unavailable_reason || '此模型目前不可用', 'err');
+                return;
+            }
+            if (slug === selectedLlmModel && llmModelsCache.some((m) => isModelOptionActive(m, { slug: selectedLlmModel, stage: m.stage }))) {
+                setModelMenuStatus('已是目前模型「' + ((meta && meta.label) || slug) + '」', 'ok');
+                return;
+            }
+            modelSwitching = true;
+            const btn = document.getElementById('featureMenuBtn');
+            if (btn) btn.disabled = true;
+            setSending(true);
+            const nice = (meta && meta.label) || slug;
+            const started = Date.now();
+            let tick = 0;
+            const progressTimer = setInterval(() => {
+                tick += 1;
+                const sec = Math.round((Date.now() - started) / 1000);
+                setModelMenuStatus(
+                    `正在切換「${nice}」… ${sec}s（釋放舊模型／載入中${tick % 2 ? '…' : '···'}）`,
+                    'busy'
+                );
+            }, 800);
+            setModelMenuStatus(`正在切換「${nice}」…`, 'busy');
+            try {
+                const res = await fetch('/api/llm/switch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ model: slug })
+                });
+                let data = {};
+                try { data = await res.json(); } catch (_) { data = {}; }
+                if (!data.ok) {
+                    throw new Error(data.error || ('切換失敗（HTTP ' + res.status + '）'));
+                }
+                selectedLlmModel = data.slug || slug;
+                localStorage.setItem(LLM_MODEL_KEY, selectedLlmModel);
+                const sec = Math.round((Date.now() - started) / 1000);
+                const isOllama = data.backend === 'ollama' || data.device === 'ollama';
+                setModelMenuStatus(
+                    (data.message || ('已切換為 ' + (data.label || selectedLlmModel)))
+                    + (data.device ? ` · ${data.device}` : '')
+                    + (isOllama ? '' : `（${sec}s）`),
+                    'ok'
+                );
+                await loadModelMenu({ keepStatus: true });
+                updateHeaderModelHint(data);
+            } catch (e) {
+                setModelMenuStatus(e.message || '切換失敗', 'err');
+                await loadModelMenu({ keepStatus: true });
+            } finally {
+                clearInterval(progressTimer);
+                modelSwitching = false;
+                if (btn) btn.disabled = false;
+                setSending(false);
+            }
+        }
+
+        // 被整合平台 iframe 載入時套用嵌入樣式
+        (function applyEmbedMode() {
+            const params = new URLSearchParams(location.search);
+            if (params.get('embed') === '1' || window.self !== window.top) {
+                document.documentElement.classList.add('embedded');
+            }
+        })();
+
+        // 並排縮放後重繪圖表
+        window.addEventListener('message', (ev) => {
+            if (!ev.data || ev.data.type !== 'platform-scale') return;
+            try {
+                chartInstances.forEach((c) => { try { c.resize(); } catch (_) {} });
+            } catch (_) {}
+        });
+
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'dark',
+            securityLevel: 'loose',
+            fontFamily: 'Segoe UI, sans-serif',
+            // 語法錯誤時不要插入炸彈 / Syntax error SVG，改丟例外由我們靜默隱藏
+            suppressErrorRendering: true
+        });
+
+        // 顯示 RAG / 護欄就緒狀態，並同步目前 LLM
+        (async function loadSafetyStatus() {
+            try {
+                const res = await fetch('/api/safety/status');
+                if (!res.ok) return;
+                const s = await res.json();
+                const el = document.getElementById('safetyStatusText');
+                if (!el) return;
+                const offline = s.offline_ready === false ? '離線套件缺檔' : '離線就緒';
+                const llm = s.llm_model || {};
+                if (llm.slug) {
+                    selectedLlmModel = llm.slug;
+                    localStorage.setItem(LLM_MODEL_KEY, selectedLlmModel);
+                }
+                el.textContent =
+                    `RAG ${s.rag_enabled ? 'ON(' + (s.rag_mode || 'ok') + '·' + s.rag_docs + ')' : 'OFF'} · ` +
+                    `護欄 ${s.guardrail_enabled === false || s.guardrail_mode === 'disabled' ? 'OFF' : s.guardrail_mode} · ` +
+                    `${offline} · OT 已對接` +
+                    (llm.label || llm.slug ? ` · 模型：${llm.label || llm.slug}` : '');
+            } catch (_) {}
+        })();
+
+        const CHART_COLORS = [
+            'rgba(56, 189, 248, 0.85)',
+            'rgba(99, 102, 241, 0.85)',
+            'rgba(16, 185, 129, 0.85)',
+            'rgba(245, 158, 11, 0.85)',
+            'rgba(244, 63, 94, 0.85)',
+            'rgba(168, 85, 247, 0.85)'
+        ];
+
+        function buildChatHistoryForApi(maxTurns = 6) {
+            // 在寫入本則使用者訊息之前呼叫：只帶「先前」對話給後端做多輪理解
+            const s = getActiveSession();
+            if (!s || !Array.isArray(s.messages)) return [];
+            const out = [];
+            for (const m of s.messages) {
+                if (!m || !m.text) continue;
+                const t = String(m.text).trim();
+                if (!t || t === WELCOME_TEXT) continue;
+                if (m.role === 'user') {
+                    out.push({ role: 'user', content: t.slice(0, 600) });
+                } else if (m.role === 'agent') {
+                    out.push({ role: 'assistant', content: t.slice(0, 700) });
+                }
+            }
+            return out.slice(-(Math.max(1, maxTurns) * 2));
+        }
+
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+            if (modelSwitching) {
+                appendBubble('agent', '🤖', '模型切換中，請稍候再傳送訊息。');
+                return;
+            }
+
+            const history = buildChatHistoryForApi(6);
+            appendBubble('user', 'U', text);
+            userInput.value = '';
+            setSending(true);
+
+            const typingId = showTypingIndicator();
+
+            try {
+                const payload = { message: text, history };
+                if (selectedLlmModel) payload.model = selectedLlmModel;
+                const response = await fetch('/api/agent/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                removeTypingIndicator(typingId);
+
+                if (!response.ok) {
+                    appendBubble('agent', '🤖', `❌ ${data.error || '伺服器回傳錯誤'}`, false, { llmModel: data.llm_model || getSelectedLlmInfo() });
+                    return;
+                }
+
+                if (data.status === 'blocked' || (data.guardrail && data.guardrail.blocked)) {
+                    appendGuardNotify(data.guardrail);
+                    await appendAgentReply(data.reply || '請求已被護欄攔截。', {
+                        llmModel: data.llm_model || getSelectedLlmInfo(),
+                        variant: 'guardrail',
+                    });
+                    return;
+                }
+
+                // --- 暫時註解：不顯示 Agent Tool Call／參數指標提示 ---
+                // if (data.tool_called) {
+                //     appendToolCallNotify(data.tool_name, data.tool_query);
+                // }
+                // --- /暫時註解 ---
+                if (data.guardrail && data.guardrail.output_redacted) {
+                    appendGuardNotify({ reason: '輸出已進行敏感資訊脫敏遮蔽', blocked: false });
+                }
+
+                // 先顯示診斷報告，RAG 引用改放報告後方（可摺疊、不含 Log）
+                await appendAgentReply(data.reply || '（沒有收到回覆內容）', {
+                    llmModel: data.llm_model || getSelectedLlmInfo(),
+                });
+                if (data.rag_citations && data.rag_citations.length) {
+                    appendRagCitations(data.rag_citations);
+                }
+            } catch (error) {
+                removeTypingIndicator(typingId);
+                appendBubble('agent', '🤖', '❌ 錯誤：無法連線至後端 Agent 伺服器，請確認已執行 python app.py 且 2000 埠口正常運作。');
+            } finally {
+                setSending(false);
+            }
+        }
+
+        function setSending(busy) {
+            sendBtn.disabled = busy;
+            userInput.disabled = busy;
+        }
+
+        function normalizeLlmModelInfo(info) {
+            if (!info) return null;
+            if (typeof info === 'string') {
+                const slug = info.trim();
+                if (!slug) return null;
+                const cached = llmModelsCache.find((m) => m.slug === slug || m.path === slug);
+                if (cached) {
+                    return {
+                        slug: cached.slug || slug,
+                        label: cached.label || cached.slug || slug,
+                        stage: cached.stage || 'base',
+                        stage_label: cached.stage === 'finetuned' ? '微調後' : '微調前',
+                    };
+                }
+                return { slug, label: slug, stage: 'base', stage_label: '微調前' };
+            }
+            if (typeof info !== 'object') return null;
+            const slug = (info.slug || info.path || '').trim();
+            const label = (info.label || slug || 'LLM').trim();
+            const stage = info.stage || 'base';
+            return {
+                slug,
+                label,
+                stage,
+                stage_label: info.stage_label || (stage === 'finetuned' ? '微調後' : '微調前'),
+            };
+        }
+
+        function getSelectedLlmInfo() {
+            if (!selectedLlmModel) return null;
+            return normalizeLlmModelInfo(
+                llmModelsCache.find((m) => isModelOptionActive(m, { slug: selectedLlmModel, stage: m.stage }))
+                || selectedLlmModel
+            );
+        }
+
+        function replyModelTagHtml(info, variant) {
+            const m = normalizeLlmModelInfo(info);
+            if (!m) return '';
+            const stageCls = m.stage === 'finetuned' ? 'finetuned' : (variant === 'system' ? 'system' : 'base');
+            const extraCls = variant === 'guardrail' ? ' guardrail' : '';
+            const stageText = variant === 'guardrail' ? '護欄' : (m.stage_label || '微調前');
+            return `<span class="reply-model-tag${extraCls}" title="${escapeHtml(m.slug || m.label)}">
+                <span class="tag-stage ${stageCls}">${escapeHtml(stageText)}</span>
+                <span class="tag-name">${escapeHtml(m.label || m.slug)}</span>
+            </span>`;
+        }
+
+        function buildAgentMessageShell(llmModel, variant) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message agent';
+            const col = document.createElement('div');
+            col.className = 'msg-content-col';
+            const tagHtml = replyModelTagHtml(llmModel, variant);
+            col.innerHTML = tagHtml
+                ? `<div class="reply-model-bar">${tagHtml}</div>`
+                : '<div class="reply-model-bar"></div>';
+            msgDiv.innerHTML = '<div class="msg-avatar">🤖</div>';
+            msgDiv.appendChild(col);
+            return { msgDiv, col, bubbleHost: col };
+        }
+
+        function prependReplyModelTag(bubble, info, variant) {
+            /* 保留相容；標籤改放在 bubble 上方 msg-content-col */
+            void bubble;
+            void info;
+            void variant;
+        }
+
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function appendBubble(sender, avatarTag, text, skipPersist, meta) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${sender}`;
+            const tagHtml = sender === 'agent'
+                ? replyModelTagHtml(meta?.llmModel || getSelectedLlmInfo(), meta?.variant)
+                : '';
+            if (sender === 'agent') {
+                msgDiv.innerHTML = `
+                    <div class="msg-avatar">${avatarTag}</div>
+                    <div class="msg-content-col">
+                        ${tagHtml ? `<div class="reply-model-bar">${tagHtml}</div>` : '<div class="reply-model-bar"></div>'}
+                        <div class="bubble"><div class="bubble-text">${escapeHtml(text)}</div></div>
+                    </div>
+                `;
+            } else {
+                msgDiv.innerHTML = `
+                    <div class="msg-avatar">${avatarTag}</div>
+                    <div class="bubble"><div class="bubble-text">${escapeHtml(text)}</div></div>
+                `;
+            }
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            if (!skipPersist && (sender === 'user' || sender === 'agent')) {
+                const persistMeta = sender === 'agent'
+                    ? { ...meta, llmModel: meta?.llmModel || getSelectedLlmInfo() }
+                    : meta;
+                pushMessageToActive(sender === 'user' ? 'user' : 'agent', text, persistMeta);
+            }
+        }
+
+        function sanitizeZhTwClient(text) {
+            // 前端雙保險：去日文、去照抄的 RAG/Log 前綴、整理標題
+            let t = String(text || '');
+            t = t.replace(/\uFFFD/g, '');
+            t = t.replace(/^(?:system|assistant|user)\s*[:：]?\s*\n+/i, '');
+            t = t.replace(/<\|(?:system|assistant|user|end|im_start|im_end)\|>\s*/gi, '');
+            t = t.replace(/^請(?:用|只用)?(?:繁體)?中文回答[^\n]*$/gmi, '');
+            t = t.replace(/^.*使用\s*Markdown\s*格式[^\n]*$/gmi, '');
+            t = t.replace(/答え終了\**/g, '');
+            t = t.replace(/回答終了\**/g, '');
+            // 前端折掉「具體XXX」循環條列（第二輪起刪）
+            {
+                const lines = t.split('\n');
+                const seen = new Set();
+                let loop = false;
+                const kept = [];
+                lines.forEach((ln) => {
+                    const m = String(ln).trim().match(/^[-*•]?\s*(具體[\u4e00-\u9fffA-Za-z0-9]{1,12})\s*$/);
+                    if (!m) { kept.push(ln); return; }
+                    if (loop) return;
+                    if (seen.has(m[1])) { loop = true; return; }
+                    seen.add(m[1]);
+                    kept.push('- ' + m[1]);
+                });
+                t = kept.join('\n');
+            }
+
+            // 若正文前貼了監控/RAG 原文，切到報告起點
+            const startRe = /(?:^|\n)(##\s*地端\s*LLM|##\s*一、|##\s*事件經過)/i;
+            const sm = startRe.exec(t);
+            if (sm && sm.index > 20) {
+                const head = t.slice(0, sm.index);
+                if (/SNMP|WLC-|\/var\/log|寫入\s*\d+\s*檔|\[知識|核心網監測|RAG|監控資料|已略過大段英文/i.test(head)) {
+                    t = t.slice(sm.index).replace(/^\n+/, '');
+                }
+            }
+            t = t.replace(/^#{1,4}\s*AI\s*[:：]\s*/gim, '');
+
+            t = t.split('\n').filter((line) => {
+                if (/[\u3040-\u309F\u30A0-\u30FF]/.test(line)) return false;
+                if (/イベント|経過概要|危険評価|修正提案|セキュリティ|単語以内/.test(line)) return false;
+                if (/\[知識\d*|寫入\s*\d+\s*檔\s*SNMP|\[核心網監測\]|已略過大段英文原文/i.test(line)) return false;
+                if (/^(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}\s+\d{2}:/.test(line)) return false;
+                return true;
+            }).join('\n');
+            t = t.replace(/([^\n])\s*(##\s+)/g, '$1\n\n$2');
+            t = t.replace(/([。！？；])\s*[-•]\s+/g, '$1\n- ');
+            t = t.replace(/\n{3,}/g, '\n\n').trim();
+            if (t.length > 1260) {
+                const fences = [];
+                t = t.replace(/```(?:chart|mermaid)[\s\S]*?```/gi, (m) => {
+                    fences.push(m);
+                    return `\n%%FENCE${fences.length - 1}%%\n`;
+                });
+                t = t.slice(0, 1260);
+                fences.forEach((f, i) => {
+                    t = t.replace(`%%FENCE${i}%%`, f);
+                });
+            }
+            return t;
+        }
+
+        async function appendAgentReply(rawText, opts) {
+            const options = typeof opts === 'boolean' ? { skipPersist: opts } : (opts || {});
+            const llmModel = options.llmModel || getSelectedLlmInfo();
+            rawText = sanitizeZhTwClient(rawText);
+            const parsed = parseVisualBlocks(rawText);
+            const report = parseStructuredReport(parsed.text || rawText || '');
+            const hasReport = report.items.length > 0 || report.actions.length > 0;
+            const shell = buildAgentMessageShell(llmModel, options.variant);
+            const msgDiv = shell.msgDiv;
+            msgDiv.className = `message agent${(parsed.visuals.length || hasReport) ? ' has-visual' : ''}`;
+
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            shell.col.appendChild(bubble);
+            chatBox.appendChild(msgDiv);
+
+            // 結構化合規報告（卡片 + 圖表 + 改善方案）
+            if (hasReport) {
+                const reportEl = document.createElement('div');
+                reportEl.className = 'rich-report';
+                bubble.appendChild(reportEl);
+                renderStructuredReport(reportEl, report);
+
+                if (report.items.length) {
+                    const chartBlock = document.createElement('div');
+                    chartBlock.className = 'viz-block';
+                    bubble.appendChild(chartBlock);
+                    await renderChartBlock(chartBlock, buildStatusChartFromItems(report.items));
+                }
+            } else if ((parsed.text || '').trim()) {
+                // 一般 Markdown 美化
+                const md = document.createElement('div');
+                md.className = 'md-block';
+                md.innerHTML = renderMarkdownLite(parsed.text.trim());
+                bubble.appendChild(md);
+            }
+
+            for (const visual of parsed.visuals) {
+                const block = document.createElement('div');
+                block.className = 'viz-block';
+                bubble.appendChild(block);
+
+                if (visual.kind === 'chart') {
+                    let specs = [];
+                    if (visual.payload) {
+                        specs = [visual.payload];
+                    } else if (visual.lazyMetrics) {
+                        specs = await fetchMetricsChartSpecs(rawText);
+                    }
+                    if (specs.length) {
+                        await renderChartBlock(block, specs[0]);
+                        for (let i = 1; i < specs.length; i++) {
+                            const extra = document.createElement('div');
+                            extra.className = 'viz-block';
+                            bubble.appendChild(extra);
+                            await renderChartBlock(extra, specs[i]);
+                        }
+                    } else {
+                        block.remove();
+                    }
+                } else if (visual.kind === 'mermaid') {
+                    await renderMermaidBlock(block, visual.payload);
+                }
+            }
+
+            // 若文字提到圖表但解析後仍無視覺，依提到的種類補齊多種圖
+            const mentionsChart = /長條圖|圓餅圖|折線圖|雷達圖|環圈圖|圖表|圖形|bar chart|pie chart|各種/i.test(rawText || '');
+            if (!parsed.visuals.length && !hasReport && mentionsChart) {
+                msgDiv.classList.add('has-visual');
+                const specs = await fetchMetricsChartSpecs(rawText);
+                for (const spec of specs) {
+                    const block = document.createElement('div');
+                    block.className = 'viz-block';
+                    bubble.appendChild(block);
+                    await renderChartBlock(block, spec);
+                }
+            }
+
+            chatBox.scrollTop = chatBox.scrollHeight;
+            purgeMermaidErrorArtifacts();
+            if (!options.skipPersist) {
+                pushMessageToActive('agent', rawText, { llmModel });
+            }
+        }
+
+        const CONTROL_LABELS_REPORT = {
+            sec_gem_log: 'A.8.24 傳輸加密',
+            recipe_audit: 'A.8.19 組態變更',
+            access_control: 'A.7.4 存取控制',
+            patch_management: 'A.8.8 弱點修補',
+            supplier_security: 'A.5.19 供應鏈',
+            malware_defense: 'A.8.7 端點防禦'
+        };
+
+        function parseStructuredReport(text) {
+            const src = String(text || '');
+            const items = [];
+            // 例：1. **sec_gem_log: SECURE (43200) (status=pass)** - 該項目已達到合規要求。
+            const itemRe = /(?:^|\n)\s*(?:\d+\.\s*)?\*{0,2}(sec_gem_log|recipe_audit|access_control|patch_management|supplier_security|malware_defense)\s*:\s*(.+?)\s*\(status\s*=\s*(pass|review|fail)\)\*{0,2}\s*(?:[-–—:：]\s*(.+))?/gi;
+            let m;
+            while ((m = itemRe.exec(src)) !== null) {
+                const key = m[1].trim();
+                const status = String(m[3] || 'pass').toLowerCase();
+                items.push({
+                    key,
+                    label: CONTROL_LABELS_REPORT[key] || key,
+                    value: (m[2] || '').trim(),
+                    status,
+                    desc: (m[4] || '').trim()
+                });
+            }
+
+            // 去重（同 key 只留第一次）
+            const seen = new Set();
+            const uniqItems = [];
+            items.forEach((it) => {
+                if (seen.has(it.key)) return;
+                seen.add(it.key);
+                uniqItems.push(it);
+            });
+
+            // 改善方法區塊：抓 #### 1. xxx 或 1. access_control...
+            const actions = [];
+            const actionSplit = src.split(/(?=#{2,4}\s*改善方法|#{2,4}\s*\d+\.|^\d+\.\s*(?:access_control|recipe_audit|sec_gem_log|patch_management|supplier_security|malware_defense))/im);
+            actionSplit.forEach((chunk) => {
+                const titleMatch = chunk.match(/(?:#{2,4}\s*)?(?:\d+\.\s*)?([a-zA-Z0-9_]+)\s*:\s*([^\n]+)/);
+                if (!titleMatch) return;
+                const key = titleMatch[1];
+                if (!CONTROL_LABELS_REPORT[key] && !/access_control|recipe_audit|sec_gem_log|patch|supplier|malware/i.test(key)) {
+                    return;
+                }
+                // 只要改善方法相關內容
+                if (!/定義|處理方案|根本原因|矯正|複查|CAPA|改善/i.test(chunk)) return;
+
+                const bullets = [];
+                const bulletRe = /[-*]\s+\*?\*?([^*:\n]+)[:：]?\*?\*?\s*([^\n]+)/g;
+                let b;
+                while ((b = bulletRe.exec(chunk)) !== null) {
+                    bullets.push({
+                        title: b[1].trim(),
+                        text: b[2].trim()
+                    });
+                }
+
+                // 沒抓到條列就取純文字摘要
+                let bodyText = chunk
+                    .replace(/^[\s\S]*?(定義|處理方案)/, '$1')
+                    .replace(/#{2,4}\s*/g, '')
+                    .trim();
+                if (bodyText.length > 600) bodyText = bodyText.slice(0, 600) + '...';
+
+                const st = (chunk.match(/status\s*=\s*(pass|review|fail)/i) || [])[1] || 'review';
+                actions.push({
+                    key,
+                    title: `${CONTROL_LABELS_REPORT[key] || key}｜${titleMatch[2].trim()}`,
+                    status: st.toLowerCase(),
+                    bullets,
+                    bodyText
+                });
+            });
+
+            // action 去重
+            const actSeen = new Set();
+            const uniqActions = [];
+            actions.forEach((a) => {
+                const k = a.key + a.title;
+                if (actSeen.has(k)) return;
+                actSeen.add(k);
+                uniqActions.push(a);
+            });
+
+            return { items: uniqItems, actions: uniqActions, raw: src };
+        }
+
+        function renderStructuredReport(container, report) {
+            if (report.items.length) {
+                const title = document.createElement('h3');
+                title.className = 'report-section-title';
+                title.textContent = '現況合規狀態總覽';
+                container.appendChild(title);
+
+                const grid = document.createElement('div');
+                grid.className = 'status-grid';
+                report.items.forEach((it) => {
+                    const card = document.createElement('div');
+                    card.className = `status-card ${it.status}`;
+                    card.innerHTML = `
+                        <div class="key">${escapeHtml(it.label)}</div>
+                        <span class="status-badge ${escapeHtml(it.status)}">${escapeHtml(it.status)}</span>
+                        <div class="value">${escapeHtml(it.value)}</div>
+                        <div class="desc">${escapeHtml(it.desc || '—')}</div>
+                    `;
+                    grid.appendChild(card);
+                });
+                container.appendChild(grid);
+            }
+
+            if (report.actions.length) {
+                const title = document.createElement('h3');
+                title.className = 'report-section-title';
+                title.textContent = '改善方法與處理方案';
+                container.appendChild(title);
+
+                const list = document.createElement('div');
+                list.className = 'action-list';
+                report.actions.forEach((act) => {
+                    const card = document.createElement('div');
+                    card.className = 'action-card';
+                    let body = `<h4>${escapeHtml(act.title)}</h4>`;
+                    if (act.bullets.length) {
+                        body += '<ul>' + act.bullets.map((b) =>
+                            `<li><strong>${escapeHtml(b.title)}</strong>：${escapeHtml(b.text)}</li>`
+                        ).join('') + '</ul>';
+                    } else {
+                        body += `<div class="action-body">${escapeHtml(act.bodyText)}</div>`;
+                    }
+                    card.innerHTML = body;
+                    list.appendChild(card);
+                });
+                container.appendChild(list);
+            }
+
+            // 若結構化後仍有前言文字，補上 markdown
+            const leftover = stripStructuredParts(report.raw);
+            if (leftover && leftover.length > 40) {
+                const md = document.createElement('div');
+                md.className = 'md-block';
+                md.innerHTML = renderMarkdownLite(leftover);
+                container.appendChild(md);
+            }
+        }
+
+        function stripStructuredParts(text) {
+            let t = String(text || '');
+            t = t.replace(/#{2,4}\s*現在的非合規項目[\s\S]*?(?=#{2,4}\s*改善方法|$)/i, '');
+            t = t.replace(/#{2,4}\s*改善方法[\s\S]*$/i, '');
+            t = t.replace(/(?:^|\n)\s*\d+\.\s*\*?\*?[a-zA-Z0-9_]+\s*:[\s\S]*?(?=\n\s*\d+\.\s*\*?\*?[a-zA-Z0-9_]+\s*:|$)/g, '\n');
+            return t.replace(/\n{3,}/g, '\n\n').trim();
+        }
+
+        function buildStatusChartFromItems(items) {
+            const score = { pass: 0, review: 1, fail: 2 };
+            return {
+                type: 'bar',
+                title: '合規風險總覽（0=pass / 1=review / 2=fail）',
+                labels: items.map((it) => it.label.replace(/\s.*/, '') || it.key),
+                datasets: [{
+                    label: '風險等級',
+                    data: items.map((it) => score[it.status] != null ? score[it.status] : 0)
+                }]
+            };
+        }
+
+        function looksLikeReport(text) {
+            // --- 暫時註解：三卡版面異常，先一律當一般對話渲染 ---
+            return false;
+            // return /地端\s*LLM\s*智慧合規診斷報告|##\s*一、\s*事件經過摘要|##\s*二、\s*不合規|##\s*三、\s*具體修補建議|【報告結束】/i.test(String(text || ''));
+            // --- /暫時註解 ---
+        }
+
+        function renderSimpleChatMarkdown(text) {
+            const inline = (s) => escapeHtml(s)
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/`([^`]+)`/g, '<code>$1</code>');
+            const lines = String(text || '')
+                .replace(/【(?:回答|報告)結束】/g, '')
+                .split('\n')
+                .map((l) => l.trimEnd());
+            let html = '<div class="md-block chat-plain">';
+            let inUl = false;
+            const closeUl = () => { if (inUl) { html += '</ul>'; inUl = false; } };
+            lines.forEach((raw) => {
+                const line = raw.trim();
+                if (!line) { closeUl(); return; }
+                if (/^#{1,6}\s+/.test(line)) {
+                    closeUl();
+                    html += `<p><strong>${inline(line.replace(/^#{1,6}\s+/, ''))}</strong></p>`;
+                    return;
+                }
+                if (/^[-*•]\s+/.test(line)) {
+                    if (!inUl) { html += '<ul>'; inUl = true; }
+                    html += `<li>${inline(line.replace(/^[-*•]\s+/, ''))}</li>`;
+                    return;
+                }
+                closeUl();
+                html += `<p>${inline(line)}</p>`;
+            });
+            closeUl();
+            html += '</div>';
+            return html;
+        }
+
+        function renderMarkdownLite(text) {
+            // 一般對話：不要硬套三卡報告
+            if (!looksLikeReport(text)) {
+                return renderSimpleChatMarkdown(text);
+            }
+
+            // 固定三張文字卡：摘要 / 分析 / 建議（忽略殘留 # 與雜標題）
+            const inline = (s) => escapeHtml(s)
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                .replace(/`([^`]+)`/g, '<code>$1</code>');
+
+            const canon = {
+                s1: { idx: '1', title: '事件經過摘要', tone: 0 },
+                s2: { idx: '2', title: '不合規／風險分析', tone: 1 },
+                s3: { idx: '3', title: '具體修補建議', tone: 2 }
+            };
+            const classify = (title) => {
+                const t = String(title || '').replace(/^[一二三123][、.．]\s*/, '');
+                if (/智慧合規診斷報告|地端\s*LLM.*報告|專業\s*IT\s*合規/.test(t)) return 'hero';
+                if (/事件經過|摘要|概述|概觀|總述|經歷/.test(t)) return 's1';
+                if (/不合|風險|危害|分析|評估|不符/.test(t)) return 's2';
+                if (/建議|修補|防護|改善|修正|當事人/.test(t)) return 's3';
+                return null;
+            };
+            const CODE_KEYWORDS = new Set([
+                'else', 'begin', 'end', 'def', 'class', 'rescue', 'ensure', 'case', 'when',
+                'then', 'elsif', 'elif', 'if', 'unless', 'while', 'until', 'for', 'do',
+                'return', 'yield', 'super', 'self', 'nil', 'true', 'false', 'null', 'none',
+                'try', 'except', 'finally', 'catch', 'throw', 'new', 'var', 'let', 'const',
+                'function', 'import', 'from', 'export', 'module', 'require', 'include',
+                'puts', 'print', 'printf', 'console', 'lambda', 'pass', 'break', 'continue'
+            ]);
+            const isGarbageLine = (t) => {
+                if (!t) return true;
+                let s = String(t).replace(/^[-*•]\s+/, '').trim();
+                if (!s) return true;
+                if (/^`{3,}/.test(s) || s === '---' || s === '***' || s === '/') return true;
+                if (/^[{}\[\],;]+$/.test(s)) return true;
+                if (/^[/／]\s*\S{0,12}$/.test(s)) return true;
+                if (/^(control_id|title|description)\s*:/i.test(s)) return true;
+                if (/\[REPORT\s*END\]/i.test(s)) return true;
+                if (CODE_KEYWORDS.has(s.toLowerCase())) return true;
+                if (/^[A-Za-z_]{1,16}$/.test(s) && CODE_KEYWORDS.has(s.toLowerCase())) return true;
+                if (!/[\u4e00-\u9fff]/.test(s)) {
+                    const tokens = (s.toLowerCase().match(/[A-Za-z_]+/g) || []);
+                    if (tokens.length && tokens.every((x) => CODE_KEYWORDS.has(x) || x.length <= 2)) return true;
+                    if (s.length <= 24 && /^[A-Za-z0-9_\s\.=>:\-`]+$/.test(s) &&
+                        !/\b(ISO|SNMP|RADIUS|SYSLOG|CAPA|OT)\b/i.test(s)) return true;
+                }
+                if (/\b(respond_to\?|is_string|CoffeeScript|MyClass|string_object|e\.message|please let me know|further assistance|def\s+\w+|class\s+[A-Z])\b/i.test(s)) return true;
+                if (/rescue\s*=>|我想知道如何使用|完整代碼片段|檢查一個對象是否|暫時處於等待狀態/.test(s)) return true;
+                // 提示詞洩漏（把「請用某某格式撰寫／開始輸入」當正文）
+                if (/格式撰寫|撰寫診斷|撰寫報告|必要的資訊和建議|所有必要的資訊|合作規診斷|回答第一行必須|總字數必須|禁止照抄|轉述重點/.test(s)) return true;
+                if (/開始輸入答案|開始輸出答案|開始作答|輸入答案|開始輸入|開始輸出|在此輸入|請開始寫/.test(s)) return true;
+                if (/智慧合規診斷報告.{0,12}開始/.test(s)) return true;
+                if (/[「"'].{0,32}報告[」"'].{0,16}(?:格式|開始)/.test(s)) return true;
+                if (/包含所有必要|請依(?:下列|以下)格式|嚴格使用：\s*##/.test(s)) return true;
+                const cjk = (s.match(/[\u4e00-\u9fff]/g) || []).length;
+                if (cjk < 4) {
+                    const hits = (s.toLowerCase().match(/[A-Za-z_]+/g) || []).filter((x) => CODE_KEYWORDS.has(x)).length;
+                    if (hits >= 1 && s.length <= 40) return true;
+                }
+                return false;
+            };
+            const cleanLine = (line) => {
+                let s = String(line || '')
+                    .replace(/^\s*#{1,6}\s*$/g, '')
+                    .replace(/\s*#{1,6}\s*$/g, '')
+                    .replace(/\s*#{1,6}\s*/g, ' ')
+                    .replace(/【(?:回答|報告)結束】/g, '')
+                    .replace(/\[REPORT\s*END\]/ig, '')
+                    .replace(/`[^`]*`/g, '')
+                    .replace(/rescue\s*=>\s*e\b.*/ig, '')
+                    .replace(/\bp\s+e\.message\b/ig, '')
+                    .replace(/^[/／]\s*/, '')
+                    .replace(/LLM\s*\S{0,8}合規狀況簡報\s*/g, '')
+                    .replace(/知巧合綜評|晴智合規狀況簡報/g, '')
+                    .replace(/[一二三]、\s*(?:不合規／風險分析|具體修補建議|事件經過摘要)\s*$/g, '');
+                const kw = [...CODE_KEYWORDS].sort((a, b) => b.length - a.length).join('|');
+                s = s.replace(new RegExp(`(?:^|[\\s，,、;；。])(?:${kw})(?=$|[\\s，,、;；。])`, 'gi'), ' ');
+                return s.replace(/\s{2,}/g, ' ').replace(/^[，,、;；\s]+|[，,、;；\s]+$/g, '').trim();
+            };
+
+            const renderBodyLines = (lines) => {
+                const cleaned = [];
+                lines.forEach((line) => {
+                    let t = cleanLine(line);
+                    if (!t || /^【(?:回答|報告)結束】$/.test(t)) return;
+                    if (/本段暫無足夠資料|請補充日誌後重試/.test(t)) return;
+                    t = t.replace(/^[-*•]\s+/, '').replace(/^\d+\.\s+/, '');
+                    if (isGarbageLine(t)) return;
+                    if (t && t.length >= 6) cleaned.push(t);
+                });
+                if (!cleaned.length) return '';
+                const lead = cleaned[0];
+                const rest = cleaned.slice(1, 4);
+                let html = `<div class="md-card-content"><p>${inline(lead)}</p>`;
+                if (rest.length) {
+                    html += '<ul>' + rest.map((t) => `<li>${inline(t)}</li>`).join('') + '</ul>';
+                }
+                html += '</div>';
+                return html;
+            };
+
+            let src = String(text || '')
+                .replace(/```[\s\S]*?```/g, '')
+                .replace(/([。！？；])\s*(#{1,6}\s*)?([一二三][、.．])/g, '$1\n## $3')
+                .replace(/([。！？；])\s*(不合規／風險分析|具體修補建議|事件經過摘要)/g, '$1\n## $2');
+
+            const buckets = { s1: [], s2: [], s3: [] };
+            let cur = 's1';
+            src.split('\n').forEach((line) => {
+                const raw = line.trim();
+                if (!raw) return;
+                // 【報告結束】／【回答結束】僅供後端停止生成，畫面不顯示
+                let bodyLine = raw.replace(/【(?:回答|報告)結束】/g, '').trim();
+                if (!bodyLine) return;
+                if (/^#{1,6}\s*$/.test(bodyLine) || isGarbageLine(bodyLine)) return;
+                if (/^#{1,6}\s+\S/.test(bodyLine) || /^[一二三四五]、\S/.test(bodyLine)) {
+                    const title = bodyLine.replace(/^#{1,6}\s+/, '').trim();
+                    const kind = classify(title);
+                    if (kind === 'hero' || !kind) return;
+                    cur = kind;
+                    return;
+                }
+                const cleaned = cleanLine(bodyLine);
+                if (cleaned && !isGarbageLine(cleaned)) buckets[cur].push(cleaned);
+            });
+
+            const defaults = {
+                s1: '依目前監控資料，尚未觀察到需立即升級的重大事件；建議持續觀察。',
+                s2: '目前無明確高風險不合規證據；請交叉比對控制項量化指標。',
+                s3: '維持現有監控與定期複核；若出現異常日誌再啟動 CAPA。'
+            };
+            let html = `<div class="report-hero">地端 LLM 智慧合規診斷報告</div>`;
+            ['s1', 's2', 's3'].forEach((key) => {
+                const meta = canon[key];
+                const body = renderBodyLines(buckets[key]) ||
+                    `<div class="md-card-content"><p>${inline(defaults[key])}</p></div>`;
+                html += `
+                    <section class="md-section-card tone-${meta.tone}">
+                        <div class="md-card-head">
+                            <span class="md-card-index">${meta.idx}</span>
+                            <h3 class="md-card-title">${escapeHtml(meta.title)}</h3>
+                        </div>
+                        <div class="md-card-body">${body}</div>
+                    </section>
+                `;
+            });
+            return html;
+        }
+
+        function detectPreferredChartTypes(text) {
+            const t = String(text || '').toLowerCase();
+            const found = [];
+            const rules = [
+                [/長條|bar chart|柱狀/, 'bar'],
+                [/圓餅|pie/, 'pie'],
+                [/折線|趨勢|line chart/, 'line'],
+                [/雷達|radar|蛛網/, 'radar'],
+                [/環圈|甜甜圈|doughnut|donut/, 'doughnut'],
+                [/極區|polar/, 'polarArea']
+            ];
+            rules.forEach(([re, type]) => {
+                if (re.test(t)) found.push(type);
+            });
+            if (/各種|多種|不同圖|圖形|視覺化/.test(t)) {
+                ['bar', 'pie', 'line', 'radar', 'doughnut'].forEach((type) => {
+                    if (!found.includes(type)) found.push(type);
+                });
+            }
+            if (!found.length) found.push('bar', 'pie');
+            return found;
+        }
+
+        async function fetchMetricsChartSpecs(hintText) {
+            try {
+                const res = await fetch('/api/monitor/data');
+                if (!res.ok) return [];
+                const data = await res.json();
+                const metrics = data.metrics || {};
+                const labels = [];
+                const counts = [];
+                const statusScores = [];
+                const statusDist = { pass: 0, review: 0, fail: 0 };
+
+                Object.keys(metrics).forEach((key) => {
+                    labels.push(CONTROL_LABELS[key] || key);
+                    counts.push(Number(metrics[key].count) || 0);
+                    const st = String(metrics[key].status || 'pass').toLowerCase();
+                    statusScores.push(STATUS_SCORE[st] != null ? STATUS_SCORE[st] : 0);
+                    if (statusDist[st] != null) statusDist[st] += 1;
+                    else statusDist.pass += 1;
+                });
+                if (!labels.length) return [];
+
+                const catalog = {
+                    bar: {
+                        type: 'bar',
+                        title: 'OT 控制項事件量（長條圖）',
+                        labels,
+                        datasets: [{ label: '事件數', data: counts }]
+                    },
+                    pie: {
+                        type: 'pie',
+                        title: 'OT 事件量占比（圓餅圖）',
+                        labels,
+                        datasets: [{ label: '事件數', data: counts }]
+                    },
+                    doughnut: {
+                        type: 'doughnut',
+                        title: '合規狀態分布（環圈圖）',
+                        labels: ['pass', 'review', 'fail'],
+                        datasets: [{
+                            label: '控制項數',
+                            data: [statusDist.pass, statusDist.review, statusDist.fail]
+                        }]
+                    },
+                    line: {
+                        type: 'line',
+                        title: 'OT 控制項事件量（折線圖）',
+                        labels,
+                        datasets: [{ label: '事件數', data: counts }]
+                    },
+                    radar: {
+                        type: 'radar',
+                        title: '合規風險雷達圖（0=pass / 1=review / 2=fail）',
+                        labels,
+                        datasets: [{ label: '風險等級', data: statusScores }]
+                    },
+                    polarArea: {
+                        type: 'polarArea',
+                        title: 'OT 事件量極區圖',
+                        labels,
+                        datasets: [{ label: '事件數', data: counts }]
+                    }
+                };
+
+                return detectPreferredChartTypes(hintText)
+                    .filter((t) => catalog[t])
+                    .map((t) => catalog[t]);
+            } catch (_) {
+                return [];
+            }
+        }
+
+        const STATUS_SCORE = {
+            pass: 0, compliant: 0, secure: 0, ok: 0,
+            review: 1, attention: 1, warn: 1, warning: 1,
+            fail: 2, failed: 2, critical: 2, breach: 2
+        };
+
+        const CONTROL_LABELS = {
+            sec_gem_log: 'A.8.24',
+            recipe_audit: 'A.8.19',
+            access_control: 'A.7.4',
+            patch_management: 'A.8.8',
+            supplier_security: 'A.5.19',
+            malware_defense: 'A.8.7'
+        };
+
+        function parseVisualBlocks(text) {
+            const visuals = [];
+            let remaining = text || '';
+
+            // ```chart / ```json-chart / ```mermaid / ```json（若像 chart 規格）
+            const fenceRe = /```\s*(chart|json-chart|mermaid|json)?\s*\n([\s\S]*?)```/gi;
+            remaining = remaining.replace(fenceRe, (full, lang, body) => {
+                const kind = (lang || '').toLowerCase();
+                const content = body.trim();
+
+                if (kind === 'chart' || kind === 'json-chart') {
+                    const chart = coerceChartSpec(content);
+                    if (chart) {
+                        visuals.push({ kind: 'chart', payload: chart });
+                        return '\n';
+                    }
+                }
+
+                if (kind === 'mermaid' && isPlausibleMermaid(content)) {
+                    visuals.push({ kind: 'mermaid', payload: content });
+                    return '\n';
+                }
+
+                if (kind === 'json' || kind === '') {
+                    const chart = coerceChartSpec(content);
+                    if (chart) {
+                        visuals.push({ kind: 'chart', payload: chart });
+                        return '\n';
+                    }
+                    if (isPlausibleMermaid(content)) {
+                        visuals.push({ kind: 'mermaid', payload: content });
+                        return '\n';
+                    }
+                }
+
+                return full;
+            });
+
+            // 後備：內嵌裸 JSON chart 物件
+            const jsonObjRe = /\{[\s\S]*?"(?:type|chartType)"\s*:\s*"(?:bar|line|pie|doughnut|radar|polarArea)"[\s\S]*?"(?:labels|datasets)"[\s\S]*?\}/g;
+            remaining = remaining.replace(jsonObjRe, (match) => {
+                const chart = coerceChartSpec(match);
+                if (chart) {
+                    visuals.push({ kind: 'chart', payload: chart });
+                    return '\n';
+                }
+                return match;
+            });
+
+            // 後備：Markdown 狀態/數值表格 → 依上下文選圖型
+            const preferredFromText = detectPreferredChartTypes(text);
+            const tableRe = /(?:^|\n)((?:\s*\|.+\|\s*\n)+)/g;
+            remaining = remaining.replace(tableRe, (full, tableBody) => {
+                const chart = markdownTableToChart(tableBody, preferredFromText[0] || 'bar');
+                if (chart) {
+                    visuals.push({ kind: 'chart', payload: chart });
+                    return '\n';
+                }
+                return full;
+            });
+
+            // 後備：未加 fence 的 mermaid
+            const bareMermaidRe = /(^|\n)\s*((?:flowchart|graph|sequenceDiagram)[\s\S]*?)(?=\n{2,}|$)/g;
+            remaining = remaining.replace(bareMermaidRe, (full, lead, body) => {
+                const trimmed = body.trim();
+                if (trimmed.length < 20 || !isPlausibleMermaid(trimmed)) return full;
+                visuals.push({ kind: 'mermaid', payload: trimmed });
+                return lead;
+            });
+
+            // 最後防線：提到圖表但完全沒視覺區塊時，前端自行抓 metrics 畫多種圖
+            const mentionsChart = /長條圖|圓餅圖|折線圖|雷達圖|環圈圖|圖表|圖形|bar chart|pie chart|視覺化|各種/i.test(text);
+            if (!visuals.length && mentionsChart) {
+                visuals.push({ kind: 'chart', payload: null, lazyMetrics: true });
+            }
+
+            return { text: remaining.replace(/\n{3,}/g, '\n\n').trim(), visuals };
+        }
+
+        function markdownTableToChart(tableText, preferredType = 'bar') {
+            const rows = String(tableText).trim().split(/\n/).map(r => r.trim()).filter(Boolean);
+            if (rows.length < 2) return null;
+
+            const parseRow = (row) => row
+                .replace(/^\|/, '')
+                .replace(/\|$/, '')
+                .split('|')
+                .map(c => c.trim())
+                .filter(c => c.length);
+
+            // 跳過對齊列 |---|---|
+            const dataRows = rows
+                .map(parseRow)
+                .filter(cols => cols.length >= 2 && !cols.every(c => /^:?-+:?$/.test(c)));
+
+            if (dataRows.length < 2) return null;
+
+            const header = dataRows[0].map(h => h.toLowerCase());
+            const body = dataRows.slice(1);
+            if (!body.length) return null;
+
+            // 判斷是否為 項目/狀態 表
+            const statusIdx = header.findIndex(h => /狀態|status|result/.test(h));
+            const labelIdx = header.findIndex(h => /項目|item|控制|name|label/.test(h));
+            const valueIdx = header.findIndex(h => /數值|數量|count|value|事件/.test(h));
+
+            const labels = [];
+            const values = [];
+
+            body.forEach(cols => {
+                const rawLabel = cols[labelIdx >= 0 ? labelIdx : 0] || '';
+                const label = CONTROL_LABELS[rawLabel] || rawLabel;
+                let num = null;
+
+                if (valueIdx >= 0 && cols[valueIdx] != null) {
+                    const n = Number(String(cols[valueIdx]).replace(/,/g, ''));
+                    if (!Number.isNaN(n)) num = n;
+                }
+
+                const statusCell = cols[statusIdx >= 0 ? statusIdx : (cols.length - 1)] || '';
+                if (num == null) {
+                    const key = String(statusCell).toLowerCase().trim();
+                    if (key in STATUS_SCORE) num = STATUS_SCORE[key];
+                    else {
+                        const n = Number(String(statusCell).replace(/,/g, ''));
+                        if (!Number.isNaN(n)) num = n;
+                    }
+                }
+
+                if (label && num != null && !Number.isNaN(num)) {
+                    labels.push(label);
+                    values.push(num);
+                }
+            });
+
+            if (labels.length < 2) return null;
+
+            const isStatus = statusIdx >= 0 || body.some(cols => {
+                const cell = String(cols[cols.length - 1] || '').toLowerCase();
+                return cell in STATUS_SCORE;
+            });
+
+            const type = ['bar', 'pie', 'line', 'doughnut', 'radar', 'polarArea'].includes(preferredType)
+                ? preferredType
+                : 'bar';
+            return {
+                type,
+                title: isStatus
+                    ? `合規狀態（${type}｜0=pass / 1=review / 2=fail）`
+                    : `數據統計圖（${type}）`,
+                labels,
+                datasets: [{
+                    label: isStatus ? '風險等級' : '數值',
+                    data: values
+                }]
+            };
+        }
+
+        function coerceChartSpec(raw) {
+            let obj = null;
+            try {
+                obj = JSON.parse(raw);
+            } catch (_) {
+                // 嘗試抽出第一個 {...}
+                const m = raw.match(/\{[\s\S]*\}/);
+                if (!m) return null;
+                try {
+                    obj = JSON.parse(m[0]);
+                } catch (e2) {
+                    return null;
+                }
+            }
+
+            if (!obj || typeof obj !== 'object') return null;
+
+            // 兼容多種模型輸出欄位命名
+            const typeRaw = String(obj.type || obj.chartType || obj.chart_type || 'bar').toLowerCase();
+            const typeMap = {
+                bar: 'bar',
+                line: 'line',
+                pie: 'pie',
+                doughnut: 'doughnut',
+                donut: 'doughnut',
+                radar: 'radar',
+                polararea: 'polarArea',
+                polar: 'polarArea'
+            };
+            const type = typeMap[typeRaw];
+            if (!type) return null;
+
+            let labels = obj.labels || obj.categories || obj.x || null;
+            let datasets = obj.datasets || null;
+
+            // { labels, data } 單系列簡寫
+            if (!datasets && Array.isArray(obj.data) && Array.isArray(labels)) {
+                datasets = [{ label: obj.label || obj.title || '數值', data: obj.data }];
+            }
+
+            // { series: [{name, values}] }
+            if (!datasets && Array.isArray(obj.series)) {
+                datasets = obj.series.map((s) => ({
+                    label: s.label || s.name || '系列',
+                    data: s.data || s.values || []
+                }));
+                if (!labels && obj.series[0]?.labels) labels = obj.series[0].labels;
+            }
+
+            // { values: { A: 1, B: 2 } }
+            if ((!labels || !datasets) && obj.values && typeof obj.values === 'object' && !Array.isArray(obj.values)) {
+                labels = Object.keys(obj.values);
+                datasets = [{ label: obj.label || obj.title || '數值', data: Object.values(obj.values) }];
+            }
+
+            if (!Array.isArray(labels) || !Array.isArray(datasets) || !datasets.length) return null;
+
+            datasets = datasets.map((ds, i) => ({
+                label: ds.label || ds.name || `系列 ${i + 1}`,
+                data: (ds.data || ds.values || []).map((v) => Number(v) || 0)
+            }));
+
+            return {
+                type,
+                title: obj.title || obj.name || '數據圖表',
+                labels,
+                datasets
+            };
+        }
+
+        async function renderChartBlock(container, spec) {
+            const title = document.createElement('p');
+            title.className = 'viz-title';
+            title.textContent = `📊 ${spec.title}`;
+            container.appendChild(title);
+
+            const wrap = document.createElement('div');
+            wrap.className = 'chart-wrap';
+            const canvas = document.createElement('canvas');
+            wrap.appendChild(canvas);
+            container.appendChild(wrap);
+
+            const isPieLike = spec.type === 'pie' || spec.type === 'doughnut';
+            const isPolar = spec.type === 'polarArea';
+            const isRadar = spec.type === 'radar';
+            if (isPolar) {
+                wrap.style.height = '300px';
+            }
+            const datasets = spec.datasets.map((ds, i) => {
+                if (isPieLike || isPolar) {
+                    return {
+                        label: ds.label,
+                        data: ds.data,
+                        backgroundColor: ds.data.map((_, j) => CHART_COLORS[j % CHART_COLORS.length]),
+                        borderColor: '#0f172a',
+                        borderWidth: 1
+                    };
+                }
+                if (isRadar) {
+                    return {
+                        label: ds.label,
+                        data: ds.data,
+                        backgroundColor: CHART_COLORS[i % CHART_COLORS.length].replace('0.85', '0.25'),
+                        borderColor: CHART_COLORS[i % CHART_COLORS.length].replace('0.85', '1'),
+                        borderWidth: 2,
+                        pointBackgroundColor: CHART_COLORS[i % CHART_COLORS.length].replace('0.85', '1'),
+                        fill: true
+                    };
+                }
+                return {
+                    label: ds.label,
+                    data: ds.data,
+                    backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+                    borderColor: CHART_COLORS[i % CHART_COLORS.length].replace('0.85', '1'),
+                    borderWidth: 2,
+                    tension: 0.25,
+                    fill: spec.type === 'line' ? false : true
+                };
+            });
+
+            const formatCompactTick = (v) => {
+                const n = Number(v);
+                if (!Number.isFinite(n)) return v;
+                if (Math.abs(n) >= 10000) return `${Math.round(n / 1000)}k`;
+                if (Math.abs(n) >= 1000) return `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
+                return String(n);
+            };
+
+            let scales = {};
+            if (isRadar || isPolar) {
+                // polarArea 預設刻度有灰底且垂直疊在圓心，需透明化並精簡
+                scales = {
+                    r: {
+                        beginAtZero: true,
+                        angleLines: {
+                            display: isRadar,
+                            color: 'rgba(51, 65, 85, 0.8)'
+                        },
+                        grid: { color: 'rgba(51, 65, 85, 0.65)' },
+                        pointLabels: {
+                            display: isRadar,
+                            color: '#e2e8f0'
+                        },
+                        ticks: {
+                            color: '#94a3b8',
+                            backdropColor: 'transparent',
+                            showLabelBackdrop: false,
+                            maxTicksLimit: 4,
+                            z: 1,
+                            callback: formatCompactTick
+                        }
+                    }
+                };
+            } else if (!isPieLike) {
+                scales = {
+                    x: {
+                        ticks: { color: '#94a3b8' },
+                        grid: { color: 'rgba(51, 65, 85, 0.6)' }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: '#94a3b8' },
+                        grid: { color: 'rgba(51, 65, 85, 0.6)' }
+                    }
+                };
+            }
+
+            try {
+                const chart = new Chart(canvas, {
+                    type: spec.type,
+                    data: { labels: spec.labels, datasets },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: { color: '#e2e8f0' }
+                            },
+                            title: { display: false }
+                        },
+                        scales
+                    }
+                });
+                chartInstances.push(chart);
+            } catch (err) {
+                // 渲染失敗時靜默隱藏，不顯示錯誤
+                container.remove();
+            }
+        }
+
+        function isPlausibleMermaid(code) {
+            const t = sanitizeMermaidCode(code);
+            if (!t || t.length < 12) return false;
+            if (!/^(flowchart|graph|sequenceDiagram|classDiagram|stateDiagram|erDiagram|pie|gantt|mindmap)\b/im.test(t)) {
+                return false;
+            }
+            if (/^pie\b/im.test(t)) return true;
+            if (/^sequenceDiagram/im.test(t)) return /-->|->>|participant/i.test(t);
+            return /(-->|---|-\.->|==>|subgraph|\[|{|\()/.test(t);
+        }
+
+        function purgeMermaidErrorArtifacts() {
+            const isMermaidError = (el) => {
+                const html = el.outerHTML || '';
+                const text = el.textContent || '';
+                return /Syntax error in text|error-icon|mermaid version/i.test(html + text);
+            };
+
+            const chat = document.getElementById('chatBox');
+            if (chat) {
+                chat.querySelectorAll(':scope > svg, :scope > div[id^="dmermaid"]').forEach((el) => el.remove());
+                chat.querySelectorAll('svg, .mermaid-wrap, .viz-block').forEach((el) => {
+                    if (!isMermaidError(el)) return;
+                    const block = el.closest('.viz-block');
+                    if (block) block.remove();
+                    else el.remove();
+                });
+            }
+
+            document.querySelectorAll('body > svg, body > div[id^="dmermaid-"]').forEach((el) => {
+                if (isMermaidError(el)) el.remove();
+            });
+        }
+
+        function sanitizeMermaidCode(code) {
+            let text = String(code || '').trim();
+            // 去掉可能包住的語言標記殘留
+            text = text.replace(/^```(?:mermaid)?\s*/i, '').replace(/\s*```$/, '');
+            // 全形標點常導致 Mermaid 解析失敗
+            text = text
+                .replace(/？/g, '?')
+                .replace(/：/g, ':')
+                .replace(/，/g, ',')
+                .replace(/（/g, '(')
+                .replace(/）/g, ')')
+                .replace(/"/g, "'");
+            return text.trim();
+        }
+
+        async function renderMermaidBlock(container, code) {
+            if (!isPlausibleMermaid(code)) {
+                try { container.remove(); } catch (_) {}
+                return;
+            }
+
+            const id = `mmd-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+            try {
+                const cleaned = sanitizeMermaidCode(code);
+                const lines = cleaned.split('\n').map(l => l.trim()).filter(Boolean);
+                if (lines.length < 2 || lines.length > 40) throw new Error('mermaid size');
+                const unique = new Set(lines);
+                if (unique.size < Math.max(3, Math.floor(lines.length * 0.35))) {
+                    throw new Error('mermaid repetitive');
+                }
+
+                if (typeof mermaid.parse === 'function') {
+                    await mermaid.parse(cleaned);
+                }
+
+                const { svg } = await mermaid.render(id, cleaned);
+                if (!svg || /Syntax error|error-icon|mermaid version/i.test(svg)) {
+                    throw new Error('mermaid error svg');
+                }
+
+                const title = document.createElement('p');
+                title.className = 'viz-title';
+                title.textContent = '🧭 流程 / 架構圖';
+                container.appendChild(title);
+
+                const wrap = document.createElement('div');
+                wrap.className = 'mermaid-wrap';
+                wrap.innerHTML = svg;
+                container.appendChild(wrap);
+            } catch (err) {
+                try { container.remove(); } catch (_) {}
+            } finally {
+                purgeMermaidErrorArtifacts();
+            }
+        }
+
+        // --- 暫時註解：Agent Tool Call 提示 UI ---
+        function appendToolCallNotify(toolName, query) {
+            return; // 功能關閉
+        }
+        // --- /暫時註解 ---
+
+        function appendRagCitations(citations) {
+            const div = document.createElement('div');
+            div.className = 'message agent';
+            const items = (citations || []).map((c, i) =>
+                `<li>#${i + 1} score=${escapeHtml(String(c.score ?? ''))}｜${escapeHtml(c.title || c.id || '')}</li>`
+            ).join('');
+            div.innerHTML = `
+                <div class="rag-cite">
+                    <details>
+                        <summary>📚 RAG 知識庫引用 ${citations.length} 筆（僅標題，不含 Log）</summary>
+                        <ol>${items}</ol>
+                    </details>
+                </div>
+            `;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function appendGuardNotify(guard) {
+            const div = document.createElement('div');
+            div.className = 'message agent';
+            const blocked = guard && guard.blocked;
+            const reason = (guard && (guard.reason || guard.mode)) || 'safety';
+            div.innerHTML = `
+                <div class="guard-banner">${blocked ? '🛡️ 護欄攔截' : '🛡️ 護欄提示'}：${escapeHtml(String(reason))}</div>
+            `;
+            chatBox.appendChild(div);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function showTypingIndicator() {
+            const id = 'typing-' + Date.now();
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message agent';
+            typingDiv.id = id;
+            typingDiv.innerHTML = `
+                <div class="msg-avatar">🤖</div>
+                <div class="bubble" style="padding: 8px 12px;">
+                    <div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>
+                </div>
+            `;
+            chatBox.appendChild(typingDiv);
+            chatBox.scrollTop = chatBox.scrollHeight;
+            return id;
+        }
+
+        function removeTypingIndicator(id) {
+            const el = document.getElementById(id);
+            if (el) el.remove();
+        }
+
+        function clearChat() {
+            const s = getActiveSession();
+            if (!s) {
+                createNewChat();
+                return;
+            }
+            if (!confirm('清除目前對話的訊息？（右側紀錄仍會保留此對話，可用「刪除」移除）')) return;
+            destroyCharts();
+            const now = Date.now();
+            const msg = '對話紀錄已清除。可再請我「畫出合規狀態圖」或「用流程圖說明建議步驟」。';
+            s.messages = [{ role: 'agent', text: msg, ts: now }];
+            s.updatedAt = now;
+            saveChatStore();
+            renderHistoryList();
+            historyHydrating = true;
+            chatBox.innerHTML = '';
+            appendBubble('agent', '🤖', msg, true);
+            historyHydrating = false;
+        }
+
+        // 啟動時載入右側對話紀錄
+        initChatHistory();
+    </script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+﻿FROM qwen2.5:3b
+PARAMETER temperature 0
+PARAMETER num_ctx 8192
+SYSTEM """你是 Semi-Shield Cyber Agent，專精 OT 工控與 ISO 27001 合規。"""

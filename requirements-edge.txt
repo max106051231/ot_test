@@ -1,0 +1,31 @@
+# Semi-Shield Edge（樹莓派／無 GPU）精簡相依
+# 建議：Python 3.11（aarch64），記憶體 ≥ 4GB（swap 建議開 2GB+）
+#
+# 1) 安裝 CPU 版 PyTorch（擇一）：
+#    pip install torch --index-url https://download.pytorch.org/whl/cpu
+#    # 或官方 aarch64 wheel：https://pytorch.org
+#
+# 2) 其餘：
+#    pip install -r requirements-edge.txt
+#
+# 3) 啟動：
+#    ./run_edge.sh
+#    # 或 Windows：run_edge.bat
+
+flask==3.1.3
+flask-cors==6.0.5
+
+# LLM（不要裝 bitsandbytes：需 CUDA）
+transformers==5.14.1
+tokenizers==0.22.2
+accelerate==1.14.0
+safetensors==0.8.0
+huggingface-hub==1.23.0
+sentencepiece>=0.2.0
+protobuf>=4.0.0
+
+# 可選：開 RAG 時才需要（Edge 預設關）
+# sentence-transformers==5.6.1
+
+numpy>=1.26.0
+tqdm==4.68.4

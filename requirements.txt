@@ -1,0 +1,40 @@
+# Semi-Shield OT / ISO 27001 平台相依套件
+# 建議：Python 3.12（本機已偵測到 3.14 與 numpy/torch 不相容時請用 3.12）
+# 一鍵建環境：setup_python312.bat
+# 啟動：run_ollama.bat（自動使用 .venv 或 py -3.12）
+#
+# PyTorch（CUDA 範例，請依本機 CUDA 調整；CPU 可改為 pip install torch）：
+#   pip install torch --index-url https://download.pytorch.org/whl/cu128
+# 其餘：
+#   pip install -r requirements.txt
+#
+# 樹莓派／無 GPU：請改用 requirements-edge.txt + run_edge.sh（勿裝 bitsandbytes）
+
+# --- Web 後端 ---
+flask==3.1.3
+flask-cors==6.0.5
+
+# --- LLM / 訓練 ---
+# torch 請依上方說明另行安裝（目前環境為 torch==2.11.0+cu128）
+transformers==5.14.1
+tokenizers==0.22.2
+accelerate==1.14.0
+peft==0.19.1
+datasets==5.0.0
+bitsandbytes==0.49.2
+safetensors==0.8.0
+huggingface-hub==1.23.0
+sentencepiece>=0.2.0
+protobuf>=4.0.0
+
+# --- RAG ---
+sentence-transformers==5.6.1
+
+# --- 護欄訓練 / 評估 ---
+scikit-learn==1.9.0
+scipy==1.18.0
+numpy==2.5.1
+
+# --- 工具（compare_models 可選美化輸出）---
+rich==15.0.0
+tqdm==4.68.4

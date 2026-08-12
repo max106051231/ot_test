@@ -17,9 +17,16 @@
     "qwen25-7b": {
       "model_id": "Qwen/Qwen2.5-7B-Instruct",
       "slug": "qwen25_7b_ot",
-      "desc": "效果通常更好，需較大顯存（建議 ≥16GB）",
+      "desc": "推薦 #2：7B 品質更高，RTX 5070 Ti 16GB 用 QLoRA batch=1（finetune_qwen25_7b.py）",
       "batch_size": 1,
       "max_steps": 200
+    },
+    "qwen3-4b": {
+      "model_id": "Qwen/Qwen3-4B-Instruct-2507",
+      "slug": "qwen3_4b_ot",
+      "desc": "推薦 #1：Qwen3 指令版，繁中強、16GB 友善（finetune_qwen3_4b.py）",
+      "batch_size": 2,
+      "max_steps": 250
     },
     "phi4-mini": {
       "model_id": "microsoft/Phi-4-mini-instruct",
@@ -32,6 +39,13 @@
       "model_id": "meta-llama/Llama-3.2-3B-Instruct",
       "slug": "llama32_3b_ot",
       "desc": "Llama 3.2 3B（需 HF 授權／登入）",
+      "batch_size": 2,
+      "max_steps": 200
+    },
+    "gemma2-2b": {
+      "model_id": "google/gemma-2-2b-it",
+      "slug": "gemma_2b_ot",
+      "desc": "Gemma 2B 指令版（需 HF gated 授權；無本地權重時以 gemma2:2b + Semi-Shield SYSTEM 建立）",
       "batch_size": 2,
       "max_steps": 200
     }

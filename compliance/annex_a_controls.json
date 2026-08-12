@@ -1,0 +1,1044 @@
+{
+  "version": "2022",
+  "standard": "ISO/IEC 27001:2022 Annex A",
+  "principle": "No Evidence, No Compliance Claim",
+  "total_annex_a": 93,
+  "phase1_scope": "A.5 (37) + A.8 subset (13) = 50 MVP definitions",
+  "controls": [
+    {
+      "annex_a_id": "A.5.1",
+      "title": "資訊安全政策",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.2",
+      "title": "資訊安全角色與責任",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.3",
+      "title": "職責分離",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.4",
+      "title": "管理階層責任",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.5",
+      "title": "與主管機關聯絡",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.6",
+      "title": "與特殊利益團體聯絡",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.7",
+      "title": "威脅情報",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.8",
+      "title": "專案管理中的資訊安全",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.9",
+      "title": "資訊及其他相關資產清單",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.10",
+      "title": "資訊及其他相關資產之可接受使用",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.11",
+      "title": "資產歸還",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.12",
+      "title": "資訊分類",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.13",
+      "title": "資訊標示",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.14",
+      "title": "資訊傳輸",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.15",
+      "title": "存取控制",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": true,
+      "control_key": "access_control",
+      "evidence_types": [
+        "syslog_login",
+        "radius",
+        "tacacs",
+        "ssh"
+      ],
+      "wazuh_signal": "sec_login, aaa, auth",
+      "automation": "syslog_regex"
+    },
+    {
+      "annex_a_id": "A.5.16",
+      "title": "身分管理",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.17",
+      "title": "驗證資訊",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.18",
+      "title": "存取權限",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.19",
+      "title": "供應商關係之資訊安全",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": true,
+      "control_key": "supplier_security",
+      "evidence_types": [
+        "syslog_cdp",
+        "syslog_lldp",
+        "remote_logging"
+      ],
+      "wazuh_signal": "external_neighbor, remote_host",
+      "automation": "syslog_regex"
+    },
+    {
+      "annex_a_id": "A.5.20",
+      "title": "供應商協議中資安要求",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.21",
+      "title": "供應鏈中 ICT 之資訊安全管理",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.22",
+      "title": "供應商服務監控、審查與變更",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.23",
+      "title": "雲端服務使用之資訊安全",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.24",
+      "title": "資訊安全事件管理規劃與準備",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.25",
+      "title": "資訊安全事件評估與決策",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.26",
+      "title": "資訊安全事件回應",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.27",
+      "title": "從資訊安全事件學習",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.28",
+      "title": "證據收集",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.29",
+      "title": "中斷期間資訊安全",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.30",
+      "title": "ICT 備援以確保持續營運",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.31",
+      "title": "法律、法規及合約要求",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.32",
+      "title": "智慧財產權",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.33",
+      "title": "紀錄之保護",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.34",
+      "title": "隱私及 PII 保護",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.35",
+      "title": "資訊安全之獨立審查",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.36",
+      "title": "資訊安全政策、規則及標準之遵循",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.5.37",
+      "title": "已文件化操作程序",
+      "domain": "organizational",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "policy_doc",
+        "procedure",
+        "manual_review"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.1",
+      "title": "使用者端點裝置",
+      "domain": "technological",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.2",
+      "title": "特權存取權限",
+      "domain": "technological",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.3",
+      "title": "資訊存取限制",
+      "domain": "technological",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.4",
+      "title": "原始碼存取",
+      "domain": "technological",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.5",
+      "title": "安全驗證",
+      "domain": "technological",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.6",
+      "title": "容量管理",
+      "domain": "technological",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.7",
+      "title": "惡意軟體防護",
+      "domain": "technological",
+      "phase1_mvp": true,
+      "monitored": true,
+      "control_key": "malware_defense",
+      "evidence_types": [
+        "syslog_ips",
+        "syslog_malware",
+        "usb_alert"
+      ],
+      "wazuh_signal": "malware, ips, host_attack",
+      "automation": "syslog_regex"
+    },
+    {
+      "annex_a_id": "A.8.8",
+      "title": "技術弱點管理",
+      "domain": "technological",
+      "phase1_mvp": true,
+      "monitored": true,
+      "control_key": "patch_management",
+      "evidence_types": [
+        "syslog_ios_version",
+        "upgrade_event"
+      ],
+      "wazuh_signal": "software, image, smu",
+      "automation": "syslog_regex"
+    },
+    {
+      "annex_a_id": "A.8.9",
+      "title": "組態管理",
+      "domain": "technological",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.10",
+      "title": "資訊刪除",
+      "domain": "technological",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.11",
+      "title": "資料遮罩",
+      "domain": "technological",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.12",
+      "title": "資料外洩防護",
+      "domain": "technological",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.13",
+      "title": "資訊備份",
+      "domain": "technological",
+      "phase1_mvp": true,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.14",
+      "title": "資訊處理設施之備援",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.15",
+      "title": "記錄",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.16",
+      "title": "監控活動",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.17",
+      "title": "時鐘同步",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.18",
+      "title": "特權公用程式的使用",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.19",
+      "title": "作業系統上之軟體安裝",
+      "domain": "technological",
+      "phase1_mvp": true,
+      "monitored": true,
+      "control_key": "recipe_audit",
+      "evidence_types": [
+        "syslog_config",
+        "interface_change",
+        "port_security"
+      ],
+      "wazuh_signal": "config_i, parser, updown",
+      "automation": "syslog_regex"
+    },
+    {
+      "annex_a_id": "A.8.20",
+      "title": "網路安全",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.21",
+      "title": "網路服務之安全",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.22",
+      "title": "網路分割",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.23",
+      "title": "網路過濾",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.24",
+      "title": "密碼學之使用",
+      "domain": "technological",
+      "phase1_mvp": true,
+      "monitored": true,
+      "control_key": "sec_gem_log",
+      "evidence_types": [
+        "syslog_snmp",
+        "crypto_pki",
+        "tls_session"
+      ],
+      "wazuh_signal": "snmp, crypto, certificate",
+      "automation": "syslog_regex"
+    },
+    {
+      "annex_a_id": "A.8.25",
+      "title": "安全開發生命週期",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.26",
+      "title": "應用程式安全需求",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.27",
+      "title": "安全系統架構及工程原則",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.28",
+      "title": "安全編碼",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.29",
+      "title": "開發及測試環境之安全",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.30",
+      "title": "委外開發",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.31",
+      "title": "開發、測試及正式環境之分離",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.32",
+      "title": "變更管理",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.33",
+      "title": "測試資訊",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    },
+    {
+      "annex_a_id": "A.8.34",
+      "title": "稽核測試期間資訊系統之保護",
+      "domain": "technological",
+      "phase1_mvp": false,
+      "monitored": false,
+      "control_key": null,
+      "evidence_types": [
+        "config_review",
+        "manual_test"
+      ],
+      "wazuh_signal": null,
+      "automation": "manual"
+    }
+  ]
+}

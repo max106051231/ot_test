@@ -1,0 +1,133 @@
+{
+  "version": "1.0",
+  "product_name": "Semi-Shield ISMS（Wazuh + OpenCTI + Local LLM + Agentic RAG）",
+  "differentiators": [
+    "Local LLM 敏感資料不離地端",
+    "Evidence_id 全鏈路可追溯（No Evidence, No Compliance Claim）",
+    "Human Review Guardrails 降低 AI 合規幻覺",
+    "OT syslog → ISO 27001 控制項自動對映（非純問答）",
+    "Agent Workflow 多階段（Collector → Auditor → Reviewer → Reporter）",
+    "CTI / SOC 事件可轉換為稽核證據（Wazuh + OpenCTI 整合路線）"
+  ],
+  "vs_traditional_ai_report": [
+    {"dimension": "生成方式", "traditional": "單次 LLM 生成", "semi_shield": "Agent Workflow 多階段"},
+    {"dimension": "幻覺風險", "traditional": "高（無 grounding）", "semi_shield": "Evidence-based + RAG"},
+    {"dimension": "追溯性", "traditional": "無", "semi_shield": "evidence_id + hash chain"},
+    {"dimension": "輸出結構", "traditional": "純文字", "semi_shield": "control mapping + 量化指標"},
+    {"dimension": "審查", "traditional": "無", "semi_shield": "Human review queue + Guardrails"},
+    {"dimension": "回饋", "traditional": "無", "semi_shield": "CTI feedback loop（規劃中）"}
+  ],
+  "commercial_grc_comparison": [
+    {
+      "vendor": "Vanta",
+      "focus": "SaaS 自動化 SOC2/ISO 證據收集",
+      "local_llm": false,
+      "ot_syslog_mapping": false,
+      "evidence_traceability": "partial",
+      "human_review_ai": false,
+      "semi_shield_gap": "雲端為主；OT 工控 syslog 與地端 LLM 非核心"
+    },
+    {
+      "vendor": "Drata",
+      "focus": "持續合規監控 + 整合連接器",
+      "local_llm": false,
+      "ot_syslog_mapping": false,
+      "evidence_traceability": "partial",
+      "human_review_ai": false,
+      "semi_shield_gap": "偏 IT GRC；缺 Wazuh/OpenCTI + 地端 Agent 管線"
+    },
+    {
+      "vendor": "Secureframe",
+      "focus": "ISO/SOC2 政策與證據工作流",
+      "local_llm": false,
+      "ot_syslog_mapping": false,
+      "evidence_traceability": "partial",
+      "human_review_ai": false,
+      "semi_shield_gap": "政策範本導向；缺 OT 控制項 regex + Local LLM"
+    },
+    {
+      "vendor": "OneTrust",
+      "focus": "企業隱私/GRC 平台",
+      "local_llm": false,
+      "ot_syslog_mapping": false,
+      "evidence_traceability": "yes",
+      "human_review_ai": false,
+      "semi_shield_gap": "大型 GRC；成本高、OT 落地需大量客製"
+    },
+    {
+      "vendor": "ServiceNow GRC",
+      "focus": "ITSM 整合風險與稽核",
+      "local_llm": false,
+      "ot_syslog_mapping": false,
+      "evidence_traceability": "yes",
+      "human_review_ai": false,
+      "semi_shield_gap": "企業 workflow；缺 Agentic RAG 與地端推論"
+    },
+    {
+      "vendor": "Hyperproof",
+      "focus": "控制項測試與證據管理",
+      "local_llm": false,
+      "ot_syslog_mapping": false,
+      "evidence_traceability": "yes",
+      "human_review_ai": false,
+      "semi_shield_gap": "證據庫強；AI 診斷與 OT 訊號自動分類非原生"
+    },
+    {
+      "vendor": "Microsoft Compliance Manager",
+      "focus": "M365 生態合規評分",
+      "local_llm": false,
+      "ot_syslog_mapping": false,
+      "evidence_traceability": "partial",
+      "human_review_ai": false,
+      "semi_shield_gap": "雲服務評分；半導體 OT 現場 syslog 非主場景"
+    },
+    {
+      "vendor": "Semi-Shield（本專案）",
+      "focus": "OT + ISO 27001 地端 Agent 合規",
+      "local_llm": true,
+      "ot_syslog_mapping": true,
+      "evidence_traceability": "yes",
+      "human_review_ai": true,
+      "semi_shield_gap": "MVP 階段 Annex A 自動監控 6 項；Phase 2 擴 Wazuh/OpenCTI 原生整合"
+    }
+  ],
+  "academic_references": [
+    {
+      "topic": "LLM for compliance / audit",
+      "citation": "USENIX Security 2024 — LLM-aided security audit workflows",
+      "note": "支持 evidence-grounded 稽核管線設計"
+    },
+    {
+      "topic": "Agentic RAG",
+      "citation": "NeurIPS 2024 / ACL 2024 — Retrieval-augmented generation advances",
+      "note": "支持 Agent + RAG 多步推理架構"
+    }
+  ],
+  "tech_stack": {
+    "soc": ["Wazuh alerts", "Threat Intelligence", "Incident response"],
+    "compliance_gap": "SOC 事件 ≠ ISO 稽核證據；本系統補 control mapping + evidence_id",
+    "integrations_planned": ["Wazuh", "OpenCTI", "Local LLM (Qwen3-4B LoRA)", "Agentic RAG"],
+    "local_llm": {
+      "production": "Qwen/Qwen3-4B-Instruct-2507 + QLoRA (qwen3_4b_ot)",
+      "alternatives": ["Qwen2.5-7B-Instruct", "google/gemma-2-2b-it"],
+      "hardware_note": "16GB GPU QLoRA；CPU edge 模式可用 0.5B–1.5B",
+      "latency_target_ms": 8000
+    },
+    "agent_framework": {
+      "current": "Lightweight sequential pipeline (agent_orchestrator.py)",
+      "recommended_phase2": "LangGraph 或 CrewAI",
+      "agents": [
+        {"role": "Collector", "duty": "scan OT / Wazuh 事件 → evidence 註冊"},
+        {"role": "Auditor", "duty": "RAG + Local LLM 控制項診斷"},
+        {"role": "Reviewer", "duty": "Guardrails + Human review queue"},
+        {"role": "Reporter", "duty": "PDF/TXT 合規報告 + evidence 附錄"}
+      ]
+    },
+    "guardrails": {
+      "input": "微調 RoBERTa 分類器 + 硬性規則 + 平台 allowlist",
+      "output": "IP/密碼/token 脫敏",
+      "human_review": "borderline ML 分數 → review_queue",
+      "phase2_options": ["NeMo Guardrails", "LlamaGuard 二道防線"]
+    }
+  }
+}
