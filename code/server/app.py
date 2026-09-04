@@ -60,10 +60,10 @@ def _env_flag(name: str, default: bool = False) -> bool:
 
 def _local_llm_dirs_exist(base: Path) -> bool:
     checks = [
-        base / "qwen_ot_merged_model" / "config.json",
         base / "phi4_merged_model" / "config.json",
-        base / "train_ai" / "train_llm" / "qwen_ot_merged_model" / "config.json",
         base / "train_ai" / "train_llm" / "phi4_merged_model" / "config.json",
+        base / "train_ai" / "models" / "llama32_3b_ot" / "config.json",
+        base / "train_ai" / "models" / "gemma_2b_ot" / "config.json",
     ]
     if any(p.is_file() for p in checks):
         return True
@@ -171,7 +171,7 @@ def _early_hub_id_from_path(path: str) -> str | None:
 def _pick_edge_default_model() -> str:
     """
     Edge/CPU 預設模型：優先本機已快取，避免離線去抓 HuggingFace。
-    本機常見快取：Qwen2.5-3B-Instruct、Phi-4-mini。
+    本機常見快取：Phi-4-mini、Llama 3.2 3B、Gemma 2B。
     """
     forced = (os.environ.get("EDGE_LLM_MODEL") or "").strip()
     if forced:
@@ -186,21 +186,19 @@ def _pick_edge_default_model() -> str:
             return snap or forced
         return forced
 
-    # 由小到大；有快取就用（你的環境已有 3B / Phi-4）
+    # 由小到大；有快取就用（Phi-4 / Llama / Gemma，不含 Qwen）
     candidates = [
-        "Qwen/Qwen2.5-0.5B-Instruct",
-        "Qwen/Qwen2.5-1.5B-Instruct",
-        "Qwen/Qwen2.5-3B-Instruct",
         "microsoft/Phi-4-mini-instruct",
-        "Qwen/Qwen3-4B-Instruct-2507",
+        "meta-llama/Llama-3.2-3B-Instruct",
+        "google/gemma-2-2b-it",
+        "meta-llama/Llama-3.1-8B-Instruct",
     ]
     for mid in candidates:
         snap = _early_find_hf_snapshot(mid)
         if snap:
             print(f"🍊 Edge/CPU 採用本機 HF 快取：{mid}")
             return snap
-    # 無快取時回 hub id（需 ALLOW_HF_DOWNLOAD=1 才會連網）
-    return "Qwen/Qwen2.5-3B-Instruct"
+    return "microsoft/Phi-4-mini-instruct"
 
 
 EDGE_DEFAULT_MODEL = "" if USE_OLLAMA else _pick_edge_default_model()
@@ -209,7 +207,9 @@ EDGE_DEFAULT_MODEL = "" if USE_OLLAMA else _pick_edge_default_model()
 _allow_hf_dl = _env_flag("ALLOW_HF_DOWNLOAD", default=False)
 if not _allow_hf_dl:
     if _local_llm_dirs_exist(_BASE_EARLY) or EDGE_MODE or _early_find_hf_snapshot(
-        "Qwen/Qwen2.5-3B-Instruct"
+        "microsoft/Phi-4-mini-instruct"
+    ) or _early_find_hf_snapshot(
+        "meta-llama/Llama-3.2-3B-Instruct"
     ) or Path(EDGE_DEFAULT_MODEL).is_dir():
         os.environ.setdefault("HF_HUB_OFFLINE", "1")
         os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
@@ -250,6 +250,8 @@ if EDGE_MODE or LLM_DEVICE == "cpu":
     os.environ.setdefault("OT_ENABLE_RAG", "0")
     os.environ.setdefault("ENABLE_GUARDRAIL", "0")
     os.environ.setdefault("LLM_WARMUP", "0")
+    os.environ.setdefault("LLM_CHAT_PRIME", "0")
+    os.environ.setdefault("LLM_CPU_FAST_GROUNDED", "0")
     os.environ.setdefault("GUARDRAIL_DEVICE", "cpu")
     _configure_cpu_threads()
 
@@ -257,6 +259,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from code.services.guardrail_service import guardrail_service
+from code.services.hallucination_guard_service import hallucination_guard_service
 from code.services.compliance_service import (
     build_metrics_analysis,
     coverage_gaps,
@@ -310,10 +313,22 @@ WEB_DIR = str(web_dir())
 app = Flask(__name__, static_folder=os.path.join(BASE_DIR, "static"), static_url_path="/static")
 CORS(app)
 
+
+@app.after_request
+def _api_no_cache(resp):
+    if request.path.startswith("/api/"):
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+    return resp
+
 # =======================================================
 # 護欄開關（False = 略過輸入攔截 / 輸出脫敏；True = 啟用）
 # =======================================================
 ENABLE_GUARDRAIL = _env_flag("ENABLE_GUARDRAIL", default=not EDGE_MODE)
+ENABLE_HALLUCINATION_GUARD = _env_flag(
+    "ENABLE_HALLUCINATION_GUARD",
+    default=ENABLE_GUARDRAIL,
+)
 
 
 def _rag_feature_enabled() -> bool:
@@ -356,6 +371,28 @@ class _DisabledGuardrail:
 if not ENABLE_GUARDRAIL:
     guardrail_service = _DisabledGuardrail()
     print("🛡️ 護欄功能已停用（ENABLE_GUARDRAIL=False）")
+
+
+class _DisabledHallucinationGuard:
+    mode = "disabled"
+
+    def check_output(self, question, answer, **kwargs):
+        return {
+            "label": "grounded",
+            "is_hallucination": False,
+            "grounded_prob": 1.0,
+            "hallucination_prob": 0.0,
+            "mode": "disabled",
+            "reason": "幻覺護欄已停用",
+        }
+
+    def mechanism_summary(self):
+        return {"mode": "disabled", "threshold": None, "device": "n/a"}
+
+
+if not ENABLE_HALLUCINATION_GUARD:
+    hallucination_guard_service = _DisabledHallucinationGuard()
+    print("🔍 幻覺護欄已停用（ENABLE_HALLUCINATION_GUARD=False）")
 
 if EDGE_MODE:
     print(
@@ -493,31 +530,24 @@ def _model_cpu_weights_ok(path: str) -> bool:
     return _model_full_weights_ok(path)
 
 
+def _is_excluded_llm_slug(slug: str) -> bool:
+    return ollama_service._is_excluded_model(slug or "")
+
+
 def _llm_candidate_dirs(root: Path, *, edge: bool = False) -> list[Path]:
-    """依優先序回傳可能的本地 LLM 目錄。"""
+    """依優先序回傳可能的本地 LLM 目錄（不含 Qwen）。"""
     train_ai = root / "train_ai"
     train_llm = train_ai / "train_llm"
     models_dir = train_ai / "models"
     if edge:
-        # Edge：優先較小、非 4-bit 的本地成品
         preferred = [
-            "qwen25_0p5b_ot",
-            "qwen25_1p5b_ot",
-            "qwen25_3b_ot",
-            "qwen_ot_merged_model_copy",
-            "qwen_ot_merged_model",
-            "phi4_mini_ot",
-            "phi4_merged_model",
+            "llama32_3b_ot",
+            "gemma4_e2b_ot",
         ]
     else:
         preferred = [
-            "qwen25_3b_ot",
-            "qwen_ot_merged_model",
-            "qwen25_1p5b_ot",
-            "phi4_mini_ot",
-            "phi4_merged_model",
-            "qwen25_7b_ot",
             "llama32_3b_ot",
+            "gemma4_e2b_ot",
         ]
     ordered: list[Path] = []
 
@@ -538,9 +568,7 @@ def _llm_candidate_dirs(root: Path, *, edge: bool = False) -> list[Path]:
 
     # 相容：專案根 / train_ai 頂層舊路徑
     ordered.extend([
-        root / "qwen_ot_merged_model",
         root / "phi4_merged_model",
-        train_ai / "qwen_ot_merged_model",
         train_ai / "phi4_merged_model",
     ])
     return ordered
@@ -565,6 +593,26 @@ def _use_cuda_for_llm() -> bool:
     if LLM_DEVICE in ("cuda", "gpu"):
         return _torch_cuda_available()
     return _torch_cuda_available()
+
+
+def _is_cpu_llm_inference() -> bool:
+    """本地 HF 推論走 CPU（Edge／FORCE_CPU／LLM_DEVICE=cpu）。"""
+    if USE_OLLAMA:
+        return False
+    return bool(
+        EDGE_MODE
+        or LLM_DEVICE == "cpu"
+        or _env_flag("FORCE_CPU", default=False)
+    )
+
+
+def _cpu_fast_grounded_enabled() -> bool:
+    """CPU 模式下常見知識／現況題改走 grounded 直答（省 30–90 秒）。"""
+    if not _is_cpu_llm_inference():
+        return False
+    return os.environ.get("LLM_CPU_FAST_GROUNDED", "0").strip().lower() not in (
+        "0", "false", "no", "off",
+    )
 
 
 def _try_enable_cuda_for_model(reason: str = "") -> bool:
@@ -646,7 +694,7 @@ def _resolve_llm_model_path() -> str:
         if not (p / "config.json").is_file():
             continue
         return str(p.resolve())
-    return str((root / "train_ai" / "train_llm" / "qwen_ot_merged_model").resolve())
+    return str((root / "train_ai" / "models" / "llama32_3b_ot").resolve())
 
 
 def _is_hub_model_id(value: str) -> bool:
@@ -672,13 +720,27 @@ print(f"📁 OT 日誌目錄：{OT_FOLDER}")
 _speed_default = (
     "turbo"
     if USE_OLLAMA
-    else ("edge" if (EDGE_MODE or LLM_DEVICE == "cpu") else "turbo")
+    else ("cpu_fast" if (EDGE_MODE or LLM_DEVICE == "cpu") else "turbo")
 )
 SPEED_MODE = (os.environ.get("LLM_SPEED") or _speed_default).strip().lower()
-if SPEED_MODE not in ("turbo", "fast", "balanced", "edge"):
+if SPEED_MODE not in ("turbo", "fast", "balanced", "edge", "cpu_fast"):
     SPEED_MODE = _speed_default
 
-if SPEED_MODE == "edge":
+if SPEED_MODE == "cpu_fast":
+    # Edge／CPU 極速：更短 prompt／輸出，減少生成 token 數
+    MAX_INPUT_CHARS = 220
+    MAX_NEW_TOKENS = 96
+    MAX_NEW_TOKENS_AUDIT = 120
+    MAX_NEW_TOKENS_VISUAL = 48
+    MAX_PROMPT_TOKENS = 384
+    MAX_OUTPUT_CHARS = 400
+    MAX_OUTPUT_CHARS_REPORT = 560
+    REPETITION_PENALTY = 1.05
+    NO_REPEAT_NGRAM = 0
+    RAG_CONTEXT_CHARS = 120
+    CHAT_CTX_LIMIT = 100
+    WARROOM_CTX_LIMIT = 1200
+elif SPEED_MODE == "edge":
     # 樹莓派／CPU：短 prompt、短輸出，避免記憶體與時間爆掉
     MAX_INPUT_CHARS = 280
     MAX_NEW_TOKENS = 160
@@ -691,19 +753,21 @@ if SPEED_MODE == "edge":
     NO_REPEAT_NGRAM = 0
     RAG_CONTEXT_CHARS = 160
     CHAT_CTX_LIMIT = 140
+    WARROOM_CTX_LIMIT = 1800
 elif SPEED_MODE == "turbo":
     # 體感速度優先；prompt 太短會截掉使用者問題（Qwen 尤易亂答）
     MAX_INPUT_CHARS = 400
-    MAX_NEW_TOKENS = 320
-    MAX_NEW_TOKENS_AUDIT = 400
-    MAX_NEW_TOKENS_VISUAL = 96
+    MAX_NEW_TOKENS = 960
+    MAX_NEW_TOKENS_AUDIT = 960
+    MAX_NEW_TOKENS_VISUAL = 128
     MAX_PROMPT_TOKENS = 896
-    MAX_OUTPUT_CHARS = 900
+    MAX_OUTPUT_CHARS = 1400
     MAX_OUTPUT_CHARS_REPORT = 1800
     REPETITION_PENALTY = 1.08
     NO_REPEAT_NGRAM = 0
     RAG_CONTEXT_CHARS = 260
     CHAT_CTX_LIMIT = 220
+    WARROOM_CTX_LIMIT = 4800
 elif SPEED_MODE == "fast":
     MAX_INPUT_CHARS = 520
     MAX_NEW_TOKENS = 220
@@ -716,6 +780,7 @@ elif SPEED_MODE == "fast":
     NO_REPEAT_NGRAM = 0
     RAG_CONTEXT_CHARS = 360
     CHAT_CTX_LIMIT = 300
+    WARROOM_CTX_LIMIT = 3600
 else:
     MAX_INPUT_CHARS = 800
     MAX_NEW_TOKENS = 520
@@ -728,6 +793,17 @@ else:
     NO_REPEAT_NGRAM = 4
     RAG_CONTEXT_CHARS = 700
     CHAT_CTX_LIMIT = 720
+    WARROOM_CTX_LIMIT = 4200
+
+_warroom_env = os.environ.get("OT_WARROOM_CTX_LIMIT", "").strip()
+if _warroom_env.isdigit():
+    WARROOM_CTX_LIMIT = int(_warroom_env)
+
+_max_tok_env = os.environ.get("LLM_MAX_NEW_TOKENS", "").strip()
+if _max_tok_env.isdigit():
+    _cap = int(_max_tok_env)
+    MAX_NEW_TOKENS = min(int(MAX_NEW_TOKENS), _cap)
+    MAX_NEW_TOKENS_AUDIT = min(int(MAX_NEW_TOKENS_AUDIT), _cap)
 
 print(f"⚡ LLM 速度檔：{SPEED_MODE}（MAX_NEW_TOKENS={MAX_NEW_TOKENS}, AUDIT={MAX_NEW_TOKENS_AUDIT}）")
 
@@ -758,6 +834,9 @@ def _apply_cpu_speed_profile(reason: str = "") -> None:
             f"（{(reason or 'cpu')[:80]}）"
         )
 
+
+if not USE_OLLAMA and _is_cpu_llm_inference() and SPEED_MODE == "edge":
+    _apply_cpu_speed_profile("cpu startup")
 
 # 設 LLM_4BIT=1 強制 4-bit（僅 CUDA）；CPU／Edge 會自動忽略
 FORCE_4BIT = os.environ.get("LLM_4BIT", "").strip().lower() in ("1", "true", "yes")
@@ -817,6 +896,101 @@ ZH_TW_CHAT_RULE = (
     "禁止重複同一批條列（如一直重複「具體要求／具體情況」）；用完整句子說明重點。"
     f"情境以{SITE_DOMAIN}為準。"
 )
+
+
+def _chat_detail_enabled() -> bool:
+    """是否要求 LLM 詳細回答（edge/cpu_fast 預設短答，可設 LLM_CHAT_VERBOSE=1 強制詳答）。"""
+    raw = os.environ.get("LLM_CHAT_VERBOSE")
+    if raw is not None and str(raw).strip() != "":
+        return str(raw).strip().lower() in ("1", "true", "yes", "on")
+    return SPEED_MODE not in ("cpu_fast", "edge")
+
+
+def _chat_output_char_limit(
+    *,
+    log_grounded: bool = False,
+    action_plan: bool = False,
+) -> int:
+    """聊天回覆字數上限（監控／行動建議需較長）。"""
+    base = int(MAX_OUTPUT_CHARS)
+    if action_plan and log_grounded:
+        return max(base, 2800)
+    if log_grounded:
+        return max(base, 2000)
+    return base
+
+
+def wants_warroom_action_plan(user_message: str) -> bool:
+    """依戰情室資料問「下一步／優先處理」等行動建議。"""
+    t = (user_message or "").strip()
+    if not t:
+        return False
+    return bool(
+        re.search(
+            r"下一步|該做什麼|該怎麼做|怎麼辦|優先(?:行動|處理|修補|排查)|"
+            r"建議.*(?:行動|處理|修補|排查)|要先做什麼|從哪裡開始|"
+            r"戰情室.*(?:下一步|建議|行動)",
+            t,
+            re.I,
+        )
+    )
+
+
+def _chat_length_rule(*, log_grounded: bool = False) -> str:
+    if not _chat_detail_enabled():
+        return "2-8 句或簡短條列即可。"
+    if log_grounded:
+        return (
+            "請詳細回答（約 10-18 句或 4-6 點條列）；"
+            "逐項說明相關控制項的 count、status、風險與依據；"
+            "每點需有具體下一步；有 evidence_id 才引用，沒有則略過該欄；"
+            "寫完所有條列後用 1-2 句作結，不要在中途截斷。"
+        )
+    return "請詳細回答（約 8-15 句或 4-6 點條列），每點需有一句解釋。"
+
+
+def _audit_detail_enabled() -> bool:
+    """合規診斷／PDF 報告是否要求詳細輸出（可設 LLM_AUDIT_VERBOSE=1）。"""
+    raw = os.environ.get("LLM_AUDIT_VERBOSE")
+    if raw is not None and str(raw).strip() != "":
+        return str(raw).strip().lower() in ("1", "true", "yes", "on")
+    return _chat_detail_enabled()
+
+
+def _audit_length_rule() -> str:
+    if not _audit_detail_enabled():
+        return "每段 2-5 句或 2-4 點條列即可，整份報告簡潔。"
+    return (
+        "請撰寫詳細稽核報告：分三段（事件摘要／風險分析／修補建議），"
+        "每段約 6-10 句或 4-8 點條列；整份約 900-1600 字。"
+        "須引用控制項 count、status，以及日誌中的 facility／mnemonic／設備名；"
+        "風險分析須說明對半導體產線／OT 的影響；修補建議須具體可執行並標注優先順序。"
+    )
+
+
+def _audit_output_char_limit() -> int:
+    base = int(MAX_OUTPUT_CHARS_REPORT)
+    if _audit_detail_enabled():
+        return max(base, 1600, int(MAX_OUTPUT_CHARS * 1.1))
+    return min(base, int(MAX_OUTPUT_CHARS))
+
+
+def _audit_token_budget() -> int:
+    base = int(MAX_NEW_TOKENS_AUDIT)
+    if not _audit_detail_enabled():
+        return base
+    boosted = int(base * 1.4) + 96
+    if SPEED_MODE == "turbo":
+        return max(boosted, 768)
+    return boosted
+
+
+def _audit_input_char_limit() -> int:
+    base = int(MAX_INPUT_CHARS)
+    if _audit_detail_enabled():
+        return max(base, 600, int(base * 1.6))
+    return base
+
 
 # 合規報告：True＝以 LLM 自由撰寫為主（不同模型內容應有差異）
 ENABLE_REPORT_LLM_FREEWRITE = True
@@ -1171,25 +1345,22 @@ _llm_cache: dict[str, dict] = {}
 _llm_cache_lru: list[str] = []
 
 _LLM_FRIENDLY_NAMES = {
-    "qwen_ot_merged_model": "Qwen OT（微調後）",
     "phi4_merged_model": "Phi-4（微調後）",
     "phi4_lora_model": "Phi-4 LoRA",
-    "qwen25_7b_ot": "Qwen2.5-7B OT（微調後）",
-    "qwen3_4b_ot": "Qwen3-4B OT（微調後）",
-    "qwen25_3b_ot": "Qwen2.5-3B OT（微調後）",
-    "Qwen/Qwen2.5-0.5B-Instruct": "Qwen2.5-0.5B（Edge/CPU）",
-    "Qwen/Qwen2.5-1.5B-Instruct": "Qwen2.5-1.5B（微調前）",
-    "Qwen/Qwen2.5-3B-Instruct": "Qwen2.5-3B（微調前）",
-    "Qwen/Qwen2.5-7B-Instruct": "Qwen2.5-7B（微調前）",
-    "Qwen/Qwen3-4B-Instruct-2507": "Qwen3-4B（微調前）",
+    "phi4_mini_ot": "Phi-4 Mini OT（微調後）",
+    "gemma_2b_ot": "Gemma 2B OT（微調後）",
+    "llama32_3b_ot": "Llama 3.2 3B OT（微調後）",
     "microsoft/Phi-4-mini-instruct": "Phi-4 Mini（微調前）",
-    "meta-llama/Llama-3.2-3B-Instruct": "Llama-3.2-3B（微調前）",
+    "meta-llama/Llama-3.2-3B-Instruct": "Llama 3.2 3B（微調前）",
+    "meta-llama/Llama-3.1-8B-Instruct": "Llama 3.1 8B（微調前）",
+    "google/gemma-2-2b-it": "Gemma 2B（微調前）",
+    "mistralai/Mistral-7B-Instruct-v0.3": "Mistral 7B（微調前）",
 }
 
-# 本地微調成品 → 對應微調前基底（無 train_meta 時的後備）
 _FINETUNED_BASE_FALLBACK = {
-    "qwen_ot_merged_model": "Qwen/Qwen2.5-3B-Instruct",
     "phi4_merged_model": "microsoft/Phi-4-mini-instruct",
+    "llama32_3b_ot": "meta-llama/Llama-3.2-3B-Instruct",
+    "gemma_2b_ot": "google/gemma-2-2b-it",
 }
 
 
@@ -1515,7 +1686,7 @@ def _load_llm(model_path: str | None = None):
             if offline or not allow_dl:
                 raise RuntimeError(
                     f"模型「{path}」本機無 HF 快取，且禁止連網下載。"
-                    "請改選本機已快取模型（如 Qwen2.5-3B-Instruct），"
+                    "請改選本機已快取模型（如 Llama-3.2-3B-Instruct 或 Phi-4-mini），"
                     "或設 ALLOW_HF_DOWNLOAD=1 後連網下載。"
                 )
 
@@ -1544,11 +1715,10 @@ def _load_llm(model_path: str | None = None):
         if prefer_small:
             cand_order.extend(
                 [
-                    "Qwen/Qwen2.5-0.5B-Instruct",
-                    "Qwen/Qwen2.5-1.5B-Instruct",
+                    "google/gemma-2-2b-it",
+                    "meta-llama/Llama-3.2-3B-Instruct",
                     EDGE_DEFAULT_MODEL,
                     path,
-                    "Qwen/Qwen2.5-3B-Instruct",
                     "microsoft/Phi-4-mini-instruct",
                 ]
             )
@@ -1557,9 +1727,8 @@ def _load_llm(model_path: str | None = None):
                 [
                     path,
                     EDGE_DEFAULT_MODEL,
-                    "Qwen/Qwen2.5-1.5B-Instruct",
-                    "Qwen/Qwen2.5-0.5B-Instruct",
-                    "Qwen/Qwen2.5-3B-Instruct",
+                    "meta-llama/Llama-3.2-3B-Instruct",
+                    "google/gemma-2-2b-it",
                     "microsoft/Phi-4-mini-instruct",
                 ]
             )
@@ -2137,7 +2306,7 @@ def _is_small_or_gemma_model() -> bool:
 
 
 def _strip_draft_preamble(text: str) -> str:
-    """去掉「以下是根據底稿改寫的回覆」等元開場白。"""
+    """去掉「以下是根據底稿改寫的回覆」等元開場白與內部分析洩漏句。"""
     if not text:
         return text
     t = text.strip()
@@ -2150,6 +2319,17 @@ def _strip_draft_preamble(text: str) -> str:
         count=1,
         flags=re.I,
     )
+    internal_preamble = re.compile(
+        r"^(?:"
+        r"使用者(?:真正)?想問(?:的是)?"
+        r"|用户(?:真正)?想问(?:的是)?"
+        r"|(?:根据|根據)(?:上述|以下|分析).*?(?:用户|使用者)"
+        r"|(?:本則|本则)(?:使用者|用户)(?:的)?(?:问题|問題)(?:是)?"
+        r"|分析(?:一下)?(?:使用者|用户)(?:的)?(?:本則)?(?:问题|問題)"
+        r"|(?:先|首先)(?:分析|理解)(?:使用者|用户)(?:的)?(?:问题|問題)"
+        r")[:：，,\s]",
+        re.I,
+    )
     lines = [ln for ln in t.splitlines()]
     while lines:
         first = lines[0].strip()
@@ -2157,6 +2337,21 @@ def _strip_draft_preamble(text: str) -> str:
             lines.pop(0)
             continue
         if re.fullmatch(r"的?(?:回覆|回复|回答)[:：]?", first):
+            lines.pop(0)
+            continue
+        if internal_preamble.match(first):
+            lines.pop(0)
+            continue
+        if re.match(
+            r"^(?:使用者|用户)(?:真正)?想(?:问|問)(?:的是)?[:：].+[？?]\s*$",
+            first,
+        ):
+            lines.pop(0)
+            continue
+        if re.match(r"^[①②③④⑤⑥⑦⑧⑨⑩]", first) and re.search(
+            r"使用者|不可捏造|建議回答|勿對使用者|內部思考",
+            first,
+        ):
             lines.pop(0)
             continue
         if (
@@ -2172,14 +2367,110 @@ def _strip_draft_preamble(text: str) -> str:
             lines.pop(0)
             continue
         break
-    return "\n".join(lines).strip() or text.strip()
+    return "\n".join(lines).strip()
+
+
+def _repair_mojibake_text(text: str) -> str:
+    """修復 LLM 輸出中的 U+FFFD／缺字（如「檢查」變成「查」）。"""
+    if not text:
+        return text
+    t = text
+    # 明確替換字元
+    t = t.replace("\ufffd查", "檢查").replace("\uFFFD查", "檢查")
+    t = t.replace("\ufffd驗", "檢驗").replace("\ufffd視", "檢視")
+    t = t.replace("\ufffd核", "檢核").replace("\ufffd討", "檢討")
+    # 編號清單或句首缺「檢」：查設備 → 檢查設備
+    t = re.sub(
+        r"(?m)^(\s*\d+[\.、]\s*)查(?=設|日|硬|軟|組|憑|漏|視|核|查|修|修復)",
+        r"\1檢查",
+        t,
+    )
+    t = re.sub(
+        r"(?m)^(\s*[-*•]\s*)查(?=設|日|硬|軟|組|憑|漏|視|核|查|修)",
+        r"\1檢查",
+        t,
+    )
+    t = re.sub(
+        r"(?<=[。！？；\n])\s*查(?=設|日|硬|軟|組|憑|漏|視|核)",
+        "檢查",
+        t,
+    )
+    # 剩餘孤立 replacement char 再移除
+    return t.replace("\ufffd", "").replace("\uFFFD", "")
+
+
+def _chat_quality_fail_reply() -> str:
+    """品質檢查未通過時的唯一使用者可見回覆。"""
+    return "這個問題目前無法回答"
+
+
+def _is_chat_quality_fail_reply(text: str) -> bool:
+    t = (text or "").strip()
+    if t == "這個問題目前無法回答":
+        return True
+    return bool(
+        re.search(r"剛才這則回覆(?:異常|未通過品質檢查)", t)
+    )
+
+
+def _looks_like_internal_think_leak(text: str) -> bool:
+    """多輪思考／內部分析標記洩漏到使用者可見回覆。"""
+    if not text:
+        return False
+    if re.search(
+        r"【(?:最終|正式)回答】|【(?:內部分析|分析草稿|內部思考|自我檢查|內部檢查)】|"
+        r"【內部思考｜|勿對使用者】|建議回答結構|使用者(?:真正)?想問(?:的是)?[:：]",
+        text,
+    ):
+        return True
+    if re.search(r"①\s*.+②\s*.+③", text, re.S) and re.search(
+        r"不可捏造|使用者真正想問", text
+    ):
+        return True
+    return False
+
+
+def _normalize_chat_reply_before_quality_check(text: str) -> str:
+    """移除誤拼接的品質提示與內部標籤，擷取正式回答正文。"""
+    if not text:
+        return ""
+    t = text.strip()
+    if _is_chat_quality_fail_reply(t):
+        return _chat_quality_fail_reply()
+    t = re.sub(
+        r"\n*剛才這則回覆(?:異常|未通過品質檢查)[^\n]*(?:\n|$).*$",
+        "",
+        t,
+        flags=re.S,
+    ).strip()
+    m = re.search(r"【(?:最終|正式)回答】[:：]?\s*", t)
+    if m:
+        t = t[m.end():].strip()
+    t = re.sub(
+        r"^【(?:內部分析|分析草稿|內部思考|自我檢查)】[:：]?\s*",
+        "",
+        t,
+        flags=re.M,
+    ).strip()
+    return _strip_draft_preamble(t)
 
 
 def _polish_chat_output(text: str) -> str:
     """修正聊天常見格式殘留（孤立【、重複句號、model 殘留等）。"""
     if not text:
         return text
-    t = _strip_draft_preamble(text)
+    if _is_chat_quality_fail_reply(text):
+        return _chat_quality_fail_reply()
+    t = _normalize_chat_reply_before_quality_check(text)
+    if _looks_like_internal_think_leak(t):
+        return _chat_quality_fail_reply()
+    t = _strip_draft_preamble(t)
+    t = _repair_mojibake_text(t)
+    t = re.sub(
+        r"證據\s*ID\s*為\s*`{0,2}\s*`{0,2}\s*[。．]?",
+        "",
+        t,
+    )
     t = re.sub(r"【(?:回答|報告)結束】", "", t)
     t = re.sub(r"【(?![^【\n]{0,80}】)", "", t)  # 未閉合的【
     t = re.sub(r"【\s*$", "", t)
@@ -2666,6 +2957,33 @@ def _looks_like_train_leak(text: str) -> bool:
     return False
 
 
+def _reply_has_english_bullet_noise(text: str) -> bool:
+    """偵測小模型從 RAG 抄來的英文條列（如 Security Techniques）。"""
+    if not text:
+        return False
+    en_bullets = 0
+    for ln in text.splitlines():
+        s = ln.strip()
+        if not s:
+            continue
+        body = re.sub(r"^[\s>*\-•\d\.]+", "", s).strip()
+        if not body:
+            continue
+        cjk = len(re.findall(r"[\u4e00-\u9fff]", body))
+        letters = len(re.findall(r"[A-Za-z]", body))
+        if letters >= 8 and cjk <= 1:
+            if re.match(r"^[\s>*\-•\d\.]+", s) or re.search(
+                r"security|information|management|requirements|techniques|"
+                r"systems|technology|standard|annex",
+                body,
+                re.I,
+            ):
+                en_bullets += 1
+    if en_bullets >= 2:
+        return True
+    return en_bullets >= 1 and _cjk_count(text) >= 24
+
+
 def _needs_zh_retry(text: str) -> bool:
     """輸出仍含日文、訓練殘留、或中文過少時，觸發強制重寫。"""
     if not text or not text.strip():
@@ -2680,6 +2998,8 @@ def _needs_zh_retry(text: str) -> bool:
     if _cjk_count(text) < 18:
         return True
     if _cjk_count(text) < 24 and len(text) > 40:
+        return True
+    if _reply_has_english_bullet_noise(text):
         return True
     return False
 
@@ -2722,6 +3042,10 @@ def _is_prompt_instruction_line(line: str) -> bool:
     ):
         return True
     if re.search(r"(?:底稿|草稿).*?(?:改寫|重写).*?(?:回覆|回复|回答)", s):
+        return True
+    if re.search(r"使用者(?:真正)?想問(?:的是)?[:：]", s):
+        return True
+    if re.search(r"^用户(?:真正)?想问(?:的是)?[:：]", s):
         return True
     return False
 
@@ -2997,6 +3321,18 @@ def _strip_garbage(text: str) -> str:
                 continue
             letters = re.findall(r"[A-Za-z]", raw)
             cjk = re.findall(r"[\u4e00-\u9fff]", raw)
+            # 英文條列（小模型常從 RAG 抄 ISO 英文標題）
+            body = re.sub(r"^[\s>*\-•\d\.]+", "", raw).strip()
+            body_cjk = len(re.findall(r"[\u4e00-\u9fff]", body))
+            body_letters = len(re.findall(r"[A-Za-z]", body))
+            if body_letters >= 8 and body_cjk <= 1:
+                if re.match(r"^[\s>*\-•\d\.]+", raw) or re.search(
+                    r"security|information|management|requirements|techniques|"
+                    r"systems|technology",
+                    body,
+                    re.I,
+                ):
+                    continue
             if len(raw) >= 80 and len(letters) >= 40 and len(cjk) <= 2:
                 if not cleaned_lines or cleaned_lines[-1] != "（已略過大段英文原文，改以繁體中文結論為準。）":
                     cleaned_lines.append("（已略過大段英文原文，改以繁體中文結論為準。）")
@@ -3032,9 +3368,14 @@ def _classify_section_title(title: str):
 
 
 def _split_inline_section_markers(text: str) -> str:
-    """把黏在同一行的『。二、xxx』拆成換行標題，避免整段塞進摘要卡。"""
+    """把黏在同一行的段名（含【】）拆成換行標題，避免整段塞進摘要卡。"""
     if not text:
         return text
+    text = re.sub(
+        r"【\s*(事件經過摘要|不合規／風險分析|具體修補建議)\s*】",
+        r"\n## \1\n",
+        text,
+    )
     # 句號後緊接二、/三、或 ## 二、
     text = re.sub(
         r"([。！？；\n])\s*(#{1,6}\s*)?([一二三][、.．])",
@@ -3151,9 +3492,9 @@ def _sanitize_report_sentence(text: str) -> str:
     s = re.sub(r"`[^`]*`", "", s)  # 行內 code
     s = re.sub(r"rescue\s*=>\s*e\b.*", "", s, flags=re.I)
     s = re.sub(r"\bp\s+e\.message\b", "", s, flags=re.I)
-    # 句尾／獨立程式關鍵字殘片
+    # 句尾／獨立程式關鍵字殘片（僅整詞英文，避免誤傷中文）
     kw = "|".join(re.escape(k) for k in sorted(_CODE_KEYWORDS, key=len, reverse=True))
-    s = re.sub(rf"(?:^|[\s，,、;；。])(?:{kw})(?=$|[\s，,、;；。])", " ", s, flags=re.I)
+    s = re.sub(rf"(?<![A-Za-z_])(?:{kw})(?![A-Za-z_])", " ", s, flags=re.I)
     s = re.sub(r"^[/／]\s*", "", s)
     s = re.sub(r"LLM\s*[^\s]{0,8}合規狀況簡報\s*", "", s)
     s = re.sub(r"LLM\s*[^\s]{0,8}合[綜評綜]\s*", "", s)
@@ -3205,11 +3546,12 @@ def _build_report_cards(s1, s2, s3) -> str:
         lead = cleaned[0]
         if len(lead) > 360:
             lead = lead[:360] + "…"
-        rest = cleaned[1:14]  # 六控制項摘要＋風險／修補條列需留足空間
+        rest = cleaned[1:(22 if _audit_detail_enabled() else 14)]
+        bullet_cap = 380 if _audit_detail_enabled() else 280
         if not rest:
             return lead
         bullets = "\n".join(
-            f"- {(ln[:280] + '…') if len(ln) > 280 else ln}" for ln in rest
+            f"- {(ln[:bullet_cap] + '…') if len(ln) > bullet_cap else ln}" for ln in rest
         )
         return f"{lead}\n{bullets}"
 
@@ -3241,7 +3583,7 @@ def build_factual_report(control_title=None, metric_summary=None, log_text=None,
         if len(ln) > 120:
             ln = ln[:120] + "…"
         log_lines.append(ln)
-        if len(log_lines) >= 4:
+        if len(log_lines) >= (8 if _audit_detail_enabled() else 4):
             break
 
     s1 = [f"針對控制項「{title}」完成合規檢視（資料來源：設備 TXT 日誌）。"]
@@ -3315,6 +3657,19 @@ def _normalize_report_structure(text: str) -> str:
         if not stripped:
             continue
         if re.fullmatch(r"【(?:回答|報告)結束】", stripped):
+            continue
+
+        bracket = re.match(
+            r"^【\s*(事件經過摘要|不合規／風險分析|具體修補建議)\s*】\s*(.*)$",
+            stripped,
+        )
+        if bracket:
+            kind = _classify_section_title(bracket.group(1))
+            if kind in ("s1", "s2", "s3"):
+                current = kind
+            rest = (bracket.group(2) or "").strip()
+            if rest:
+                _push(current, rest)
             continue
 
         # 一行內可能還黏著多個段名：再切一次
@@ -3400,7 +3755,8 @@ def _has_report_section_headers(text: str) -> bool:
         re.search(
             r"地端\s*LLM\s*智慧合規|"
             r"#{1,6}\s*[一二三123][、.．]\s*(?:事件|不合|合規|風險|修補|具體)|"
-            r"^\s*[一二三123][、.．]\s*(?:事件|不合|合規|風險|修補|具體)",
+            r"^\s*[一二三123][、.．]\s*(?:事件|不合|合規|風險|修補|具體)|"
+            r"【\s*(?:事件經過摘要|不合規／風險分析|具體修補建議)\s*】",
             text,
             re.I | re.M,
         )
@@ -3467,7 +3823,12 @@ def _beautify_markdown(text: str, force_report: bool = False) -> str:
     return text
 
 
-def _truncate_output(text: str, limit: int = MAX_OUTPUT_CHARS) -> str:
+def _truncate_output(
+    text: str,
+    limit: int = MAX_OUTPUT_CHARS,
+    *,
+    add_end_marker: bool = True,
+) -> str:
     """硬性字數上限；優先在句號處截斷。"""
     if not text or len(text) <= limit:
         return text
@@ -3487,7 +3848,7 @@ def _truncate_output(text: str, limit: int = MAX_OUTPUT_CHARS) -> str:
             cut = cut[: pos + 1]
             break
     cut = cut.rstrip()
-    if "【回答結束】" not in cut and "【報告結束】" not in cut:
+    if add_end_marker and "【回答結束】" not in cut and "【報告結束】" not in cut:
         marker = "\n【回答結束】"
         if len(cut) + len(marker) > limit:
             cut = cut[: max(0, limit - len(marker))].rstrip()
@@ -3546,7 +3907,12 @@ def _demote_report_to_chat(text: str) -> str:
     return t
 
 
-def normalize_llm_output(text: str, mode: str = "report") -> str:
+def normalize_llm_output(
+    text: str,
+    mode: str = "report",
+    *,
+    output_char_limit: int | None = None,
+) -> str:
     """統一後處理：去日文/亂碼 → 繁中 → 排版 → 字數上限（圖表不計入）。
 
     mode:
@@ -3557,7 +3923,16 @@ def normalize_llm_output(text: str, mode: str = "report") -> str:
         return text
     mode = (mode or "report").lower()
     force_report = mode == "report" and ENABLE_THREE_CARD_REPORT
-    out_limit = MAX_OUTPUT_CHARS_REPORT if force_report else MAX_OUTPUT_CHARS
+    if output_char_limit is not None:
+        out_limit = int(output_char_limit)
+    elif mode == "audit":
+        out_limit = _audit_output_char_limit()
+        force_report = False
+    elif mode == "syslog":
+        out_limit = _syslog_analysis_char_limit()
+        force_report = False
+    else:
+        out_limit = MAX_OUTPUT_CHARS_REPORT if force_report else MAX_OUTPUT_CHARS
 
     visual_blocks = re.findall(r"```(?:chart|mermaid)[\s\S]*?```", text, flags=re.I)
     body = re.sub(r"```(?:chart|mermaid)[\s\S]*?```", "", text, flags=re.I)
@@ -3571,6 +3946,19 @@ def normalize_llm_output(text: str, mode: str = "report") -> str:
     body = _strip_context_leak(body)  # 再清一次殘留前綴
     if force_report:
         body = _beautify_markdown(body, force_report=True)
+    elif mode == "audit":
+        body = _beautify_markdown(body, force_report=False)
+        if (
+            _looks_like_report(body)
+            or _has_report_section_headers(body)
+            or re.search(
+                r"【\s*(?:事件經過摘要|不合規／風險分析|具體修補建議)\s*】",
+                body,
+            )
+        ):
+            body = _normalize_report_structure(body)
+    elif mode == "syslog":
+        body = _beautify_markdown(body, force_report=False)
     else:
         # 聊天：即使模型亂出報告標題，也不強制三卡
         if _has_report_section_headers(body) or _looks_like_report(body):
@@ -3582,14 +3970,18 @@ def normalize_llm_output(text: str, mode: str = "report") -> str:
     body = _sanitize_domain_text(body)
     # 完整三卡（含 grounded 現況）勿被 turbo 字數砍掉第三段
     if (
-        force_report
+        (force_report or mode == "audit")
         and _looks_like_report(body)
         and "【報告結束】" in body
-        and "## 三、" in body
+        and ("## 三、" in body or "修補建議" in body)
     ):
-        out_limit = max(out_limit, 2200)
-    body = _truncate_output(body, out_limit)
-    body = (body or "").replace("\ufffd", "")
+        out_limit = max(out_limit, _audit_output_char_limit(), 2200)
+    body = _truncate_output(
+        body,
+        out_limit,
+        add_end_marker=(mode in ("report", "audit") or force_report),
+    )
+    body = _repair_mojibake_text(body or "")
     # 字數截斷後若停在半句，收成完整句
     if body and _looks_truncated(body):
         body = _finish_incomplete_sentence(body)
@@ -3823,7 +4215,7 @@ def _sanitize_ollama_chat_reply(text: str) -> str:
     """去掉 Ollama 聊天中的 meta／推理／prompt 殘留。"""
     if not text:
         return ""
-    t = (text or "").replace("\ufffd", "").strip()
+    t = _repair_mojibake_text((text or "").strip())
     if _looks_like_ollama_meta_leak(t):
         kept = []
         for ln in t.splitlines():
@@ -3849,7 +4241,7 @@ def _sanitize_ollama_chat_reply(text: str) -> str:
 
 
 def _run_ollama_llm(messages, max_new_tokens, allow_continue, output_mode):
-    """Ollama HTTP 推論（聊天走單次呼叫，避免續寫污染）。"""
+    """Ollama HTTP 推論。"""
     if not ollama_service.is_ready():
         err = ollama_service.current_info().get("ollama_error") or "Ollama 未連線"
         return f"⚠️ {err}。請先執行 ollama serve。"
@@ -3857,16 +4249,38 @@ def _run_ollama_llm(messages, max_new_tokens, allow_continue, output_mode):
     msgs = _normalize_chat_messages(messages)
     token_budget = int(max_new_tokens or MAX_NEW_TOKENS)
     if output_mode == "chat":
-        token_budget = min(token_budget, MAX_NEW_TOKENS)
+        token_budget = int(max_new_tokens or MAX_NEW_TOKENS)
+    elif output_mode == "syslog":
+        token_budget = min(
+            int(max_new_tokens or _syslog_analysis_token_budget()),
+            _syslog_analysis_token_budget(),
+        )
+    elif output_mode == "audit":
+        token_budget = min(int(max_new_tokens or _audit_token_budget()), _audit_token_budget())
     else:
         token_budget = min(token_budget, MAX_NEW_TOKENS_AUDIT)
 
     with _llm_lock:
+        model_name = ollama_service.current_model_name()
+        ollama_num_ctx = None
+        ollama_allow_fallback = True
+        if output_mode == "syslog":
+            ollama_allow_fallback = False
+            if ollama_service.is_gemma34_model(model_name):
+                ctx_env = os.environ.get("OLLAMA_SYSLOG_NUM_CTX", "8192").strip()
+                if ctx_env.isdigit() and int(ctx_env) > 0:
+                    ollama_num_ctx = int(ctx_env)
         print(
-            f"🦙 Ollama chat | model={ollama_service.current_model_name()} "
+            f"🦙 Ollama chat | model={model_name} "
             f"max_tokens={token_budget} mode={output_mode}"
+            + (f" num_ctx={ollama_num_ctx}" if ollama_num_ctx else "")
         )
-        reply = ollama_service.chat(msgs, max_new_tokens=token_budget)
+        reply = ollama_service.chat(
+            msgs,
+            max_new_tokens=token_budget,
+            num_ctx=ollama_num_ctx,
+            allow_fallback=ollama_allow_fallback,
+        )
         reply = _sanitize_ollama_chat_reply(_collapse_repetitions(reply or ""))
 
         if output_mode == "chat":
@@ -3875,14 +4289,51 @@ def _run_ollama_llm(messages, max_new_tokens, allow_continue, output_mode):
                 retry = ollama_service.chat(
                     msgs,
                     max_new_tokens=min(token_budget, 180),
+                    allow_fallback=False,
                 )
                 reply = _sanitize_ollama_chat_reply(_collapse_repetitions(retry or ""))
             if not reply:
                 return "您好！我是 Semi-Shield Cyber Agent，請問有什麼可以協助您？"
+            if reply and _looks_truncated(reply) and token_budget >= 280:
+                print("⚠️ Ollama 聊天輸出疑似截斷，續寫…")
+                cont_msgs = list(msgs) + [
+                    {"role": "assistant", "content": reply},
+                    {
+                        "role": "user",
+                        "content": (
+                            "上一則回答尚未寫完（可能在條列中途停止）。"
+                            "請從斷點繼續完成剩餘條列與 1-2 句總結；"
+                            "不要重複已寫內容，不要輸出【回答結束】。"
+                        ),
+                    },
+                ]
+                cont = ollama_service.chat(
+                    cont_msgs,
+                    max_new_tokens=min(400, token_budget),
+                    allow_fallback=False,
+                )
+                cont = _sanitize_ollama_chat_reply(_collapse_repetitions(cont or ""))
+                if cont and _cjk_count(cont) >= 16:
+                    reply = f"{reply.rstrip()}\n{cont.strip()}"
             return _polish_chat_output(normalize_llm_output(reply, mode="chat"))
 
+        if output_mode == "syslog" and (not reply or _cjk_count(reply or "") < 80):
+            print("⚠️ Ollama SYSLOG 分析輸出偏短，重答一次（加長）…")
+            retry_msgs = list(msgs) + [{
+                "role": "user",
+                "content": "上一則太短。請依同一 SYSLOG 寫更完整的長篇分析（1800 字以上），分段小標題。",
+            }]
+            retry = ollama_service.chat(
+                retry_msgs,
+                max_new_tokens=token_budget,
+                num_ctx=ollama_num_ctx,
+                allow_fallback=False,
+            )
+            if retry and _cjk_count(retry) > _cjk_count(reply or ""):
+                reply = retry
+
         if not reply:
-            return "模型未回傳有效內容，請稍後再試或改選 qwen2.5:3b。"
+            return "模型未回傳有效內容，請稍後再試或改選 llama3.2:3b。"
         cleaned = normalize_llm_output(reply, mode=output_mode)
         return (cleaned or "").replace("\ufffd", "")
 
@@ -3892,7 +4343,12 @@ def run_llm(messages, max_new_tokens=MAX_NEW_TOKENS, allow_continue=False, outpu
     output_mode = (output_mode or "report").lower()
 
     if USE_OLLAMA:
-        return _run_ollama_llm(messages, max_new_tokens, allow_continue, output_mode)
+        return _run_ollama_llm(
+            messages,
+            max_new_tokens,
+            allow_continue,
+            output_mode,
+        )
 
     if model is None or tokenizer is None:
         return "模型未成功載入，無法提供 AI 診斷。"
@@ -3903,6 +4359,9 @@ def run_llm(messages, max_new_tokens=MAX_NEW_TOKENS, allow_continue=False, outpu
         if output_mode == "chat":
             max_new_tokens = min(max_new_tokens, 96)
             allow_continue = False
+        elif output_mode == "audit":
+            max_new_tokens = min(int(max_new_tokens or _audit_token_budget()), _audit_token_budget())
+            allow_continue = _audit_detail_enabled()
         else:
             max_new_tokens = min(max_new_tokens, int(MAX_NEW_TOKENS_AUDIT))
             allow_continue = False
@@ -3921,6 +4380,8 @@ def _run_llm_locked(
         return "模型未成功載入，無法提供 AI 診斷。"
 
     try:
+        _cpu_infer = _is_cpu_llm_inference()
+
         def _generate_once(msgs, token_budget, *, safe_mode=False):
             msgs = _normalize_chat_messages(msgs)
             if hasattr(tokenizer, "apply_chat_template"):
@@ -4036,12 +4497,16 @@ def _run_llm_locked(
             flags=re.I,
         )
 
-        # 條列循環／訓練殘留：強制短重寫一次
-        if output_mode == "chat" and (
-            _looks_like_list_loop(reply)
-            or _looks_like_train_leak(reply)
-            or (_is_phi_model_active() and reply.count("具體") >= 8)
-            or _cjk_count(reply) < 12
+        # 條列循環／訓練殘留：強制短重寫一次（CPU 略過，避免多等一整輪生成）
+        if (
+            not _cpu_infer
+            and output_mode == "chat"
+            and (
+                _looks_like_list_loop(reply)
+                or _looks_like_train_leak(reply)
+                or (_is_phi_model_active() and reply.count("具體") >= 8)
+                or _cjk_count(reply) < 12
+            )
         ):
             print("⚠️ 偵測到無效輸出／訓練殘留，強制重答一次…")
             retry_messages = list(messages) + [
@@ -4069,8 +4534,8 @@ def _run_llm_locked(
             elif retry and _cjk_count(retry) > _cjk_count(reply):
                 reply = retry
 
-        # 續寫最多 1 次；聊天在 turbo 也允許短續寫，避免半句／�
-        do_continue = allow_continue or output_mode == "chat"
+        # 續寫最多 1 次；CPU 關閉（run_llm 已設 allow_continue=False）
+        do_continue = (allow_continue or output_mode == "chat") and not _cpu_infer
         if do_continue and _looks_truncated(reply) and not _looks_like_train_leak(reply):
             print("⚠️ 偵測到回答可能被截斷，自動續寫補完（1 次）...")
             clipped = _collapse_repetitions(reply)
@@ -4117,7 +4582,7 @@ def _run_llm_locked(
             or "已自動攔截" in cleaned
             or _needs_zh_retry(cleaned)
         )
-        if need_retry:
+        if need_retry and not _cpu_infer:
             print("⚠️ 偵測到非繁中／日文混雜，強制以繁體中文重寫一次...")
             if output_mode == "chat":
                 rewrite_hint = (
@@ -4310,6 +4775,270 @@ def _report_is_weak(text: str) -> bool:
     if _report_lacks_domain_content(text):
         return True
     return len(useful) < 2 or _cjk_count("".join(useful)) < 36
+
+
+def _syslog_analysis_mode_enabled() -> bool:
+    raw = os.environ.get("LLM_SYSLOG_VERBOSE")
+    if raw is None or str(raw).strip() == "":
+        return True
+    return str(raw).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _syslog_analysis_char_limit() -> int:
+    env = os.environ.get("LLM_SYSLOG_MAX_CHARS", "").strip()
+    if env.isdigit():
+        return int(env)
+    if SPEED_MODE == "turbo":
+        return max(int(MAX_OUTPUT_CHARS), 5200)
+    if SPEED_MODE == "balanced":
+        return max(int(MAX_OUTPUT_CHARS), 4000)
+    return max(int(MAX_OUTPUT_CHARS), 2800)
+
+
+def _syslog_analysis_token_budget() -> int:
+    env = os.environ.get("LLM_SYSLOG_MAX_TOKENS", "").strip()
+    if env.isdigit():
+        return int(env)
+    return max(int(MAX_NEW_TOKENS_AUDIT), 1280)
+
+
+def _syslog_analysis_length_rule(*, uploaded_only: bool = False) -> str:
+    scope = (
+        "僅能分析「使用者上傳的 SYSLOG 檔案」內出現的事件與設備；"
+        "禁止彙整監控戰情室六控項 KPI、禁止引用 ot/ 全庫或其他設備數字；"
+        if uploaded_only
+        else ""
+    )
+    return (
+        "這是 SYSLOG 完整分析任務：請盡可能詳細、完整地撰寫（目標 1800–4000 字，必要時更長），"
+        "可用 Markdown 小標題分段。"
+        f"{scope}"
+        "必須包含：①日誌概況與統計 ②關鍵事件逐類解讀（含 severity／facility／mnemonic）"
+        "③風險與半導體 OT 產線影響 ④ISO/IEC 27001:2022 控制項對映"
+        "（primary＋最多 2 個 supporting；控制相關≠不合規）"
+        "⑤可執行排查／修復步驟（先讀後寫、核准窗口、回退）⑥尚缺證據與後續建議。"
+        "須具體引用日誌中的事件碼與設備名；禁止整段照抄 syslog；禁止捏造未出現的行。"
+    )
+
+
+def _looks_like_jsonl_syslog(text: str) -> bool:
+    """上傳的 JSONL 正規化 syslog（每行一筆 JSON）。"""
+    lines = [ln.strip() for ln in (text or "").splitlines() if ln.strip()]
+    if not lines:
+        return False
+    hits = 0
+    for ln in lines[:24]:
+        if not ln.startswith("{"):
+            continue
+        try:
+            o = json.loads(ln)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(o, dict) and (
+            o.get("message") or o.get("original_id") is not None
+        ):
+            hits += 1
+    return hits >= 1
+
+
+def _normalize_uploaded_syslog(log_text: str) -> dict:
+    """將 txt／jsonl 上傳檔整理成統計用結構（僅此檔案，不含戰情室）。"""
+    raw_lines = [ln.strip() for ln in (log_text or "").splitlines() if ln.strip()]
+    devices: set[str] = set()
+    message_lines: list[str] = []
+    for ln in raw_lines:
+        if ln.startswith("{") and ln.endswith("}"):
+            try:
+                o = json.loads(ln)
+            except json.JSONDecodeError:
+                message_lines.append(ln)
+                continue
+            if not isinstance(o, dict):
+                message_lines.append(ln)
+                continue
+            dev = (
+                o.get("canonical_device_id")
+                or o.get("source_device_id")
+                or o.get("parsed_hostname_raw")
+                or ""
+            )
+            if dev:
+                devices.add(str(dev).strip())
+            msg = (o.get("message") or "").strip()
+            if msg:
+                message_lines.append(msg)
+            else:
+                message_lines.append(ln)
+            continue
+        message_lines.append(ln)
+    return {
+        "raw_lines": raw_lines,
+        "message_text": "\n".join(message_lines),
+        "devices": sorted(d for d in devices if d),
+    }
+
+
+def _looks_like_syslog_blob(text: str) -> bool:
+    """使用者貼上／上傳的 syslog 區塊。"""
+    if not text or len(text.strip()) < 60:
+        return False
+    if _looks_like_jsonl_syslog(text):
+        return True
+    events = _extract_cisco_events(text)
+    if len(events) >= 1:
+        return True
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    if len(lines) >= 4 and re.search(
+        r"UTC|kernel|syslog|IOSXE|LINK-|SEC_|%[A-Z0-9_-]+-\d+|"
+        r"\[sda\]|EXT2|device offline",
+        text,
+        re.I,
+    ):
+        return True
+    return False
+
+
+def split_user_question_and_syslog(text: str) -> tuple[str, str]:
+    """分離自然語言問題與 syslog 原文區塊。"""
+    if not text:
+        return "", ""
+    lines = text.splitlines()
+    log_lines: list[str] = []
+    question_lines: list[str] = []
+    in_log = False
+    for ln in lines:
+        is_log_line = bool(
+            re.search(r"%[A-Z0-9_-]+-\d+-[A-Z0-9_]+", ln, re.I)
+            or re.search(r"\[sda\]|EXT2|IOSXE-|kernel:|UTC:", ln, re.I)
+            or (in_log and re.search(r"^\*?\.?[A-Za-z]{3}\s+\d{1,2}\s+\d{2}:", ln))
+        )
+        if is_log_line:
+            in_log = True
+            log_lines.append(ln)
+        elif in_log and ln.strip() and re.search(
+            r"UTC:|%[A-Z0-9_-]+-\d+-|kernel:", ln, re.I
+        ):
+            log_lines.append(ln)
+        else:
+            question_lines.append(ln)
+    log_text = "\n".join(log_lines).strip()
+    question = "\n".join(question_lines).strip()
+    if not log_text and _looks_like_syslog_blob(text):
+        return "", text.strip()
+    return question, log_text
+
+
+def build_pasted_syslog_analysis_context(
+    log_text: str,
+    *,
+    max_chars: int | None = None,
+    uploaded_only: bool = False,
+    uploaded_filename: str = "",
+) -> str:
+    """將貼上／上傳的 syslog 整理成 LLM 可逐行分析的結構化上下文。"""
+    if not log_text or not log_text.strip():
+        return ""
+    cap = max_chars
+    if cap is None:
+        env = os.environ.get("SYSLOG_CTX_CHARS", "").strip()
+        cap = int(env) if env.isdigit() else max(int(WARROOM_CTX_LIMIT), 14000)
+    if uploaded_only and cap > 6500:
+        cap = 6500
+
+    norm = _normalize_uploaded_syslog(log_text)
+    raw_lines = norm["raw_lines"]
+    parse_text = norm["message_text"] or log_text
+    events = _extract_cisco_events(parse_text)
+    if not events and parse_text != log_text:
+        events = _extract_cisco_events(log_text)
+
+    from collections import Counter
+
+    code_counts = Counter(e["code"] for e in events)
+    sev_counts = Counter(e["severity"] for e in events)
+
+    head = (
+        "【使用者上傳的 SYSLOG 檔案｜本則分析的唯一事實來源；"
+        "禁止引用監控戰情室 KPI、ot/ 語料庫或其他設備彙總】"
+        if uploaded_only
+        else "【使用者提供的 SYSLOG 原文｜本則分析的首要事實來源】"
+    )
+    lines = [head]
+    fname = (uploaded_filename or "").strip()
+    if fname:
+        lines.append(f"- 檔名：{fname}")
+    lines.extend([
+        f"- 總行數：{len(raw_lines)}",
+        f"- 可解析 Cisco 事件：{len(events)} 筆",
+    ])
+    if norm["devices"]:
+        lines.append(f"- 檔內設備：{'、'.join(norm['devices'][:8])}")
+        lines.append(
+            f"- 主要設備（必須在分析中點名）：{norm['devices'][0]}"
+        )
+    elif uploaded_only:
+        lines.append("- 檔內設備：請僅從本檔 message／hostname 欄位歸納")
+    if code_counts:
+        top = code_counts.most_common(16)
+        lines.append(
+            "- 事件碼分布："
+            + "；".join(f"{k}×{v}" for k, v in top)
+        )
+    if sev_counts:
+        lines.append(
+            "- Severity 分布："
+            + "；".join(f"sev{s}×{c}" for s, c in sorted(sev_counts.items()))
+        )
+    dev = _devices_from_events(events)
+    if dev and dev != "Cisco 交換器":
+        lines.append(f"- 設備／標識：{dev}")
+
+    lines.append("\n【代表性事件樣本（每種 code 最多 2 行）】")
+    per_code: dict[str, int] = {}
+    sample_n = 0
+    for e in events:
+        code = e["code"]
+        if per_code.get(code, 0) >= 2:
+            continue
+        per_code[code] = per_code.get(code, 0) + 1
+        lines.append(f"- {e['raw'][:240]}")
+        sample_n += 1
+        if sample_n >= 24:
+            break
+
+    compact_upload = uploaded_only and len(raw_lines) > 48
+    if compact_upload:
+        lines.append(
+            "\n【日誌原文（精簡樣本；完整檔已統計於上，禁止捏造未列事件）】"
+        )
+        shown_codes: set[str] = set()
+        sample_lines = 0
+        for e in events:
+            code = e["code"]
+            if code in shown_codes:
+                continue
+            shown_codes.add(code)
+            lines.append(f"- {e['raw'][:300]}")
+            sample_lines += 1
+            if sample_lines >= 28:
+                break
+        if len(events) > sample_lines:
+            lines.append(
+                f"...（其餘 {max(0, len(events) - sample_lines)} 筆同類事件已省略，統計見上）"
+            )
+    else:
+        lines.append("\n【完整日誌原文（供逐行分析；禁止捏造未出現的內容）】")
+        body = log_text.strip()
+        if len(body) > cap:
+            head_len = int(cap * 0.62)
+            tail_len = int(cap * 0.28)
+            body = (
+                body[:head_len]
+                + f"\n...(中間省略 {len(body) - head_len - tail_len} 字)...\n"
+                + body[-tail_len:]
+            )
+        lines.append(body)
+    return "\n".join(lines)
 
 
 def _extract_cisco_events(log_text: str) -> list[dict]:
@@ -4747,6 +5476,17 @@ def _report_hallucinates_against_log(reply: str, log_text: str) -> bool:
         r"重放攻擊|Replay Attack|開啟.*閥門|Modbus\s*寫入|配方下載", r, re.I
     ):
         return True
+    # sda／EXT2 Flash 證據卻誤寫成 SD 卡
+    if re.search(
+        r"\[sda\]|EXT2|device offline or changed|superblock|ext2_fsync",
+        evidence,
+        re.I,
+    ) and re.search(
+        r"SD\s*卡|SD卡|記憶卡|micro\s*SD|MicroSD|外接.*卡|可移除.*卡",
+        r,
+        re.I,
+    ) and not re.search(r"不是.*SD|並非.*SD|禁止.*SD\s*卡|勿.*SD\s*卡", r):
+        return True
     # 證據只有監控摘要、回覆卻捏造具體 syslog 行
     if evidence and not re.search(r"%[A-Z0-9_-]+-\d+-[A-Z0-9_]+", evidence, re.I):
         if re.search(
@@ -4802,6 +5542,12 @@ def _filter_rag_for_chat(rag_context: str, user_message: str) -> str:
             r"重放攻擊|Replay Attack|閥門", b, re.I
         ):
             continue
+        # 27001 知識問答：略過大段英文標準原文（易導致模型英文條列）
+        if wants_27001:
+            cjk = len(re.findall(r"[\u4e00-\u9fff]", b))
+            letters = len(re.findall(r"[A-Za-z]", b))
+            if letters >= 40 and cjk <= 6:
+                continue
         # 純知識／27001：丟掉三卡報告體／訓練對話殘留（最易把回答帶歪）
         if (wants_27001 or not wants_log) and re.search(
             r"地端 LLM 智慧合規|事件經過摘要|不合規／風險分析|具體修補建議|"
@@ -4927,6 +5673,24 @@ def wants_data_counts(user_message: str) -> bool:
     )
 
 
+def wants_hardware_device_check(user_message: str) -> bool:
+    """是否在問 OT 設備／硬體異常（非惡意軟體 KPI）。"""
+    t = (user_message or "").strip()
+    if not t or is_casual_chat(t) or is_off_topic_chat(t):
+        return False
+    return bool(
+        re.search(
+            r"硬體|設備.*異常|異常.*設備|設備.*故障|故障.*設備|"
+            r"哪一(台|個|部).*(設備|機|switch|交換器)|"
+            r"是否有.*(設備|硬體|機)|有沒有.*(設備|硬體|機).*(異常|故障|問題)|"
+            r"device offline|\[sda\]|ILPOWER|ERR_DISABLE|FRU|"
+            r"storage.*(異常|故障|離線)|flash.*(異常|故障)",
+            t,
+            re.I,
+        )
+    )
+
+
 def wants_ot_status_summary(user_message: str) -> bool:
     """合規／監控現況、控制項狀態：應直接回真實計數，勿經 LLM。"""
     t = (user_message or "").strip()
@@ -5008,7 +5772,7 @@ def build_ot_data_counts_reply() -> str | None:
         num_files = len(files)
 
     details = [
-        f"**日誌檔數**：{num_files} 個 TXT",
+        f"**日誌檔數**：{num_files} 個（TXT / JSONL）",
         f"**設備數**：{num_devices or '—'}",
         f"**原始總行數**：{total_lines:,} 行",
         f"**可分類事件列**：{event_lines:,} 筆",
@@ -5139,7 +5903,7 @@ def build_ot_compliance_status_grounded(user_message: str = "") -> str | None:
 
     steps = [
         "- 優先處理 fail 控制項：保全樣本 syslog 並開事件單。",
-        "- 可問「修補步驟」取得具體作法；正式報告請至監控戰情室匯出 PDF／TXT。",
+        "- 可問「修補步驟」取得具體作法；正式報告請至監控戰情室匯出 PDF。",
     ]
 
     parts = [
@@ -5181,7 +5945,7 @@ def build_ot_compliance_status_reply(user_message: str = "") -> str | None:
     return format_fixed_chat_reply(
         "以下為依目前 OT 監控產出的合規現況（系統事實底稿）。",
         bullets,
-        ["可問「修補步驟」", "正式報告請至監控戰情室匯出 PDF／TXT"],
+        ["可問「修補步驟」", "正式報告請至監控戰情室匯出 PDF"],
     )
 
 
@@ -5435,14 +6199,56 @@ def build_ot_situation_grounded_reply() -> str | None:
     return "\n".join(parts)
 
 
+def _fmt_classifier_prob(v) -> str:
+    return f"{v:.3f}" if isinstance(v, (int, float)) else "n/a"
+
+
+def _log_input_guardrail_cmd(guard: dict | None, question_preview: str = "") -> None:
+    """CMD：輸入護欄（能不能問這個問題）分類器分數。"""
+    g = guard or {}
+    blocked = bool(g.get("blocked"))
+    preview = (question_preview or "").replace("\n", " ").strip()
+    if len(preview) > 72:
+        preview = preview[:72] + "…"
+    q_part = f" | Q: {preview}" if preview else ""
+    print(
+        f"🛡️ [輸入護欄｜能不能問] "
+        f"{'不可問' if blocked else '可問'} | "
+        f"safe={_fmt_classifier_prob(g.get('safe_prob'))} "
+        f"unsafe={_fmt_classifier_prob(g.get('unsafe_prob'))} | "
+        f"mode={g.get('mode') or '?'} "
+        f"label={g.get('label') or ('unsafe' if blocked else 'safe')} | "
+        f"{g.get('reason') or ''}{q_part}"
+    )
+
+
+def _log_hallucination_guard_cmd(hall: dict | None) -> None:
+    """CMD：幻覺護欄（有沒有幻覺）分類器分數。"""
+    h = hall or {}
+    is_hall = bool(h.get("is_hallucination"))
+    print(
+        f"🔍 [幻覺護欄｜有幻覺] "
+        f"{'是' if is_hall else '否'} | "
+        f"grounded={_fmt_classifier_prob(h.get('grounded_prob'))} "
+        f"hallucination={_fmt_classifier_prob(h.get('hallucination_prob'))} | "
+        f"mode={h.get('mode') or '?'} "
+        f"label={h.get('label') or '?'} | "
+        f"{h.get('reason') or ''}"
+    )
+
+
 def sanitize_agent_chat_reply(
     reply: str,
     user_message: str,
     ot_context: str = "",
     rag_context: str = "",
+    *,
+    log_cmd: bool = True,
 ) -> str:
-    """對話回覆防幻覺／異常：改 grounded／修補步驟／現況報告。"""
-    r = (reply or "").strip()
+    """對話回覆防幻覺／異常：不合格時整段替換成品質提示。"""
+    r = _normalize_chat_reply_before_quality_check((reply or "").strip())
+    if _is_chat_quality_fail_reply(r):
+        return _chat_quality_fail_reply()
     casual = is_casual_chat(user_message) or is_off_topic_chat(user_message)
 
     # 閒聊：不再強制換成固定短答（與專業問答一樣走 LLM 結果）
@@ -5468,7 +6274,7 @@ def sanitize_agent_chat_reply(
             return build_casual_chat_reply(user_message)
         reply = r or reply
 
-    # 圖表請求：勿改寫成長修補文／三卡（圖由 ensure_visual_reply 補）
+    # 圖表請求：LLM 生成文字，圖表由 ensure_visual_reply 後處理
     if wants_visual(user_message):
         if (
             not r
@@ -5476,8 +6282,9 @@ def sanitize_agent_chat_reply(
             or "回答格式不穩定" in r
             or re.search(r"不要補劇本|總字數\s*≤|防幻覺鐵律", r)
         ):
-            return build_ot_visual_brief_reply(user_message)
-        return _polish_chat_output(reply)
+            pass  # 交由下方 LLM 異常處理
+        else:
+            return _polish_chat_output(reply)
 
     # 後處理把正文洗掉／提示詞洩漏／過短亂碼時，依問題類型補有用答案
     prompt_leaked = bool(
@@ -5488,6 +6295,7 @@ def sanitize_agent_chat_reply(
             r,
         )
     ) or _looks_like_train_leak(r) or _looks_like_ollama_meta_leak(r)
+    think_leaked = _looks_like_internal_think_leak(r)
     garbage_short = (
         len(r.strip()) <= 4
         or _cjk_count(r) < 18
@@ -5495,43 +6303,31 @@ def sanitize_agent_chat_reply(
         or _looks_like_train_leak(r)
     )
     fake_metrics = _looks_like_fake_metrics_reply(r)
-    # 現況類交由 LLM；僅在明顯捏造假控制項／連續假數字時才改回真實計數
-    if fake_metrics and not wants_ot_status_summary(user_message):
-        print("⚠️ 偵測到虛構控制項／假計數，改回真實監控筆數")
-        counts = build_ot_data_counts_reply()
-        if counts:
-            return counts
-    if (
+    quality_fail = (
         not r
         or "剛才輸出異常" in r
         or "回答格式不穩定" in r
         or prompt_leaked
+        or think_leaked
         or garbage_short
-        or (_cjk_count(r) < 20 and wants_remediation_steps(user_message))
-        or (_cjk_count(r) < 40 and wants_hardening_howto(user_message))
-        or (wants_data_counts(user_message) and not re.search(r"\d{2,}", r))
-    ):
-        if wants_hardening_howto(user_message):
-            return build_hardening_howto_reply(user_message)
-        if wants_data_counts(user_message):
-            counts = build_ot_data_counts_reply()
-            if counts:
-                return counts
-        if wants_remediation_steps(user_message):
-            remed = build_ot_remediation_steps_reply(user_message)
-            if remed:
-                return remed
-        # 亂碼／訓練殘留：勿原樣回傳（Qwen 常見）
-        if prompt_leaked or garbage_short or not r:
-            # 寒暄／離題：直接給正常打招呼，勿丟「請再問一次」
+    )
+    if quality_fail:
+        if prompt_leaked or think_leaked or garbage_short or not r:
             if casual:
-                print("⚠️ 閒聊輸出不穩，改用固定寒暄短答")
-                return build_casual_chat_reply(user_message)
-            print("⚠️ 對話輸出為亂碼／訓練殘留，改固定短答")
-            return (
-                "剛才這則回覆異常（疑似模型輸出不穩），已略過。"
-                "請再問一次，或改問：合規現況、修補步驟，或直接貼 Cisco syslog。"
-            )
+                print("⚠️ 閒聊輸出不穩，保留 LLM 或短提示")
+            elif think_leaked:
+                print("⚠️ 對話輸出洩漏內部思考標記，替換成品質提示")
+            else:
+                print("⚠️ 對話輸出為亂碼／訓練殘留")
+            if (
+                casual
+                and r
+                and _cjk_count(r) >= 18
+                and not prompt_leaked
+                and not think_leaked
+            ):
+                return _polish_chat_output(r)
+            return _chat_quality_fail_reply()
         # --- 暫時註解：勿再回灌三卡現況報告 ---
         # if ENABLE_THREE_CARD_REPORT and (
         #     wants_report_format(user_message) or needs_ot_context(user_message)
@@ -5542,54 +6338,45 @@ def sanitize_agent_chat_reply(
         # --- /暫時註解 ---
 
     evidence = _chat_evidence_blob(user_message, ot_context, rag_context)
+    hall_check = hallucination_guard_service.check_output(
+        user_message,
+        r,
+        ot_context=ot_context or "",
+        rag_context=rag_context or "",
+    )
+    if log_cmd:
+        _log_hallucination_guard_cmd(hall_check)
+    ml_hallucination = (
+        ENABLE_HALLUCINATION_GUARD
+        and bool(hall_check.get("is_hallucination"))
+    )
+    if ml_hallucination and log_cmd:
+        print(
+            f"⚠️ 幻覺護欄攔截：{hall_check.get('reason')} "
+            f"(hallucination={_fmt_classifier_prob(hall_check.get('hallucination_prob'))})"
+        )
+
     if (
-        not _report_hallucinates_against_log(r, evidence)
+        not ml_hallucination
+        and not _report_hallucinates_against_log(r, evidence)
         and not prompt_leaked
+        and not think_leaked
         and not _looks_like_train_leak(r)
     ):
-        # 現況類若仍捏造假 metrics：用真實計數提示模型失敗，改回 grounded
-        if fake_metrics and wants_ot_status_summary(user_message):
-            print("⚠️ 現況回答仍含虛構計數，改回真實監控筆數")
-            counts = build_ot_data_counts_reply()
-            if counts:
-                return counts
-        return _polish_chat_output(reply)
+        return _polish_chat_output(r)
 
-    print("⚠️ 對話回覆偵測到幻覺特徵，改寫為安全回答")
-    if wants_hardening_howto(user_message):
-        return build_hardening_howto_reply(user_message)
-    if wants_data_counts(user_message) or fake_metrics:
-        counts = build_ot_data_counts_reply()
-        if counts:
-            return counts
-    # --- 暫時註解：對話幻覺時改灌 Cisco grounded 報告 ---
-    # if ENABLE_CISCO_GROUNDED_REPORT:
-    #     grounded = build_cisco_log_grounded_report(
-    #         user_message,
-    #         control_title="ISO 27001 日誌合規診斷",
-    #     )
-    #     if grounded:
-    #         return grounded
-    # --- /暫時註解 ---
-    if wants_remediation_steps(user_message):
-        remed = build_ot_remediation_steps_reply(user_message)
-        if remed:
-            return remed
-    # --- 暫時註解：勿再回灌三卡現況報告 ---
-    # if ENABLE_THREE_CARD_REPORT and (
-    #     ot_context or needs_ot_context(user_message) or wants_report_format(user_message)
-    # ):
-    #     situ = build_ot_situation_grounded_reply()
-    #     if situ:
-    #         return situ
-    # --- /暫時註解 ---
-    return (
-        "我無法根據目前提供的資料做出含具體設備／時間戳的斷言"
-        "（先前草稿疑似出現訓練殘留的虛構內容，已攔截）。\n\n"
-        "請貼上原始 Cisco syslog（含 `%FACILITY-SEV-MNEMONIC`），"
-        "或問「目前合規現況／修補步驟」讓我依監控計數說明；"
-        "我不會編造 HOSTNAME、MFG01 或假 log。"
-    )
+    if (
+        "【使用者上傳的 SYSLOG 檔案" in (ot_context or "")
+        and r
+        and _cjk_count(r) >= 100
+        and not prompt_leaked
+        and not think_leaked
+        and not _looks_like_train_leak(r)
+    ):
+        return _polish_chat_output(r)
+
+    print("⚠️ 對話回覆未通過品質檢查，替換成品質提示")
+    return _chat_quality_fail_reply()
 
 
 def build_metric_only_report(control_title=None, metric_summary=None, control_key=None) -> str:
@@ -5723,8 +6510,9 @@ def ask_llm(log_text, control_key=None, title=None, metric_summary=None, rag_con
 
     # 1. 安全截斷日誌
     log_text = log_text or ""
-    if len(log_text) > MAX_INPUT_CHARS:
-        log_text = log_text[:MAX_INPUT_CHARS] + "\n...[Log 過長已截斷]..."
+    audit_in_limit = _audit_input_char_limit()
+    if len(log_text) > audit_in_limit:
+        log_text = log_text[:audit_in_limit] + "\n...[Log 過長已截斷]..."
 
     cisco_events = _extract_cisco_events(log_text)
 
@@ -5741,23 +6529,29 @@ def ask_llm(log_text, control_key=None, title=None, metric_summary=None, rag_con
             control_key=control_key,
         )
 
-    factual_ready = _build_audit_grounded_draft(
-        log_text=log_text,
-        control_key=control_key,
-        control_title=control_title,
-        metric_summary=metric_summary,
-        rag_context=rag_context,
-        cisco_events=cisco_events,
-    )
-    draft_part = _grounded_draft_prompt_block(
-        factual_ready,
-        purpose="結構化診斷草稿",
-        max_chars=1500,
-    )
+    finetuned_kb = _llm_allows_knowledge_graph()
+    factual_ready = ""
+    draft_part = ""
+    if finetuned_kb:
+        factual_ready = _build_audit_grounded_draft(
+            log_text=log_text,
+            control_key=control_key,
+            control_title=control_title,
+            metric_summary=metric_summary,
+            rag_context=rag_context,
+            cisco_events=cisco_events,
+        )
+        draft_part = _grounded_draft_prompt_block(
+            factual_ready,
+            purpose="結構化診斷草稿",
+            max_chars=2400 if _audit_detail_enabled() else 1500,
+        )
+    elif rag_context:
+        print("📋 診斷底稿略過（微調前模型）；RAG 參考仍注入")
 
     metric_part = f"\n控制項量化摘要：{metric_summary}" if metric_summary else ""
     # 自由撰寫：RAG 僅作背景，避免模型照抄成固定答案
-    if rag_context and not use_freewrite:
+    if finetuned_kb and rag_context and not use_freewrite:
         rag_part = (
             "\n【同類 syslog 標準分析參考｜必須依「本次日誌」改寫】\n"
             "下列是歷史同類訊息的正確分析方向（登入≠重放攻擊；只談日誌實際出現的 facility/mnemonic）。\n"
@@ -5768,6 +6562,11 @@ def ask_llm(log_text, control_key=None, title=None, metric_summary=None, rag_con
         rag_part = (
             "\n【背景知識（可參考，禁止整段照抄；必須以本次日誌／計數為準）】\n"
             f"{rag_trim}\n"
+        )
+    elif rag_context and not use_freewrite:
+        rag_part = (
+            "\n【同類 syslog 標準分析參考｜必須依「本次日誌」改寫】\n"
+            f"{rag_context}\n"
         )
     else:
         rag_part = ""
@@ -5782,6 +6581,16 @@ def ask_llm(log_text, control_key=None, title=None, metric_summary=None, rag_con
         )
     )
 
+    audit_len_rule = _audit_length_rule()
+    out_char_limit = _audit_output_char_limit()
+    audit_tokens = _audit_token_budget()
+
+    draft_rewrite_hint = (
+        "請依【結構化診斷草稿】改寫為三段："
+        if draft_part
+        else "請依本次日誌與量化摘要產出三段："
+    )
+
     # 2. Prompt：自由撰寫強調「依證據自行論述」
     if use_freewrite:
         user_ask = (
@@ -5790,16 +6599,25 @@ def ask_llm(log_text, control_key=None, title=None, metric_summary=None, rag_con
             f"{draft_part}"
             f"{rag_part}"
             f"{evidence_note}"
-            "請依【結構化診斷草稿】改寫為三段："
+            f"{draft_rewrite_hint}"
             "（1）事件經過摘要（2）不合規／風險分析（3）具體修補建議。"
-            "用你自己的語句與詳略，禁止整段照抄底稿，禁止與底稿矛盾。"
-            "最後一行【報告結束】。"
+            f"{audit_len_rule}"
+            + (
+                "用你自己的語句與詳略，禁止整段照抄底稿，禁止與底稿矛盾。"
+                if draft_part
+                else "用你自己的語句與詳略，禁止虛構未出現的設備或事件。"
+            )
+            + "最後一行【報告結束】。"
         )
         system_extra = (
-            "底稿是事實錨點；請改寫而非複製。"
-            "禁止寫「開始輸入／開始輸出／格式撰寫」。"
+            (
+                "底稿是事實錨點；請改寫而非複製。"
+                if draft_part
+                else "只根據本次日誌／量化摘要撰寫，勿套用無關劇本。"
+            )
+            + "禁止寫「開始輸入／開始輸出／格式撰寫」。"
             "禁止 MFG01、假 HOSTNAME、假 IP。"
-            f"總字數 ≤ {MAX_OUTPUT_CHARS_REPORT if SPEED_MODE != 'turbo' else MAX_OUTPUT_CHARS}；"
+            f"總字數 ≤ {out_char_limit}；"
             "日誌只轉述重點，禁止整段複製。"
         )
     else:
@@ -5809,14 +6627,19 @@ def ask_llm(log_text, control_key=None, title=None, metric_summary=None, rag_con
             f"{draft_part}"
             f"{rag_part}"
             f"{evidence_note}"
-            "請依【結構化診斷草稿】產出三個段落，每段 2-4 句："
+            f"{draft_rewrite_hint}"
             "（1）事件經過摘要（2）不合規／風險分析（3）具體修補建議。"
-            "用你自己的語句改寫，禁止整段照抄。"
-            "最後一行【報告結束】。"
+            f"{audit_len_rule}"
+            + (
+                "用你自己的語句改寫，禁止整段照抄。"
+                if draft_part
+                else "用你自己的語句論述，禁止虛構攻擊劇情。"
+            )
+            + "最後一行【報告結束】。"
         )
         system_extra = (
             "每段必須寫「實際觀察到的風險／事件／建議」，禁止寫「開始輸入／開始輸出／格式撰寫」。"
-            f"總字數 ≤ {MAX_OUTPUT_CHARS}；日誌只轉述重點，禁止整段複製；不要輸出「## AI:」。"
+            f"總字數 ≤ {out_char_limit}；日誌只轉述重點，禁止整段複製；不要輸出「## AI:」。"
             "無事件時依量化摘要評估，勿虛構攻擊。寫完立刻停。"
         )
 
@@ -5837,13 +6660,14 @@ def ask_llm(log_text, control_key=None, title=None, metric_summary=None, rag_con
     print(
         f"🧠 合規報告 LLM（底稿→改寫）："
         f"key={control_key} cisco={len(cisco_events)} freewrite={use_freewrite} "
-        f"draft={len(factual_ready or '')}字"
+        f"draft={len(factual_ready or '')}字 detail={_audit_detail_enabled()} "
+        f"tokens={audit_tokens} chars≤{out_char_limit}"
     )
     reply = run_llm(
         messages,
-        max_new_tokens=MAX_NEW_TOKENS_AUDIT,
+        max_new_tokens=audit_tokens,
         allow_continue=True,
-        output_mode="report" if ENABLE_THREE_CARD_REPORT else "chat",
+        output_mode="audit",
     )
 
     # 自由撰寫：僅嚴重幻覺／提示詞洩漏才回退；一般「偏弱」仍保留模型原文以保留差異
@@ -5864,7 +6688,13 @@ def ask_llm(log_text, control_key=None, title=None, metric_summary=None, rag_con
             or _audit_report_has_defects(reply or "", log_text, control_key)
         ):
             print("⚠️ LLM 嚴重幻覺／洩漏／報告缺陷，改回結構化底稿")
-            return factual_ready
+            if factual_ready:
+                return factual_ready
+            return build_metric_only_report(
+                control_title=control_title,
+                metric_summary=metric_summary,
+                control_key=control_key,
+            )
         return reply
 
     if (
@@ -5874,7 +6704,13 @@ def ask_llm(log_text, control_key=None, title=None, metric_summary=None, rag_con
         or _audit_report_has_defects(reply or "", log_text, control_key)
     ):
         print("⚠️ LLM 幻覺或內容過弱，改回結構化底稿")
-        return factual_ready
+        if factual_ready:
+            return factual_ready
+        return build_metric_only_report(
+            control_title=control_title,
+            metric_summary=metric_summary,
+            control_key=control_key,
+        )
     return reply
 
 
@@ -5940,7 +6776,8 @@ def is_off_topic_chat(user_message: str) -> bool:
         r"天氣|氣溫|下雨|晴天|陰天|風和日麗|幾度|下雨嗎|"
         r"心情|開心|難過|累了|吃飯|午餐|晚餐|早餐|喝咖啡|"
         r"早安啊|晚安啊|好笑|笑話|聊天|無聊|看電影|聽音樂|打球|旅遊|"
-        r"股票|運勢|星座|八卦|遊戲|動漫",
+        r"股票|股市|台股|美股|證券|基金|投資|運勢|星座|八卦|遊戲|動漫|"
+        r"熟悉嗎.*(?:股市|股票|投資)|(?:股市|股票).{0,8}熟悉",
         t,
         re.I,
     ):
@@ -6086,6 +6923,7 @@ def needs_ot_context(user_message):
         "ot", "掃描", "資料庫", "事件", "breach", "patch", "修補",
         "telnet", "ssh", "停用", "禁用", "加固", "明文", "vty",
         "筆數", "資料量", "事件量", "多少筆", "幾筆", "總行",
+        "硬體", "設備", "異常", "故障", "離線",
         "圖表", "圖形", "視覺化", "趨勢", "統計", "chart", "pie", "bar",
         "流程圖", "架構圖", "mermaid"
     ]
@@ -6100,6 +6938,7 @@ CONTROL_LABEL_ALIAS = {
     "recipe_audit": "A.8.19",
     "access_control": "A.5.15",
     "patch_management": "A.8.8",
+    "storage_maintenance": "A.7.13",
     "supplier_security": "A.5.19",
     "malware_defense": "A.8.7",
 }
@@ -6370,41 +7209,252 @@ def ensure_visual_reply(user_message, reply):
     return reply
 
 
-def build_ot_context_summary():
-    """掃描 OT 目錄並整理成精簡上下文給 Agent。"""
+def build_monitor_warroom_context(*, max_log_events: int = 96) -> str:
+    """
+    匯總監控戰情室（OT.html）同源資料，供 AI 對話引用。
+    包含：KPI、control bundles、evidence、覆蓋率、設備明細、事件串流。
+    """
     data = get_ot_monitor_data()
     if data is None:
         return "OT 目錄不存在，尚無可用日誌。"
     if isinstance(data, dict) and "error" in data:
         return data["error"]
 
-    metrics = data.get("metrics", {})
-    logs = data.get("parsed_logs", [])[:8]
+    metrics = data.get("metrics") or {}
+    bundles = data.get("control_bundles") or {}
+    evidence_map = data.get("evidence_map") or {}
+    coverage = data.get("compliance_coverage") or {}
+    parsed_logs = data.get("parsed_logs") or []
+    principle = data.get("compliance_principle") or "No Evidence, No Compliance Claim"
+
+    summary_obj: dict = {}
+    try:
+        summary_obj = json.loads(data.get("all_logs_content") or "{}")
+    except Exception:
+        summary_obj = {}
+
     lines = [
-        "【目前 OT / ISO 27001 監控摘要】",
-        "（僅下列六個控制項為真實計數；禁止新增其他控制項名稱或假數字）",
+        "【監控戰情室完整資料｜與 OT.html 儀表板同源，禁止捏造未列出的控制項或假數字】",
+        f"合規原則：{principle}",
+        "",
+        "【資料來源摘要】",
+        f"- 日誌目錄：{summary_obj.get('folder') or OT_FOLDER}",
+        f"- 日誌檔數：{summary_obj.get('num_files') or 0}",
+        f"- 解析事件總量：{summary_obj.get('total_event_lines') or sum(int((metrics.get(k) or {}).get('count') or 0) for k in metrics)}",
+        f"- 設備數：{summary_obj.get('num_devices') or 0}",
     ]
+    device_ids = summary_obj.get("device_ids") or []
+    if device_ids:
+        lines.append(f"- 設備 ID：{', '.join(str(d) for d in device_ids[:12])}")
+        if len(device_ids) > 12:
+            lines.append(f"  …另有 {len(device_ids) - 12} 台設備")
+
+    lines.extend(["", "【六控制項 KPI（僅此六項為真實計數）】"])
     for key, title in CONTROL_TITLES.items():
         meta = metrics.get(key) or {}
+        annex = CONTROL_LABEL_ALIAS.get(key, key)
+        eid = evidence_map.get(key) or (bundles.get(key) or {}).get("evidence_id") or ""
+        eid_part = f"，evidence_id={eid}" if eid else ""
         lines.append(
-            f"- {title}｜{key}：count={int(meta.get('count') or 0)}，"
-            f"{meta.get('text') or 'n/a'}，status={meta.get('status') or 'n/a'}"
+            f"- {title}｜{key}（{annex}）：count={int(meta.get('count') or 0)}，"
+            f"{meta.get('text') or 'n/a'}，status={meta.get('status') or 'n/a'}{eid_part}"
         )
 
-    if logs:
-        lines.append("\n【近期稽核事件】")
-        for item in logs:
+    if coverage:
+        lines.extend([
+            "",
+            "【合規覆蓋率（control matrix）】",
+            f"- Annex A 總項：{coverage.get('annex_a_total', '—')}",
+            f"- 矩陣已定義：{coverage.get('matrix_defined', '—')}（"
+            f"覆蓋率 {float(coverage.get('coverage_rate_matrix') or 0) * 100:.1f}%）",
+            f"- Phase1 MVP：{coverage.get('phase1_mvp_count', '—')}（"
+            f"{float(coverage.get('phase1_coverage_rate') or 0) * 100:.1f}%）",
+            f"- 自動化監控：{coverage.get('automated_monitoring_count', '—')}（"
+            f"{float(coverage.get('automated_coverage_rate') or 0) * 100:.1f}%）",
+            f"- 目標：{coverage.get('target_phase1_note') or '—'}",
+        ])
+        monitored = coverage.get("monitored_control_keys") or []
+        if monitored:
+            lines.append(f"- 已監控 control_key：{', '.join(monitored)}")
+
+    if bundles:
+        lines.append("\n【各控制項日誌 bundle（戰情室詳情面板同源）】")
+        for key, title in CONTROL_TITLES.items():
+            bundle = bundles.get(key) or {}
+            if not bundle:
+                continue
+            log_text = (bundle.get("log") or "").strip()
+            if len(log_text) > 520:
+                log_text = log_text[:520] + "\n...(bundle log 已截斷)..."
+            lines.append(f"\n### {bundle.get('title') or title}（{key}）")
+            lines.append(bundle.get("metric_summary") or "metric_summary=n/a")
+            if bundle.get("evidence_id"):
+                lines.append(f"evidence_id={bundle['evidence_id']}")
+            lines.append(log_text or "（無日誌樣本）")
+
+    files = summary_obj.get("files") or []
+    if files:
+        lines.append("\n【設備／檔案明細（依事件量排序）】")
+        for fmeta in sorted(
+            files, key=lambda x: -int(x.get("event_lines") or 0)
+        )[:10]:
+            cbk = fmeta.get("counts_by_key") or {}
+            top_keys = sorted(
+                ((k, int(v or 0)) for k, v in cbk.items() if int(v or 0) > 0),
+                key=lambda x: -x[1],
+            )[:4]
+            ck = ", ".join(f"{k}={n}" for k, n in top_keys) if top_keys else "—"
             lines.append(
-                f"- {item.get('time')} | {item.get('file')} | "
-                f"{item.get('label')} | {item.get('statusText')} | {item.get('raw')}"
+                f"- {fmeta.get('file')}｜device={fmeta.get('device') or 'n/a'}"
+                f"｜ip={fmeta.get('ip') or 'n/a'}"
+                f"｜總行 {int(fmeta.get('total_lines') or 0):,}"
+                f"／事件 {int(fmeta.get('event_lines') or 0):,}"
+                f"｜控制項分布：{ck}"
             )
+        if len(files) > 10:
+            lines.append(f"…另有 {len(files) - 10} 個檔案未列出")
+
+    if parsed_logs:
+        lines.append(f"\n【近期稽核事件串流（最多 {max_log_events} 筆，戰情室事件表同源）】")
+        for item in parsed_logs[:max_log_events]:
+            lines.append(
+                f"- {item.get('time')} | {item.get('device') or item.get('file')} | "
+                f"{item.get('key')} | {item.get('label')} | {item.get('statusText')} | "
+                f"{item.get('raw')}"
+            )
+        if len(parsed_logs) > max_log_events:
+            lines.append(f"…另有 {len(parsed_logs) - max_log_events} 筆事件未列出")
     else:
         lines.append("\n目前尚無解析後的事件清單。")
 
     summary = "\n".join(lines)
-    if len(summary) > MAX_INPUT_CHARS:
-        summary = summary[:MAX_INPUT_CHARS] + "\n...[摘要已截斷]..."
+    cap = WARROOM_CTX_LIMIT
+    if len(summary) > cap:
+        summary = summary[:cap] + "\n...[監控戰情摘要已截斷]..."
     return summary
+
+
+def _device_hint_from_query(text: str) -> str | None:
+    """從使用者問題擷取設備／IP 篩選提示。"""
+    if not text:
+        return None
+    for pat in (
+        r"C9300[-\w]+",
+        r"192\.168\.\d+\.\d+",
+        r"GigabitEthernet\d+/\d+/\d+",
+    ):
+        m = re.search(pat, text, re.I)
+        if m:
+            return m.group(0)
+    return None
+
+
+def _jsonl_record_matches_hint(obj: dict, path: Path, device_hint: str) -> bool:
+    hint = device_hint.lower()
+    if hint in path.name.lower():
+        return True
+    dev = str(
+        obj.get("canonical_device_id")
+        or obj.get("device")
+        or obj.get("device_id")
+        or obj.get("source_device_id")
+        or ""
+    ).lower()
+    ip = str(obj.get("source_ip") or obj.get("ip") or "").lower()
+    msg = (_extract_jsonl_message(obj) or "").lower()
+    return hint in dev or hint in ip or hint in msg
+
+
+def build_imported_syslog_corpus_context(
+    user_message: str = "",
+    *,
+    max_chars: int | None = None,
+    max_lines_per_file: int = 80,
+) -> str:
+    """
+    彙整 ot/ 已匯入之 syslog 原文，供 AI 對話直接引用（非僅 KPI 摘要）。
+    若問題含設備名／IP，優先篩選相關檔案與事件行。
+    """
+    if not os.path.exists(OT_FOLDER):
+        return ""
+    cap = max_chars
+    if cap is None:
+        env = os.environ.get("OT_SYSLOG_CTX_CHARS", "").strip()
+        cap = int(env) if env.isdigit() else max(int(WARROOM_CTX_LIMIT), 28000)
+
+    device_hint = _device_hint_from_query(user_message or "")
+    log_files = _list_ot_log_files()
+    if not log_files:
+        return ""
+
+    lines = [
+        "【已匯入 SYSLOG 原文語料庫｜ot/ 目錄；回答設備／硬體／日誌問題必須優先引用此處】",
+        f"- 日誌檔數：{len(log_files)}",
+    ]
+    if device_hint:
+        lines.append(f"- 依問題篩選：{device_hint}")
+
+    total_raw = 0
+    for path in log_files:
+        file_lines: list[str] = []
+        try:
+            if path.suffix.lower() == ".jsonl":
+                for obj in _iter_jsonl_objects(path):
+                    if device_hint and not _jsonl_record_matches_hint(
+                        obj, path, device_hint
+                    ):
+                        continue
+                    msg = _extract_jsonl_message(obj)
+                    if not msg:
+                        continue
+                    ts = obj.get("event_ts") or obj.get("timestamp") or ""
+                    dev = (
+                        obj.get("canonical_device_id")
+                        or obj.get("device")
+                        or obj.get("source_device_id")
+                        or ""
+                    )
+                    prefix = f"[{dev}] " if dev else ""
+                    ts_part = f"{ts} " if ts else ""
+                    file_lines.append(f"{prefix}{ts_part}{msg.strip()[:420]}")
+                    if len(file_lines) >= max_lines_per_file:
+                        break
+            else:
+                with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                    for raw in f:
+                        ln = raw.strip()
+                        if not ln:
+                            continue
+                        if device_hint and device_hint.lower() not in ln.lower():
+                            if device_hint.lower() not in path.name.lower():
+                                continue
+                        file_lines.append(ln[:420])
+                        if len(file_lines) >= max_lines_per_file:
+                            break
+        except Exception as e:
+            lines.append(f"\n### {path.name}（讀取失敗：{e}）")
+            continue
+
+        if not file_lines:
+            continue
+
+        total_raw += len(file_lines)
+        lines.append(f"\n### {path.name}（樣本 {len(file_lines)} 行）")
+        lines.extend(f"- {ln}" for ln in file_lines)
+
+    if total_raw == 0:
+        return ""
+
+    lines.insert(1, f"- 引用事件行樣本：{total_raw} 行")
+    body = "\n".join(lines)
+    if len(body) > cap:
+        body = body[:cap] + "\n...(已匯入 syslog 語料庫截斷)..."
+    return body
+
+
+def build_ot_context_summary():
+    """向後相容：等同監控戰情室完整上下文。"""
+    return build_monitor_warroom_context()
 
 
 CHART_FORMAT_HINT = (
@@ -6423,6 +7473,8 @@ _AGENT_NO_HALLUCINATION = (
     "（如 12345、23456、45678 UPDTS）；只能使用摘要裡出現的六個控制項與真實 count。"
     "SEC_LOGIN／LOGIN_SUCCESS 不得解讀為重放攻擊或開啟閥門；"
     "UPDOWN 不得解讀為 Modbus 寫入／配方下載。"
+    "Cisco kernel `[sda]`／EXT2 I/O error 是 Catalyst **內部 Flash 區塊裝置**與檔案系統問題，"
+    "**不是 SD 記憶卡**；禁止寫成 SD 卡故障、記憶卡損壞或可拔插外接卡。"
     "證據不足就明說「無法從現有資料確認」，不要補劇本。"
 )
 
@@ -6455,6 +7507,95 @@ def _normalize_chat_history(raw, max_turns: int = 6) -> list[dict]:
         else:
             out.append({"role": role, "content": content})
     return out[-(max(1, int(max_turns)) * 2) :]
+
+
+def _chat_needs_history_for_pronoun(user_message: str) -> bool:
+    """短追問（這/那/為什麼）才需要上一則使用者問題；其餘依本則日誌即可。"""
+    t = (user_message or "").strip()
+    if not t:
+        return False
+    return bool(
+        re.search(
+            r"這(個|些|台|部|里|裡|次|樣|種)?|那(個|些|台|部|里|裡|次|樣|種)?|"
+            r"剛才|刚刚|上一(則|句|題|輪|次)?|前面|上述|剛剛|"
+            r"為什麼(你)?|為何(你)?|怎麼(会|會)(不能|无法|無法)|"
+            r"你(剛|方|才)(才|说|說)|我(剛|方|才)(才|说|說)|"
+            r"我(要|是|说|說|指的是|問的是)|是指|接續|延續|繼續(問|說)",
+            t,
+        )
+    )
+
+
+def _history_for_log_grounded_chat(
+    raw,
+    *,
+    max_user_turns: int | None = None,
+    current_message: str = "",
+) -> list[dict]:
+    """
+    有監控日誌時：預設不帶多輪 messages（避免前後文錨定）。
+    僅在使用者本則含指代詞時，保留 1 則先前使用者追問。
+    不帶入 assistant 舊回答。
+    """
+    env_always = os.environ.get("CHAT_LOG_HISTORY_ALWAYS", "").strip().lower() in (
+        "1", "true", "yes",
+    )
+    if max_user_turns is None:
+        env = os.environ.get("CHAT_LOG_HISTORY_USER_TURNS", "1").strip()
+        max_user_turns = int(env) if env.isdigit() else 1
+    max_user_turns = max(0, int(max_user_turns))
+
+    if not env_always and not _chat_needs_history_for_pronoun(current_message):
+        return []
+
+    if max_user_turns <= 0:
+        return []
+
+    history = _normalize_chat_history(raw, max_turns=4)
+    user_only = [t for t in history if t.get("role") == "user"]
+    out: list[dict] = []
+    for turn in user_only[-max_user_turns:]:
+        content = (turn.get("content") or "").strip()
+        if not content:
+            continue
+        if len(content) > 160:
+            content = content[:160] + "…"
+        out.append({"role": "user", "content": content})
+    return out
+
+
+def _inline_log_history_hint(prior_turns: list[dict]) -> str:
+    """將極少量先前使用者追問寫入本則 prompt（不進 messages 陣列）。"""
+    if not prior_turns:
+        return ""
+    lines = [
+        t.get("content", "").strip()
+        for t in prior_turns
+        if (t.get("content") or "").strip()
+    ]
+    if not lines:
+        return ""
+    joined = " → ".join(lines)
+    return (
+        "【僅供指代｜非事實來源】使用者先前追問："
+        f"「{joined}」。"
+        "請只用它理解「這/那/為什麼」指什麼；"
+        "數字、設備、控制項狀態必須以本則監控日誌為準。"
+    )
+
+
+_AGENT_LOG_FIRST_RULE = (
+    "【日誌優先｜鐵律】本則已附監控戰情室真實日誌／KPI／設備明細。"
+    "每一輪都視為獨立稽核：重新依日誌作答，禁止沿用上一輪 assistant 的推測、"
+    "舊數字、假設設備名或結論。若日誌與任何前文矛盾，一律以日誌為準。"
+    "先前使用者追問（若有）僅供理解指代，不可當事實來源。"
+)
+
+_AGENT_UPLOADED_SYSLOG_RULE = (
+    "【上傳檔專屬｜鐵律】本則僅分析使用者上傳的 SYSLOG 檔案內容。"
+    "禁止引用監控戰情室六控項 KPI、ot/ 語料庫、其他設備彙總或未出現在本檔的數字。"
+    "設備名、事件碼、計數必須來自本檔；若日誌與任何前文矛盾，一律以本檔為準。"
+)
 
 
 def _wants_iso27001_topic(user_message: str) -> bool:
@@ -6533,9 +7674,18 @@ def build_iso27001_prompt_knowledge(user_message: str = "") -> str:
         "• 本平台：以 OT／Cisco 日誌對照 27001 控制精神做合規輔助，"
         "不是另一套標準。\n"
     )
+    ot_ctx = _wants_iso27001_ot_semiconductor(user_message or "")
     if asks_items:
+        ot_hint = (
+            "• OT／半導體重點控制：A.5.15／A.8.2 存取、A.8.9／A.8.19 組態、"
+            "A.8.15／A.8.16 日誌監控、A.8.20–A.8.24 網路隔離、A.8.8 弱點修補；"
+            "須區分 IT／OT 網段與產線維護窗。\n"
+            if ot_ctx
+            else ""
+        )
         return (
             common
+            + ot_hint
             + "• 27001「包含哪些」請答兩大塊：\n"
             "  1) 管理體系要求（條文）：範圍、領導力、規劃、支援、營運、"
             "績效評估、改善；\n"
@@ -6547,12 +7697,37 @@ def build_iso27001_prompt_knowledge(user_message: str = "") -> str:
         common
         + "• 若使用者只問「什麼是 27001」：用 2–5 句說明 ISMS 要求標準即可，"
         "可一句帶過 27002 是控制指引。\n"
-        "請用自己的話寫繁中簡答，緊扣 27001。"
+        "請用自己的話寫繁中簡答，緊扣 27001；"
+        "全文繁體中文，禁止用英文條列標準章節名（如 Security Techniques）。"
     )
+
+
+def _wants_iso27001_ot_semiconductor(user_message: str) -> bool:
+    t = user_message or ""
+    if not _wants_iso27001_topic(t):
+        return False
+    return bool(re.search(r"OT|工控|半導體|產線|機台|fab|Cisco", t, re.I))
 
 
 def build_iso27001_overview_reply(user_message: str = "") -> str:
     """27001 知識問答的 grounded 回答（避免小模型亂編標準號／碎片輸出）。"""
+    if _wants_iso27001_ot_semiconductor(user_message):
+        return (
+            "ISO/IEC **27001:2022** 在 OT／半導體環境的重點控制項，"
+            "應依 ISMS 主文（第 4–10 章）與 **Annex A** 技術／組織控制綜合落實。\n\n"
+            "**OT 半導體場域優先關注（對照 Annex A）**\n"
+            "- **A.5.7** 威脅情報；**A.5.24–A.5.28** 事件管理與通報\n"
+            "- **A.5.15／A.8.2** 身分與特權存取（Console／SSH／RADIUS／TACACS+）\n"
+            "- **A.8.9** 組態管理；**A.8.19** 組態變更；**A.8.32** 變更控制\n"
+            "- **A.8.15／A.8.16** 日誌與監控（syslog、SNMP trap、異常登入）\n"
+            "- **A.8.20–A.8.24** 網路安全與傳輸加密（IT／OT 網段隔離、ACL）\n"
+            "- **A.7.7–A.7.13** 實體與環境（機房、產線周界、可移動媒體）\n"
+            "- **A.8.8** 弱點管理（交換器韌體／CVE 修補，須配合產線維護窗）\n\n"
+            "**半導體 OT 實務**：須區分 IT 與 OT 網段；修補與組態變更需變更窗口；"
+            "日誌須能對應設備與控制項 evidence。\n\n"
+            "**Semi-Shield 本平台**：將 Cisco syslog（如 SEC_LOGIN、UPDOWN、SNMP）"
+            "對映上述控制項，作為合規監控與 evidence 輔助，而非取代完整 ISMS 稽核。"
+        )
     asks_items = bool(
         re.search(r"包含|有哪些|項目|條款|控制|內容|範圍|結構", user_message or "")
     )
@@ -6610,11 +7785,11 @@ def wants_iso27001_explain(user_message: str) -> bool:
 
 
 def _is_trusted_grounded_iso27001_reply(text: str) -> bool:
+    """僅完整 grounded 模板可略過品質檢查；勿把一句空泛摘要當合格。"""
     r = (text or "").strip()
-    return bool(
-        re.search(r"^ISO/IEC \*\*27001", r)
-        or ("管理體系要求" in r and "Annex A" in r)
-    )
+    if not r or _cjk_count(r) < 80:
+        return False
+    return bool(re.search(r"^ISO/IEC \*\*27001", r))
 
 
 def _iso27001_reply_is_bad(text: str) -> bool:
@@ -6638,16 +7813,50 @@ def _iso27001_reply_is_bad(text: str) -> bool:
         return True
     if _looks_like_train_leak(r):
         return True
+    if _reply_has_english_bullet_noise(r):
+        return True
     return False
 
 
-def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None):
+def ask_agent(
+    user_message,
+    ot_context=None,
+    rag_context=None,
+    chat_history=None,
+    syslog_content: str = "",
+    uploaded_syslog: bool = False,
+    syslog_filename: str = "",
+):
     """聊天 Agent：可選擇附帶 OT 掃描結果、RAG 與多輪對話上下文。"""
     visual = wants_visual(user_message)
-    history = _normalize_chat_history(chat_history)
+
+    # 貼上／上傳 syslog（優先於寒暄短路）
+    syslog_extra = (syslog_content or "").strip()
+    uploaded_attachment = bool(uploaded_syslog or syslog_extra)
+    combined_message = (user_message or "").strip()
+    if syslog_extra and syslog_extra not in combined_message:
+        combined_message = (
+            f"{combined_message}\n\n{syslog_extra}".strip()
+            if combined_message
+            else syslog_extra
+        )
+    pasted_question, pasted_log = split_user_question_and_syslog(combined_message)
+    syslog_analysis_mode = _syslog_analysis_mode_enabled() and bool(
+        pasted_log.strip()
+    ) and _looks_like_syslog_blob(pasted_log)
+    if uploaded_attachment and syslog_extra and not syslog_analysis_mode:
+        if _looks_like_syslog_blob(syslog_extra) or _looks_like_jsonl_syslog(syslog_extra):
+            syslog_analysis_mode = True
+            pasted_log = syslog_extra
+    if syslog_analysis_mode:
+        user_message = pasted_question or user_message or (
+            "請對上述上傳的 SYSLOG 做完整、詳細的 OT 資安與 ISO 27001 分析"
+            if uploaded_attachment
+            else "請對上述 SYSLOG 做完整、詳細的 OT 資安與 ISO 27001 分析"
+        )
 
     # 離題／寒暄＋天氣：grounded 短答（避免 Gemma 等小模型捏造台東天氣、外電廠等）
-    if should_use_grounded_casual_reply(user_message) and not visual:
+    if should_use_grounded_casual_reply(user_message) and not visual and not syslog_analysis_mode:
         print(f"💬 Agent：grounded 短答（離題／寒暄）| {user_message[:48]}")
         return build_casual_chat_reply(user_message)
 
@@ -6655,6 +7864,7 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
     if (
         USE_OLLAMA
         and not visual
+        and not syslog_analysis_mode
         and is_casual_chat(user_message)
         and not re.search(r"%[A-Z0-9_-]+-\d+-", user_message or "", re.I)
     ):
@@ -6665,25 +7875,75 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
     if (
         ENABLE_CASUAL_FIXED_REPLY
         and (not visual)
+        and not syslog_analysis_mode
         and (is_casual_chat(user_message) or is_off_topic_chat(user_message))
     ):
         print("💬 Agent：閒聊固定短答（略過 LLM）")
         return build_casual_chat_reply(user_message)
 
+    if syslog_analysis_mode:
+        log_src = (pasted_log or syslog_extra or "").strip()
+        pasted_ctx = build_pasted_syslog_analysis_context(
+            log_src,
+            uploaded_only=uploaded_attachment,
+            uploaded_filename=(syslog_filename or "").strip(),
+            max_chars=5500 if (uploaded_attachment and _is_small_or_gemma_model()) else None,
+        )
+        if pasted_ctx:
+            if uploaded_attachment:
+                ot_context = pasted_ctx
+                print(
+                    f"📋 Agent：上傳 SYSLOG 專屬分析（略過戰情室）| "
+                    f"日誌 {len(log_src)} 字 | 問題：{user_message[:48]}"
+                )
+            elif ot_context:
+                ot_context = (
+                    pasted_ctx
+                    + "\n\n【補充｜監控戰情室摘要（次要參考）】\n"
+                    + (ot_context[:2400] + "…" if len(ot_context) > 2400 else ot_context)
+                )
+            else:
+                ot_context = pasted_ctx
+                print(
+                    f"📋 Agent：SYSLOG 詳細分析模式 | "
+                    f"日誌 {len(log_src)} 字 | 問題：{user_message[:48]}"
+                )
+
     # 貼上 Cisco syslog 也視為診斷（即使沒寫「請分析」）
     has_cisco_log = bool(
-        re.search(r"%[A-Z0-9_-]+-\d+-[A-Z0-9_]+", user_message or "", re.I)
+        re.search(r"%[A-Z0-9_-]+-\d+-[A-Z0-9_]+", combined_message or "", re.I)
     )
-    report_mode = (wants_report_format(user_message) or has_cisco_log) and not visual
-    output_mode = "report" if report_mode else "chat"
+    report_mode = (
+        (wants_report_format(user_message) or has_cisco_log or syslog_analysis_mode)
+        and not visual
+    )
+    output_mode = "syslog" if syslog_analysis_mode else (
+        "report" if report_mode else "chat"
+    )
     off_topic = is_off_topic_chat(user_message)
     casual = is_casual_chat(user_message)
     rag_context = _filter_rag_for_chat(rag_context or "", user_message)
-    if off_topic or casual:
-        ot_context = None
-        rag_context = ""
+    finetuned_kb = _llm_allows_knowledge_graph()
 
-    # 有明確 Cisco 日誌時：直接 grounded，避免微調模型輸出 MFG01 幻覺
+    knowledge_q_early = (
+        wants_iso27001_explain(user_message)
+        or wants_security_concept_explain(user_message)
+        or _wants_iso27001_topic(user_message)
+        or _wants_security_concept(user_message)
+    )
+    if not finetuned_kb and not uploaded_attachment:
+        if not syslog_analysis_mode:
+            # 微調前模型仍可使用 ot/ 已匯入 syslog 語料庫
+            if not (ot_context or "").strip() or "【已匯入 SYSLOG 原文語料庫" not in (
+                ot_context or ""
+            ):
+                ot_context = None
+        print("📚 微調前模型：略過合規底稿／預注入知識（僅 base 使用 RAG）")
+    if off_topic or casual:
+        if not syslog_analysis_mode:
+            ot_context = None
+
+    # 有明確 Cisco 日誌時：一律走 LLM（不再 grounded 直出）
     force_llm = os.environ.get("LLM_LOG_FORCE", "").strip().lower() in (
         "1", "true", "yes"
     )
@@ -6698,74 +7958,69 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
     #         return grounded
     # --- /暫時註解 ---
 
-    # 圖表請求優先：短文 + 後端補 chart（勿被修補步驟／現況長文蓋掉）
-    if visual and not force_llm:
-        print("✅ Agent：圖表請求，採用監控計數短文（圖由 ensure_visual_reply 補）")
-        return build_ot_visual_brief_reply(user_message)
-
-    # 「生成報告／合規現況／診斷報告」等：直接用監控 grounded，不經 LLM
-    # （否則微調模型常吐出假 Admin／2023 工單狀態）
-    # --- 暫時註解：三卡報告版面異常，先停用 grounded 三卡 ---
-    # wants_gen_report = bool(
-    #     re.search(
-    #         r"生成報告|產出報告|產生報告|合規報告|稽核報告|診斷報告|"
-    #         r"寫一份報告|出一份報告|分析報告|風險報告|合規現況",
-    #         user_message or "",
-    #         re.I,
-    #     )
-    # )
-    # if (
-    #     ENABLE_THREE_CARD_REPORT
-    #     and (report_mode or wants_gen_report)
-    #     and not has_cisco_log
-    #     and not visual
-    #     and not force_llm
-    #     and (ot_context or needs_ot_context(user_message) or wants_gen_report)
-    # ):
-    #     situ = build_ot_situation_grounded_reply()
-    #     if situ:
-    #         print("✅ Agent：採用監控現況 grounded 報告（抑制 LLM 幻覺）")
-    #         return situ
-    # --- /暫時註解 ---
-
-    # 「停用 Telnet／管理面加固」：固定 Cisco 步驟，避免 LLM 單字／提示詞洩漏
-    if wants_hardening_howto(user_message) and not visual and not force_llm:
-        print("✅ Agent：採用 grounded 管理面加固步驟")
-        return build_hardening_howto_reply(user_message)
-
-    # 「修補步驟」：直接依監控狀態給步驟，避免聊天模式淨化後變「輸出異常」
-    if wants_remediation_steps(user_message) and not visual and not force_llm:
-        remed = build_ot_remediation_steps_reply(user_message)
-        if remed:
-            print("✅ Agent：採用監控 grounded 修補步驟")
-            return remed
-
-    # 「合規現況／監控現況」：先產結構化底稿，再像 RAG 注入 LLM 改寫
+    # 「合規現況／監控現況」：產結構化底稿注入 LLM 改寫（一律走 LLM，不直出 grounded）
     compliance_status_draft = ""
-    if wants_ot_status_summary(user_message) and not visual and not force_llm:
+    if (
+        finetuned_kb
+        and wants_ot_status_summary(user_message)
+        and not visual
+        and not force_llm
+    ):
         compliance_status_draft = build_ot_compliance_status_grounded(user_message) or ""
         if compliance_status_draft:
             print(
                 f"📋 Agent：合規現況底稿 {len(compliance_status_draft)} 字 → LLM 改寫"
             )
 
-    # 「資料筆數／事件量」：回真實掃描計數
-    if wants_data_counts(user_message) and not visual and not force_llm:
-        counts = build_ot_data_counts_reply()
-        if counts:
-            print("✅ Agent：採用監控真實筆數回覆")
-            return counts
-
     # 知識題（27001／紅隊等）一律 LLM；事實卡僅注入 prompt + RAG，不直出固定文案
 
-    # 現況類：強制附上真實計數給 LLM，由模型組織回答（不直接回計數表）
+    # 現況類：強制附上真實計數給 LLM（僅微調後）
     if (
-        wants_ot_status_summary(user_message)
+        finetuned_kb
+        and wants_ot_status_summary(user_message)
         and not (ot_context or "").strip()
         and not visual
     ):
-        ot_context = build_ot_context_summary()
-        print("📊 Agent：現況問題已注入真實監控計數 → LLM")
+        ot_context = build_monitor_warroom_context()
+        print("📊 Agent：現況問題已注入監控戰情室完整資料 → LLM")
+
+    if (
+        finetuned_kb
+        and wants_hardware_device_check(user_message)
+        and not (ot_context or "").strip()
+        and not visual
+        and not uploaded_attachment
+    ):
+        ot_context = build_monitor_warroom_context()
+        print("🔧 Agent：硬體設備問題已注入監控戰情室 → LLM")
+
+    log_grounded = bool((ot_context or "").strip())
+    log_first_rule = (
+        _AGENT_UPLOADED_SYSLOG_RULE
+        if uploaded_attachment and syslog_analysis_mode
+        else (_AGENT_LOG_FIRST_RULE if log_grounded else "")
+    )
+    log_history_inline = ""
+    if log_grounded:
+        prior_turns = _history_for_log_grounded_chat(
+            chat_history, current_message=user_message
+        )
+        log_history_inline = _inline_log_history_hint(prior_turns)
+        history = []  # 日誌模式：不把前後文塞進 messages，降低 anchor
+        if prior_turns:
+            print(
+                f"💬 日誌優先：inline 指代 {len(prior_turns)} 則"
+                f"（未注入 assistant history）"
+            )
+    else:
+        history = _normalize_chat_history(chat_history)
+
+    # 日誌優先：監控／合規追問以 ot_context 為準，非知識題不混 RAG
+    if log_grounded and not knowledge_q_early and not visual:
+        if not _query_needs_log_rag(user_message or ""):
+            if rag_context:
+                print("📚 日誌優先：略過 RAG（以監控日誌為事實來源）")
+            rag_context = ""
 
     if visual:
         # 畫圖請求：要求短而完整的文字，圖表由後端 ensure_visual_reply 補強
@@ -6775,11 +8030,12 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
             # --- 暫時註解：固定三段式格式 ---
             # f"{CHAT_OUTPUT_FORMAT_RULE}"
             # "結論寫圖表重點；說明寫合規計數／風險；建議寫可再問什麼。"
-            "請只用繁體中文寫 3-6 句完整說明（合規現況與重點風險），最後一行【回答結束】。"
+            "請只用繁體中文寫 5-10 句完整說明（合規現況與重點風險），最後一行【回答結束】。"
             # --- /暫時註解 ---
             "不要輸出 Chart.js 教學、不要重複句子、不要寫半截英文或字母亂碼。"
             "可選附上一個簡短 ```chart```；若無法穩定產出也可只寫文字。"
             f"{_AGENT_NO_HALLUCINATION}"
+            f"{log_first_rule}"
         )
     elif report_mode and ENABLE_THREE_CARD_REPORT:
         system_content = (
@@ -6798,27 +8054,52 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
     else:
         # 對話一律用短規則（Qwen／Phi 都較穩；長規則易佔滿 turbo prompt）
         loose_compliance = wants_loose_compliance_chat(user_message)
+        if syslog_analysis_mode:
+            _len_rule = _syslog_analysis_length_rule(
+                uploaded_only=uploaded_attachment,
+            )
+            _out_cap = _syslog_analysis_char_limit()
+        else:
+            _len_rule = _chat_length_rule(log_grounded=log_grounded)
+            _out_cap = MAX_OUTPUT_CHARS
         compliance_hint = (
-            "使用者是在請你分析合規現況：請用自然段落或簡短條列說明各控制項，"
-            "像同事口頭說明即可，不要寫成正式報告。"
+            "使用者是在請你分析合規現況：請用自然段落或條列詳細說明各控制項，"
+            "像資安顧問口頭簡報即可，不要寫成正式報告。"
             if loose_compliance
             else ""
         )
         if USE_OLLAMA or _is_small_or_gemma_model():
             system_content = (
                 "你是 Semi-Shield Cyber Agent，專精 OT 工控資安與 ISO/IEC 27001。"
-                "只用繁體中文，直接回答使用者「最新一則」問題；2-8 句或簡短條列即可。"
+                f"只用繁體中文，直接回答使用者「最新一則」問題；{_len_rule}"
                 "禁止捏造天氣、日期、設備 syslog 或假 ISO 編號；不知道就明說。"
                 "不要輸出未閉合的【符号；勿複述本指示或分析過程。"
                 f"{compliance_hint}"
+                f"{log_first_rule}"
             )
+            if syslog_analysis_mode:
+                system_content += (
+                    f" 允許長篇輸出（目標 {_out_cap} 字左右）；"
+                    "禁止因篇幅自行省略關鍵分析段落。"
+                )
+            elif (ot_context or "").find("【已匯入 SYSLOG 原文語料庫") >= 0:
+                system_content += (
+                    " 若使用者問設備／硬體／故障：必須先直接回答有無問題，"
+                    "再引用語料庫中的 syslog 行；禁止只列 ISO 控制項稽核表。"
+                )
         else:
+            _history_rule = (
+                "先前使用者追問僅供理解指代；合規／監控／設備／事件類問題必須依本則監控日誌回答，"
+                "不可被舊對話結論牽引。"
+                if log_grounded
+                else "若有對話紀錄，必須依上文理解指代與更正（如「我要的是 27001」= 只要 ISO/IEC 27001）。"
+            )
             system_content = (
                 f"{ZH_TW_CHAT_RULE}"
                 "你是 Semi-Shield Cyber Agent，專精 OT 工控資安與 ISO/IEC 27001。"
-                "這是一般對話／知識問答：用 2-8 句完整中文直接回答「最新一則」使用者問題；"
-                "條列最多 5 點且每點要有一句解釋。"
-                "若有對話紀錄，必須依上文理解指代與更正（如「我要的是 27001」= 只要 ISO/IEC 27001）。"
+                f"這是一般對話／知識問答：{_len_rule}"
+                "條列時每點需有一句解釋，避免只寫標題。"
+                f"{_history_rule}"
                 "禁止答非所問：不要改答 ISO 23003、25000、900、IE CERT，"
                 "也不要亂編 22007、25701、27101 這類假標準號；"
                 "提到標準時只能用真實的 27001／27002（必要時 27000／27005）。"
@@ -6829,8 +8110,10 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
                 f"{compliance_hint}"
                 "勿虛構監控事件；知識不足請明說。"
                 "禁止輸出訓練題『使用者：…』、英文亂碼、單獨一行的 model／assistant。"
-                "不要輸出【回答結束】或【報告結束】。總字數 ≤ 800。"
+                "不要輸出【回答結束】或【報告結束】。"
+                f"總字數 ≤ {_out_cap}。"
                 f"{_AGENT_NO_HALLUCINATION}"
+                f"{log_first_rule}"
             )
 
     parts = []
@@ -6869,33 +8152,48 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
         )
         parts.append(
             "【本則意圖】使用者在問合規／監控現況。"
-            "請依上方底稿用自然對話口吻改寫（2-8 句或簡短條列），"
+            "請依上方底稿用自然對話口吻改寫（詳細條列或 8-12 句），"
             "禁止整段照抄，禁止與底稿矛盾，禁止新增底稿沒有的控制項或假數字。"
             "禁止寫「以下是根據底稿改寫的回覆」等開場白，直接說明現況即可。"
         )
     elif ot_context:
-        # 壓縮監控摘要，降低模型照抄原文與 prefill 時間
+        # 監控戰情室完整上下文：保留較長上限供 LLM 引用設備／bundle／evidence
         ctx = ot_context
-        # 現況類保留完整六控制項計數，避免截斷後模型亂補數字
-        if wants_ot_status_summary(user_message):
-            limit = max(CHAT_CTX_LIMIT, 1200)
+        if syslog_analysis_mode:
+            limit = max(int(os.environ.get("SYSLOG_CTX_CHARS", "0") or 0), 16000)
+            if not os.environ.get("SYSLOG_CTX_CHARS", "").strip().isdigit():
+                limit = max(WARROOM_CTX_LIMIT, 16000)
+            if uploaded_attachment and _is_small_or_gemma_model():
+                limit = min(limit, 5800)
+        elif wants_ot_status_summary(user_message):
+            limit = max(WARROOM_CTX_LIMIT, 1200)
         else:
-            limit = 280 if visual else CHAT_CTX_LIMIT
+            limit = WARROOM_CTX_LIMIT
         if len(ctx) > limit:
             ctx = ctx[:limit] + "\n...(摘要已截斷)..."
-        if wants_ot_status_summary(user_message):
+        if syslog_analysis_mode:
             parts.append(
-                "【真實監控計數｜必須依此回答】\n"
-                "下列 count／status 為系統掃描結果，數字與控制項名稱不可改、不可增刪。\n"
-                "請用繁體中文說明合規現況與風險重點；可引用這些數字，但禁止捏造其他控制項"
+                "【SYSLOG 完整分析｜以下為使用者提供之原始日誌與統計；"
+                "請逐類詳細分析，勿省略段落；禁止捏造未出現的事件】\n"
+                f"{ctx}"
+            )
+        elif wants_ot_status_summary(user_message):
+            parts.append(
+                "【監控戰情室真實資料｜必須依此回答】\n"
+                "下列為 OT.html 儀表板同源：KPI、control bundle、evidence、設備明細、事件串流。"
+                "count／status／設備名／evidence_id 不可改、不可增刪；禁止捏造其他控制項"
                 "（如 network_monitor）或假數字（如 12345、45678）。\n"
                 f"{ctx}"
             )
         else:
             parts.append(
-                "【內部監控摘要｜禁止照抄原文，只能轉述重點；禁止補造未列出的事件】\n"
+                "【監控戰情室完整資料｜回答本則問題的唯一事實來源；"
+                "禁止照抄原文，只能轉述重點；禁止補造未列出的事件／設備／控制項；"
+                "禁止因先前對話而改寫或淡化日誌中的 count／status】\n"
                 f"{ctx}"
             )
+    if log_history_inline:
+        parts.append(log_history_inline)
     if rag_context and not visual:
         rag_trim = rag_context
         # 知識問答可稍長，助 LLM 組織回答（仍非固定文案）
@@ -6906,34 +8204,41 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
             or _wants_security_concept(user_message)
         )
         rag_cap = (
-            min(RAG_CONTEXT_CHARS, 420)
-            if _query_needs_log_rag(user_message or "")
+            min(RAG_CONTEXT_CHARS, 560)
+            if _query_needs_log_rag(user_message or "") or syslog_analysis_mode
             else min(RAG_CONTEXT_CHARS, 560 if knowledge_q else 360)
         )
+        if log_grounded and not knowledge_q and not syslog_analysis_mode:
+            rag_cap = min(rag_cap, 180)
         if len(rag_trim) > rag_cap:
             rag_trim = rag_trim[:rag_cap] + "…"
+        rag_lead = (
+            "【專業知識參考（RAG 檢索）｜僅供術語／標準解釋，事實以監控日誌為準】\n"
+            if log_grounded
+            else "【專業知識參考（RAG 檢索）】\n"
+        )
         parts.append(
-            "【專業知識參考（RAG 檢索）】\n"
-            "以下為 Semi-Shield 知識庫中與本題相關的 OT／ISO 27001 內容。\n"
+            rag_lead
+            + "以下為 Semi-Shield 知識庫中與本題相關的 OT／ISO 27001 內容。\n"
             "請以資安顧問口吻整合重點作答：條理清楚、用繁體中文；"
             "可適度引用 Annex A 控制項編號或 Cisco 事件類型，"
             "但須轉述為你的專業建議，勿逐字照抄參考原文。\n"
             "禁止輸出「參考分析／專業參考」等標題，"
             "禁止把教材寫成「本次監控事件」，禁止捏造設備名／時間戳。\n"
-            "若參考與使用者問題或監控事實衝突，以問題與【正確事實】為準。\n"
+            "若參考與使用者問題或監控事實衝突，以監控日誌與本則問題為準。\n"
             f"{rag_trim}"
         )
     # 短更正句：明確點出 ISO/IEC 27001，降低答非所問
     um = (user_message or "").strip()
     wants_27001 = _wants_iso27001_topic(um)
-    if _wants_security_concept(um):
+    if finetuned_kb and _wants_security_concept(um):
         parts.append(build_security_concept_knowledge(um))
         parts.append(
             "【本則意圖】使用者在問資安概念；請依上方【正確事實】用繁體中文說明，"
             "可一句連結 ISO 27001 控制項；禁止「完全沒漏洞就不用投資資安」這類錯誤結論。"
         )
         print("📘 已附加資安概念 grounded 摘要至 prompt")
-    if wants_27001:
+    if finetuned_kb and wants_27001:
         # 開卷：先附加固定正確摘要，再下意圖強制（小模型較不易亂編編號）
         parts.append(build_iso27001_prompt_knowledge(um))
         print("📘 已附加 ISO 27001 固定正確摘要至 prompt")
@@ -6955,9 +8260,28 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
                 "【本則意圖｜強制】使用者指定「ISO/IEC 27001（資訊安全管理系統／ISMS 要求）」。\n"
                 "請依上方【正確事實】直接說明 27001 是什麼、用途、與本平台 OT 合規的關係；"
                 "可一句帶過 27002 是控制措施指引。\n"
+                "【語言】全文繁體中文；禁止英文條列（如 Security Techniques／Requirements）；"
+                "專有名詞 ISO/IEC 27001、ISMS 可保留。\n"
                 "【絕對禁止】改答或亂編其他 ISO 編號（含 22007、25701、27101、23003、25000）；"
                 "不要反問使用者是不是要講別的標準。"
             )
+    if log_grounded and wants_warroom_action_plan(user_message) and not uploaded_attachment:
+        parts.append(
+            "【本則意圖】使用者要依監控戰情室資料取得「下一步／優先行動」建議。"
+            "請列出 4-6 項具體可執行步驟（含 fail/review 控制項優先），"
+            "每項說明 count、status、設備與建議動作；有 evidence_id 才寫，沒有則略過；"
+            "最後用 1-2 句總結，務必寫完整。"
+        )
+    if wants_hardware_device_check(user_message):
+        parts.append(
+            "【本則意圖｜強制】使用者在問「是否有硬體／設備異常」。"
+            "必須先查 syslog 原文與設備明細：IOSXE-PLATFORM、[sda] device offline、"
+            "ILPOWER、ERR_DISABLE、UPDOWN、storage／flash 等硬體或儲存異常，"
+            "並點名設備 ID 與事件碼。"
+            "malware_defense 的 INFECTION 是防毒掃描計數，**不等於**硬體故障，"
+            "不可把 A.8.7 惡意軟體 KPI 當成「沒有硬體異常」的唯一依據。"
+            "若證據中確實無硬體類事件，才回答目前未見硬體異常。"
+        )
     parts.append(f"使用者本則問題：{user_message}")
     if visual:
         parts.append(
@@ -6973,6 +8297,19 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
             f"總字數 ≤ {MAX_OUTPUT_CHARS_REPORT}；三段都要寫完整；"
             "不要貼日誌／RAG／監控原文；不要捏造 syslog；最後寫【報告結束】。"
         )
+    elif syslog_analysis_mode:
+        if uploaded_attachment:
+            parts.append(
+                "【本則意圖｜強制】使用者上傳單一 SYSLOG 檔案"
+                + (f"（{syslog_filename}）" if (syslog_filename or "").strip() else "")
+                + "。請僅分析該檔內出現的設備、事件碼與計數；"
+                "回答開頭必須點名主要設備 ID（如 C9300-24P-F11C-A-3）；"
+                "禁止彙整監控戰情室六控項 KPI、禁止引用 ot/ 全庫或其他設備數字。"
+            )
+        parts.append(
+            f"請依上方 SYSLOG 做{_syslog_analysis_length_rule(uploaded_only=uploaded_attachment)}"
+            "可用 ### 小標題；不要輸出【回答結束】。"
+        )
     else:
         loose_hint = (
             "這是合規分析請求：用自然段落說明即可，禁止「一、二、三」章節與正式報告標題；"
@@ -6980,7 +8317,7 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
             else "不要輸出舊三卡；"
         )
         parts.append(
-            "請以一般對話用繁體中文簡答，緊扣本則問題；"
+            f"請以繁體中文{_chat_length_rule(log_grounded=log_grounded)}緊扣本則問題；"
             f"{loose_hint}"
             "不要捏造具體設備／時間戳事件；"
             "不要輸出【回答結束】、model 等格式標記。"
@@ -6991,8 +8328,10 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
     for turn in history:
         messages.append({"role": turn["role"], "content": turn["content"]})
     messages.append({"role": "user", "content": "\n\n".join(parts)})
-    if history:
-        print(f"💬 多輪上下文：{len(history)} 則先前訊息")
+    if log_history_inline:
+        print("💬 日誌優先：指代提示已 inline（messages 無 history）")
+    elif history:
+        print(f"💬 多輪上下文：{len(history)} 則先前訊息（完整多輪）")
     # 畫圖／一般聊天短答；知識問答拉長 token；報告才用 audit 預算
     knowledge_q = (
         wants_iso27001_explain(user_message)
@@ -7001,13 +8340,17 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
         or _wants_security_concept(user_message)
     )
     token_budget = MAX_NEW_TOKENS_VISUAL if visual else (
-        MAX_NEW_TOKENS_AUDIT if report_mode else MAX_NEW_TOKENS
-    )
-    if knowledge_q and output_mode == "chat" and not visual:
-        token_budget = max(
-            token_budget,
-            360 if _is_small_or_gemma_model() else 520,
+        _syslog_analysis_token_budget() if syslog_analysis_mode else (
+            MAX_NEW_TOKENS_AUDIT if report_mode else MAX_NEW_TOKENS
         )
+    )
+    if syslog_analysis_mode and output_mode == "syslog":
+        print(f"📋 SYSLOG 詳細分析 token_budget={token_budget}")
+    elif knowledge_q and output_mode == "chat" and not visual:
+        _kb_cap = 160 if _is_cpu_llm_inference() else (
+            480 if _is_small_or_gemma_model() else min(640, int(MAX_NEW_TOKENS))
+        )
+        token_budget = min(max(token_budget, _kb_cap), int(MAX_NEW_TOKENS))
         print(f"📘 知識問答 LLM token_budget={token_budget}")
     elif (
         wants_ot_status_summary(user_message)
@@ -7015,21 +8358,57 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
         and compliance_status_draft
         and not visual
     ):
-        token_budget = max(
-            token_budget,
-            320 if _is_small_or_gemma_model() else 480,
+        _st_cap = 160 if _is_cpu_llm_inference() else (
+            400 if _is_small_or_gemma_model() else min(560, int(MAX_NEW_TOKENS))
         )
+        token_budget = min(max(token_budget, _st_cap), int(MAX_NEW_TOKENS))
         print(f"📋 合規現況 LLM token_budget={token_budget}")
+    elif log_grounded and output_mode == "chat" and not visual:
+        action_plan = wants_warroom_action_plan(user_message)
+        if action_plan:
+            _lg_cap = 240 if _is_cpu_llm_inference() else (
+                720 if _is_small_or_gemma_model() else min(880, int(MAX_NEW_TOKENS) + 160)
+            )
+            print(f"📋 戰情室行動建議 LLM token_budget cap={_lg_cap}")
+        else:
+            _lg_cap = 200 if _is_cpu_llm_inference() else (
+                560 if _is_small_or_gemma_model() else min(720, int(MAX_NEW_TOKENS))
+            )
+        token_budget = min(max(token_budget, _lg_cap), int(MAX_NEW_TOKENS) + (240 if action_plan else 0))
+        print(f"📋 日誌詳答 LLM token_budget={token_budget}")
     reply = run_llm(
         messages,
         max_new_tokens=token_budget,
-        allow_continue=False if USE_OLLAMA else True,
+        allow_continue=False if (USE_OLLAMA or _is_cpu_llm_inference()) else True,
         output_mode=output_mode,
     )
 
-    # 問 27001 卻亂編標準號／答非所問 → 重答；仍失敗則 grounded
-    if wants_27001 and output_mode == "chat":
-        if _iso27001_reply_is_bad(reply or ""):
+    if syslog_analysis_mode and uploaded_attachment:
+        log_src = (pasted_log or syslog_extra or "").strip()
+        weak = (
+            not (reply or "").strip()
+            or _cjk_count(reply or "") < 80
+            or _is_chat_quality_fail_reply(reply or "")
+            or (reply or "").startswith("⚠️")
+            or (reply or "").startswith("模型未回傳")
+        )
+        if weak and log_src:
+            parse_text = _normalize_uploaded_syslog(log_src)["message_text"] or log_src
+            grounded = build_cisco_log_grounded_report(parse_text)
+            if grounded and _cjk_count(grounded) >= 80:
+                print("📋 Agent：上傳 SYSLOG LLM 輸出不足，改用 grounded 分析")
+                reply = grounded
+
+    # 問 27001 卻亂編標準號／答非所問 → 重答；仍失敗則 grounded（僅微調後；CPU 只做 grounded）
+    if finetuned_kb and wants_27001 and output_mode == "chat":
+        if _is_cpu_llm_inference():
+            if (
+                _iso27001_reply_is_bad(reply or "")
+                or _reply_has_english_bullet_noise(reply or "")
+            ):
+                print("⚠️ CPU 模式 27001 輸出不足，改用 grounded")
+                reply = build_iso27001_overview_reply(user_message)
+        elif _iso27001_reply_is_bad(reply or ""):
             if _iso27001_reply_has_fake_numbers(reply or "") or not re.search(
                 r"27001|ISMS|資訊安全管理", reply or "", re.I
             ):
@@ -7082,12 +8461,20 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
                 )
                 reply = _polish_chat_output(retry2 or reply or "")
 
-    if _wants_security_concept(user_message) and output_mode == "chat":
+        # 27001 知識問答：仍含英文碎片或品質不足 → 改用 grounded 繁中（免設 env）
+        if wants_iso27001_explain(user_message) and (
+            _iso27001_reply_is_bad(reply or "")
+            or _reply_has_english_bullet_noise(reply or "")
+        ):
+            print("⚠️ 27001 知識問答輸出仍不合格，改用 grounded 繁中回答")
+            reply = build_iso27001_overview_reply(user_message)
+
+    if finetuned_kb and _wants_security_concept(user_message) and output_mode == "chat":
         if (
             not _is_trusted_grounded_security_reply(reply or "")
             and _security_concept_reply_is_bad(reply or "")
         ):
-            if _chat_grounded_fallback_enabled():
+            if _is_cpu_llm_inference() or _chat_grounded_fallback_enabled():
                 print("⚠️ 資安概念 LLM 輸出品質不足，改用 grounded")
                 reply = build_security_concept_reply(user_message)
             else:
@@ -7109,7 +8496,8 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
                 reply = _polish_chat_output(retry_sec or reply or "")
 
     if (
-        wants_ot_status_summary(user_message)
+        finetuned_kb
+        and wants_ot_status_summary(user_message)
         and output_mode == "chat"
         and compliance_status_draft
     ):
@@ -7120,10 +8508,8 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
             or _cjk_count(reply or "") < 24
         )
         if status_bad:
-            fb = build_ot_compliance_status_reply(user_message)
-            if fb:
-                print("⚠️ 合規現況 LLM 改寫不合格，改回格式化底稿")
-                reply = fb
+            print("⚠️ 合規現況 LLM 改寫偏弱，保留 LLM 輸出並做格式修正")
+            reply = _polish_chat_output(reply or "")
 
     return sanitize_agent_chat_reply(
         reply,
@@ -7135,16 +8521,14 @@ def ask_agent(user_message, ot_context=None, rag_context=None, chat_history=None
 
 def needs_rag(user_message: str) -> bool:
     """
-    是否值得跑 RAG（預設否）。
-    僅知識／日誌解讀／合規分析等「需要知識庫」的問題才開；
-    寒暄、筆數、畫圖、純加固步驟、純現況計數、純 27001 概論不開。
-    設 OT_RAG_ALWAYS=1 可恢復每題都檢索。
+    是否跑 RAG。預設：所有非空問題都檢索。
+    設 OT_RAG_SELECTIVE=1 可恢復選擇性略過（寒暄／純現況等）。
     """
-    if _env_flag("OT_RAG_ALWAYS", default=False):
-        return True
     t = (user_message or "").strip()
     if not t:
         return False
+    if not _env_flag("OT_RAG_SELECTIVE", default=False):
+        return True
     if is_casual_chat(t) or is_off_topic_chat(t):
         return False
     # 已有 grounded／監控數字即可回答 → 不灌 RAG
@@ -7200,9 +8584,9 @@ def needs_rag(user_message: str) -> bool:
 
 
 def needs_rag_for_audit(log_text: str = "", title: str = "") -> bool:
-    """監控診斷：有真實 syslog／足夠事件內容才檢索；空日誌不跑 RAG。"""
-    if _env_flag("OT_RAG_ALWAYS", default=False):
-        return True
+    """監控診斷：預設一律檢索；空日誌且 OT_RAG_SELECTIVE=1 時略過。"""
+    if not _env_flag("OT_RAG_SELECTIVE", default=False):
+        return not is_empty_log(log_text) or bool((title or "").strip())
     if is_empty_log(log_text):
         return False
     blob = f"{title or ''} {log_text or ''}"
@@ -7212,9 +8596,52 @@ def needs_rag_for_audit(log_text: str = "", title: str = "") -> bool:
     return (_cjk_count(blob) >= 24) or bool(re.search(r"[A-Za-z]{5,}", blob))
 
 
+def _llm_allows_rag() -> bool:
+    """僅微調前（base）模型使用 RAG；微調後模型依自身權重回答。"""
+    if not ENABLE_RAG:
+        return False
+    try:
+        info = _current_llm_info() or {}
+    except Exception:
+        return False
+    stage = (info.get("stage") or "").strip().lower()
+    if stage == "base":
+        return True
+    if stage in ("finetuned", "alias"):
+        return False
+    return False
+
+
+def _llm_allows_knowledge_graph() -> bool:
+    """
+    微調後才啟用：合規底稿、監控摘要注入、ISO／資安概念預載知識。
+    RAG 檢索請用 _llm_allows_rag()（僅 base 模型）。
+    設 OT_RAG_ON_BASE=1 可讓微調前也啟用底稿／預注入知識。
+    """
+    if _env_flag("OT_RAG_ON_BASE", default=False):
+        return True
+    try:
+        info = _current_llm_info() or {}
+    except Exception:
+        return True
+    stage = (info.get("stage") or "").strip().lower()
+    if stage in ("finetuned", "alias"):
+        return True
+    if stage == "base":
+        return False
+    return True
+
+
 def retrieve_rag_for_query(query: str, *, force: bool = False):
     """統一 RAG 檢索：預設僅 needs_rag 為真時執行；force 供監控診斷使用。"""
     if not ENABLE_RAG:
+        return "", [], []
+    if not _llm_allows_rag():
+        try:
+            label = (_current_llm_info() or {}).get("label") or "unknown"
+        except Exception:
+            label = "unknown"
+        print(f"📚 RAG 略過（微調後模型不使用 RAG）| {label}")
         return "", [], []
     rag_service = _get_rag_service()
     if rag_service is None:
@@ -7224,7 +8651,7 @@ def retrieve_rag_for_query(query: str, *, force: bool = False):
         if not q:
             return "", [], []
         if not force and not needs_rag(q):
-            print(f"📚 RAG 略過（非必要問題）| {q[:60]}")
+            print(f"📚 RAG 略過（OT_RAG_SELECTIVE=1 且非必要）| {q[:60]}")
             return "", [], []
 
         log_mode = _query_needs_log_rag(q) or bool(force)
@@ -7240,6 +8667,11 @@ def retrieve_rag_for_query(query: str, *, force: bool = False):
                 f"{q}\nCisco syslog log分析 ISO27001 {SITE_DOMAIN} "
                 f"{code_hint} 事件經過 風險 修補建議"
             ).strip()
+            if re.search(r"\[sda\]|EXT2|device offline|superblock|ext2_fsync", q, re.I):
+                q = (
+                    f"{q}\nCatalyst9300 Flash儲存 sda block device 內部Flash "
+                    f"不是SD卡 EXT2 I/O error A.7.13 A.8.15 A.8.16"
+                ).strip()
         else:
             # 知識問答：保持原問題，最多輕量加關鍵字
             q = f"{q}\nISO/IEC 27001 ISMS 控制措施 半導體 OT".strip()
@@ -7295,7 +8727,7 @@ def retrieve_rag_for_query(query: str, *, force: bool = False):
         return "", [], []
 
 # =======================================================
-# 2. OT 目錄掃描：讀取 .txt 設備日誌（取代 manifest.json）
+# 2. OT 目錄掃描：讀取 .txt / .jsonl 設備日誌（取代 manifest.json）
 # =======================================================
 _RE_CISCO_LOG = re.compile(
     r"^(?P<ts>[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}(?:\s+[A-Z]+)?)\s*:\s*"
@@ -7317,10 +8749,12 @@ _TXT_CONTROL_RULES = [
         r"SNMP|CRYPTO|PKI|TLS|SSL|IPSEC|IKE|SSH_SESSION|CERTIFICATE|SUDI|"
         r"COMMUNITY_MISMATCH|CERT_",
     ),
-    # 弱點／韌體／映像
+    # 弱點／韌體／映像／儲存媒體（含 JSONL 常見 IOSXE-3-PLATFORM / sda 離線）
     (
         "patch_management",
-        r"BOOT|IMAGE|VERSION|PLATFORM|SOFTWARE|UPGRADE|IOSXE|INSTALL|SMU_|FW_",
+        r"BOOT|IMAGE|VERSION|PLATFORM|SOFTWARE|UPGRADE|IOSXE|INSTALL|SMU_|FW_|"
+        r"\[sda\]|EXT2|SUPERBLOCK|EXT2_FS|EXT2_FSYNC|device offline or changed|"
+        r"metadata write I/O error|FLASH_CHECK|sda\d",
     ),
     # 供應鏈／外部連線／遠端 logging
     (
@@ -7343,14 +8777,347 @@ _TXT_CONTROL_RULES = [
 ]
 
 
+def _parse_device_from_log_name(filename: str):
+    """從 .txt / .jsonl 檔名解析設備資訊。"""
+    return _parse_device_from_txt_name(filename)
+
+
+# 解析器版本：變更 JSONL 讀取／分類邏輯時遞增，使檔案解析快取失效
+_OT_LOG_PARSER_VERSION = 3
+
+_RE_SYSLOG_PRI_SEQ = re.compile(r"^<\d+>\d+:\s*")
+
+_JSONL_MSG_KEYS = (
+    "message",
+    "raw",
+    "log",
+    "syslog",
+    "msg",
+    "text",
+    "body",
+    "event",
+    "full_message",
+)
+_JSONL_NEST_KEYS = (
+    "log",
+    "event",
+    "data",
+    "payload",
+    "fields",
+    "_source",
+    "attributes",
+    "detail",
+)
+_JSONL_WRAPPER_LIST_KEYS = (
+    "events",
+    "records",
+    "logs",
+    "data",
+    "items",
+    "messages",
+    "entries",
+)
+
+
+def _normalize_syslog_message(line: str) -> str:
+    """去掉 Cisco / RFC5424 常見前綴（如 <187>41170990: ）以便分類。"""
+    s = (line or "").strip()
+    if not s:
+        return s
+    s = _RE_SYSLOG_PRI_SEQ.sub("", s)
+    return s.strip()
+
+
+def _extract_jsonl_message(obj: dict) -> str:
+    """從 JSONL 物件（含巢狀）取出 syslog 原文。"""
+    if not isinstance(obj, dict):
+        return ""
+    for key in _JSONL_MSG_KEYS:
+        val = obj.get(key)
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+    for key in _JSONL_NEST_KEYS:
+        sub = obj.get(key)
+        if isinstance(sub, dict):
+            nested = _extract_jsonl_message(sub)
+            if nested:
+                return nested
+    return ""
+
+
+def _expand_jsonl_root(obj) -> list[dict]:
+    """單一 JSON 根（物件／陣列／包裝欄位）→ 事件 dict 列表。"""
+    if isinstance(obj, dict):
+        for key in _JSONL_WRAPPER_LIST_KEYS:
+            items = obj.get(key)
+            if isinstance(items, list):
+                return [x for x in items if isinstance(x, dict)]
+        return [obj]
+    if isinstance(obj, list):
+        return [x for x in obj if isinstance(x, dict)]
+    return []
+
+
+def _iter_jsonl_objects(path: Path):
+    """
+    從 .jsonl / .json 讀取事件物件。
+    支援：NDJSON、JSON 陣列、pretty-print 多行物件、根物件內 events/records 包裝。
+    """
+    try:
+        text = path.read_text(encoding="utf-8-sig", errors="ignore").strip()
+    except OSError:
+        return
+    if not text:
+        return
+
+    decoder = json.JSONDecoder()
+    idx = 0
+    n = len(text)
+    yielded = 0
+
+    while idx < n:
+        while idx < n and text[idx] in " \t\r\n,":
+            idx += 1
+        if idx >= n:
+            break
+        if text[idx] in "[]":
+            idx += 1
+            continue
+        try:
+            obj, end = decoder.raw_decode(text, idx)
+            idx = end
+            for rec in _expand_jsonl_root(obj):
+                yielded += 1
+                yield rec
+        except json.JSONDecodeError:
+            nxt = text.find("\n", idx)
+            chunk_end = nxt if nxt >= 0 else n
+            chunk = text[idx:chunk_end].strip()
+            idx = chunk_end + 1 if nxt >= 0 else n
+            if not chunk or chunk in ("{", "}", "[", "]"):
+                continue
+            if chunk.endswith(","):
+                chunk = chunk[:-1].rstrip()
+            try:
+                obj = json.loads(chunk)
+            except json.JSONDecodeError:
+                continue
+            for rec in _expand_jsonl_root(obj):
+                yielded += 1
+                yield rec
+
+    if yielded:
+        return
+
+    # 極端 fallback：逐行 NDJSON（舊匯出工具可能含不可見字元）
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line in ("[", "]", "{", "}"):
+            continue
+        if line.endswith(","):
+            line = line[:-1].rstrip()
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        for rec in _expand_jsonl_root(obj):
+            yield rec
+
+
+def _severity_from_jsonl_value(value) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return max(0, min(7, int(value)))
+    s = str(value).strip().lower()
+    mapping = {
+        "emergency": 0,
+        "alert": 1,
+        "critical": 2,
+        "crit": 2,
+        "error": 3,
+        "err": 3,
+        "warning": 4,
+        "warn": 4,
+        "notice": 5,
+        "info": 6,
+        "informational": 6,
+        "debug": 7,
+    }
+    return mapping.get(s)
+
+
+def _classify_generic_log_line(line: str):
+    """無標準 %FACILITY-SEVERITY- 前綴時仍保留事件，避免 JSONL 整批被略過。"""
+    s = _normalize_syslog_message(line)
+    if len(s) < 8:
+        return None
+    hay = s
+    key = None
+    for ctrl_key, pat in _TXT_CONTROL_RULES:
+        if re.search(pat, hay, re.I):
+            key = ctrl_key
+            break
+    if not key:
+        key = "recipe_audit"
+    severity = 5
+    m_sev = re.search(r"-(\d)-", s)
+    if m_sev:
+        try:
+            severity = int(m_sev.group(1))
+        except Exception:
+            severity = 5
+    proto = "SYSLOG"
+    label_map = {
+        "sec_gem_log": ("A.8.24 (Crypto)", "A.8.24 傳輸加密"),
+        "recipe_audit": ("A.8.19 (Logs)", "A.8.19 組態變更"),
+        "access_control": ("A.5.15 (Access)", "A.5.15 存取控制"),
+        "patch_management": ("A.8.8 (Patch)", "A.8.8 弱點修補"),
+        "storage_maintenance": ("A.7.13 (Flash)", "A.7.13 設備維護"),
+        "supplier_security": ("A.5.19 (Supplier)", "A.5.19 供應鏈"),
+        "malware_defense": ("A.8.7 (Malware)", "A.8.7 端點防禦"),
+    }
+    ctrl_id, label = label_map.get(key, ("A.8.19 (Logs)", "A.8.19 組態變更"))
+    badge_type = "pass-bg"
+    status_txt = "Compliant"
+    if severity <= 2:
+        badge_type = "fail-bg"
+        status_txt = "Critical"
+    elif severity <= 3:
+        badge_type = "review-bg"
+        status_txt = "Attention"
+    return {
+        "time": "unknown",
+        "facility": "GENERIC",
+        "severity": severity,
+        "key": key,
+        "control": ctrl_id,
+        "label": label,
+        "type": badge_type,
+        "statusText": status_txt,
+        "raw": s[:300],
+        "proto": proto,
+    }
+
+
+def _classify_jsonl_record(obj: dict, fallback_device: str = "", fallback_ip: str = ""):
+    """JSONL 單行物件 → 與 txt 相同結構的事件（message 欄位內為 Cisco syslog）。"""
+    if not isinstance(obj, dict):
+        return None
+    msg = _extract_jsonl_message(obj)
+    if not msg:
+        return None
+    msg_norm = _normalize_syslog_message(msg)
+    ev = _classify_txt_log_line(msg_norm) or _classify_txt_log_line(msg)
+    if not ev:
+        ev = _classify_generic_log_line(msg_norm) or _classify_generic_log_line(msg)
+    if not ev:
+        return None
+    ts = obj.get("event_ts") or obj.get("timestamp") or obj.get("time") or obj.get("ts")
+    if ts:
+        ev["time"] = str(ts).replace("T", " ")[:26]
+    sev = _severity_from_jsonl_value(obj.get("severity"))
+    if sev is not None:
+        ev["severity"] = sev
+    device = (
+        obj.get("canonical_device_id")
+        or obj.get("device")
+        or obj.get("device_id")
+        or obj.get("source_device_id")
+        or fallback_device
+    )
+    ip = obj.get("source_ip") or obj.get("ip") or obj.get("host_ip") or fallback_ip
+    if device:
+        ev["_device"] = str(device)
+    if ip:
+        ev["_ip"] = str(ip)
+    if obj.get("original_id") is not None:
+        ev["original_id"] = obj.get("original_id")
+    if obj.get("source_id"):
+        ev["source_id"] = obj.get("source_id")
+    return ev
+
+
+def _kpi_control_key(key: str) -> str:
+    """將內部分類 key 對應到六大 KPI 桶；避免 JSONL 事件計入後消失。"""
+    alias = {
+        "storage_maintenance": "patch_management",
+    }
+    k = alias.get(key or "", key or "")
+    return k if k in CONTROL_TITLES else "recipe_audit"
+
+
+def _bucket_parsed_event(
+    ev: dict,
+    *,
+    path: Path,
+    device: str,
+    ip: str,
+    counts_by_key: dict,
+    samples_by_key: dict,
+    recent: list,
+    priority: list,
+    max_events_per_file: int,
+) -> None:
+    """將已分類事件计入全量計數與樣本桶（txt / jsonl 共用）。"""
+    raw_key = ev.get("key")
+    key = _kpi_control_key(raw_key)
+    ev["key"] = key
+    if raw_key and raw_key != key:
+        ev["_class_key"] = raw_key
+    if key in counts_by_key:
+        counts_by_key[key] += 1
+    dev = ev.pop("_device", None) or device
+    addr = ev.pop("_ip", None) or ip
+    ev["file"] = path.name
+    ev["device"] = dev
+    ev["ip"] = addr
+    ev["raw"] = f"[{dev}] {ev['raw']}"
+
+    if key in samples_by_key and len(samples_by_key[key]) < 8:
+        samples_by_key[key].append(dict(ev))
+
+    recent.append(ev)
+    if len(recent) > max_events_per_file * 2:
+        recent[:] = recent[-max_events_per_file:]
+
+    is_prio = (
+        key in ("access_control", "sec_gem_log", "malware_defense", "supplier_security")
+        or ev.get("severity", 5) <= 3
+        or re.search(
+            r"CONFIG_I|LOGIN_FAILED|DENIED|RADIUS|SNMP-3|MALWARE|"
+            r"PSECURE|CDP|LLDP|NEIGHBOR",
+            ev.get("raw", ""),
+            re.I,
+        )
+    )
+    if is_prio and len(priority) < max_events_per_file:
+        priority.append(dict(ev))
+
+
+def _finalize_log_samples(recent, priority, max_events_per_file: int) -> list:
+    seen = set()
+    samples = []
+    for ev in priority + recent[-max_events_per_file:]:
+        sig = (ev.get("time"), ev.get("raw"))
+        if sig in seen:
+            continue
+        seen.add(sig)
+        samples.append(ev)
+        if len(samples) >= max_events_per_file:
+            break
+    return samples
+
+
 def _parse_device_from_txt_name(filename: str):
     """
     從檔名解析設備資訊。
     例：C9300-48p_192.168.3.254_flash.txt → (C9300-48p, 192.168.3.254)
     """
     stem = Path(filename).stem
-    # 去掉常見後綴
-    stem = re.sub(r"_(flash|log|syslog|buffer)$", "", stem, flags=re.I)
+    # 去掉常見後綴（flash / syslog 匯出檔等）
+    stem = re.sub(r"_(flash|log|buffer)$", "", stem, flags=re.I)
+    stem = re.sub(r"_syslog_.*$", "", stem, flags=re.I)
     ip_m = re.search(r"(\d{1,3}(?:\.\d{1,3}){3})", stem)
     ip = ip_m.group(1) if ip_m else ""
     device = stem
@@ -7362,7 +9129,7 @@ def _parse_device_from_txt_name(filename: str):
 
 def _classify_txt_log_line(line: str):
     """依 Cisco syslog 內容對應 ISO 控制項 key；無法辨識則略過。"""
-    s = (line or "").strip()
+    s = _normalize_syslog_message(line)
     if not s or s.startswith("Log Buffer"):
         return None
 
@@ -7418,6 +9185,7 @@ def _classify_txt_log_line(line: str):
         "recipe_audit": ("A.8.19 (Logs)", "A.8.19 組態變更"),
         "access_control": ("A.5.15 (Access)", "A.5.15 存取控制"),
         "patch_management": ("A.8.8 (Patch)", "A.8.8 弱點修補"),
+        "storage_maintenance": ("A.7.13 (Flash)", "A.7.13 設備維護"),
         "supplier_security": ("A.5.19 (Supplier)", "A.5.19 供應鏈"),
         "malware_defense": ("A.8.7 (Malware)", "A.8.7 端點防禦"),
     }
@@ -7466,6 +9234,33 @@ def _list_ot_txt_files():
     return out
 
 
+def _list_ot_jsonl_files():
+    """列出 OT 目錄下所有 .jsonl（含子目錄）。"""
+    root = Path(OT_FOLDER)
+    if not root.is_dir():
+        return []
+    skip = {"evidence_registry.jsonl", "review_queue.jsonl", "rag_pairs.jsonl"}
+    out = []
+    for p in sorted(root.rglob("*.jsonl")):
+        if p.name.lower() in skip:
+            continue
+        out.append(p)
+    return out
+
+
+def _list_ot_log_files() -> list[Path]:
+    """OT 目錄內可掃描的日誌：.txt + .jsonl"""
+    seen = set()
+    out = []
+    for p in _list_ot_txt_files() + _list_ot_jsonl_files():
+        key = str(p.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(p)
+    return sorted(out, key=lambda x: x.name.lower())
+
+
 def _parse_txt_log_file(path: Path, max_events_per_file: int = 500):
     """
     解析單一設備 .txt 日誌。
@@ -7476,8 +9271,8 @@ def _parse_txt_log_file(path: Path, max_events_per_file: int = 500):
     device, ip = _parse_device_from_txt_name(path.name)
     counts_by_key = {k: 0 for k in CONTROL_TITLES}
     samples_by_key = {k: [] for k in CONTROL_TITLES}
-    recent = []
-    priority = []
+    recent: list = []
+    priority: list = []
     total_lines = 0
     event_lines = 0
 
@@ -7489,43 +9284,22 @@ def _parse_txt_log_file(path: Path, max_events_per_file: int = 500):
                 if not ev:
                     continue
                 event_lines += 1
-                key = ev.get("key")
-                if key in counts_by_key:
-                    counts_by_key[key] += 1
-                ev["file"] = path.name
-                ev["device"] = device
-                ev["ip"] = ip
-                ev["raw"] = f"[{device}] {ev['raw']}"
-
-                # 全量掃描時就收各控制項樣本（不依賴後面截斷的 samples 列表）
-                if key in samples_by_key and len(samples_by_key[key]) < 8:
-                    samples_by_key[key].append(ev)
-
-                recent.append(ev)
-                if len(recent) > max_events_per_file * 2:
-                    recent = recent[-max_events_per_file:]
-
-                is_prio = (
-                    key in (
-                        "access_control",
-                        "sec_gem_log",
-                        "malware_defense",
-                        "supplier_security",
-                    )
-                    or ev.get("severity", 5) <= 3
-                    or re.search(
-                        r"CONFIG_I|LOGIN_FAILED|DENIED|RADIUS|SNMP-3|MALWARE|"
-                        r"PSECURE|CDP|LLDP|NEIGHBOR",
-                        ev.get("raw", ""),
-                        re.I,
-                    )
+                _bucket_parsed_event(
+                    ev,
+                    path=path,
+                    device=device,
+                    ip=ip,
+                    counts_by_key=counts_by_key,
+                    samples_by_key=samples_by_key,
+                    recent=recent,
+                    priority=priority,
+                    max_events_per_file=max_events_per_file,
                 )
-                if is_prio and len(priority) < max_events_per_file:
-                    priority.append(ev)
     except Exception as e:
         print(f"⚠️ 讀取 TXT 失敗 {path}: {e}")
         return [], {
             "file": path.name,
+            "format": "txt",
             "device": device,
             "ip": ip,
             "error": str(e),
@@ -7533,20 +9307,10 @@ def _parse_txt_log_file(path: Path, max_events_per_file: int = 500):
             "samples_by_key": samples_by_key,
         }
 
-    # 樣本：優先事件 + 尾端近期，去重
-    seen = set()
-    samples = []
-    for ev in priority + recent[-max_events_per_file:]:
-        sig = (ev.get("time"), ev.get("raw"))
-        if sig in seen:
-            continue
-        seen.add(sig)
-        samples.append(ev)
-        if len(samples) >= max_events_per_file:
-            break
-
+    samples = _finalize_log_samples(recent, priority, max_events_per_file)
     meta = {
         "file": path.name,
+        "format": "txt",
         "device": device,
         "ip": ip,
         "total_lines": total_lines,
@@ -7558,6 +9322,95 @@ def _parse_txt_log_file(path: Path, max_events_per_file: int = 500):
     if event_lines > len(samples):
         meta["truncated_to"] = len(samples)
     return samples, meta
+
+
+def _parse_jsonl_log_file(path: Path, max_events_per_file: int = 500):
+    """
+    解析單一 .jsonl 設備日誌。
+    支援 NDJSON、JSON 陣列、pretty-print、根物件 events/records 包裝。
+    欄位：message, event_ts, severity, canonical_device_id, source_ip 等。
+    """
+    device, ip = _parse_device_from_log_name(path.name)
+    counts_by_key = {k: 0 for k in CONTROL_TITLES}
+    samples_by_key = {k: [] for k in CONTROL_TITLES}
+    recent: list = []
+    priority: list = []
+    json_records = 0
+    skipped_no_message = 0
+    skipped_unclassified = 0
+    event_lines = 0
+
+    try:
+        for obj in _iter_jsonl_objects(path):
+            json_records += 1
+            rec_dev = (
+                obj.get("canonical_device_id")
+                or obj.get("device")
+                or obj.get("device_id")
+                or obj.get("source_device_id")
+            )
+            rec_ip = obj.get("source_ip") or obj.get("ip") or obj.get("host_ip")
+            if rec_dev:
+                device = str(rec_dev)
+            if rec_ip:
+                ip = str(rec_ip)
+            if not _extract_jsonl_message(obj):
+                skipped_no_message += 1
+                continue
+            ev = _classify_jsonl_record(obj, device, ip)
+            if not ev:
+                skipped_unclassified += 1
+                continue
+            event_lines += 1
+            _bucket_parsed_event(
+                ev,
+                path=path,
+                device=device,
+                ip=ip,
+                counts_by_key=counts_by_key,
+                samples_by_key=samples_by_key,
+                recent=recent,
+                priority=priority,
+                max_events_per_file=max_events_per_file,
+            )
+    except Exception as e:
+        print(f"⚠️ 讀取 JSONL 失敗 {path}: {e}")
+        return [], {
+            "file": path.name,
+            "format": "jsonl",
+            "device": device,
+            "ip": ip,
+            "error": str(e),
+            "counts_by_key": counts_by_key,
+            "samples_by_key": samples_by_key,
+        }
+
+    samples = _finalize_log_samples(recent, priority, max_events_per_file)
+    meta = {
+        "file": path.name,
+        "format": "jsonl",
+        "device": device,
+        "ip": ip,
+        "json_records": json_records,
+        "total_lines": json_records,
+        "event_lines": event_lines,
+        "skipped_no_message": skipped_no_message,
+        "skipped_unclassified": skipped_unclassified,
+        "json_parse_errors": max(0, json_records - event_lines - skipped_no_message - skipped_unclassified),
+        "sample_size": len(samples),
+        "counts_by_key": counts_by_key,
+        "samples_by_key": samples_by_key,
+    }
+    if event_lines > len(samples):
+        meta["truncated_to"] = len(samples)
+    return samples, meta
+
+
+def _parse_ot_log_file(path: Path, max_events_per_file: int = 500):
+    """依副檔名解析 .txt 或 .jsonl。"""
+    if path.suffix.lower() == ".jsonl":
+        return _parse_jsonl_log_file(path, max_events_per_file=max_events_per_file)
+    return _parse_txt_log_file(path, max_events_per_file=max_events_per_file)
 
 
 def build_control_log_bundle(
@@ -7616,43 +9469,49 @@ def build_control_log_bundle(
     return bundles
 
 
+def _metric_syslog_text(count: int) -> str:
+    """監控戰情 KPI 卡片統一格式：數量 + SYSLOG。"""
+    return f"{int(count or 0)} SYSLOG"
+
+
 def scan_ot_directory():
-    """掃描 OT 目錄下 *.txt 設備日誌，組裝 metrics／事件／控制項摘要。"""
+    """掃描 OT 目錄下 *.txt / *.jsonl 設備日誌，組裝 metrics／事件／控制項摘要。"""
     if not os.path.exists(OT_FOLDER):
         return None
 
-    txt_files = _list_ot_txt_files()
+    log_files = _list_ot_log_files()
     parsed_logs_list = []
     file_metas = []
     samples_by_key = {k: [] for k in CONTROL_TITLES}
 
     metrics = {
-        "sec_gem_log": {"count": 0, "text": "0 SECURE", "status": "pass"},
-        "recipe_audit": {"count": 0, "text": "0 MINOR NC", "status": "pass"},
-        "access_control": {"count": 0, "text": "0 BREACH", "status": "pass"},
-        "patch_management": {"count": 0, "text": "0 UNPATCHED", "status": "pass"},
-        "supplier_security": {"count": 0, "text": "0 WARNINGS", "status": "pass"},
-        "malware_defense": {"count": 0, "text": "0 INFECTIONS", "status": "pass"},
+        "sec_gem_log": {"count": 0, "text": _metric_syslog_text(0), "status": "pass"},
+        "recipe_audit": {"count": 0, "text": _metric_syslog_text(0), "status": "pass"},
+        "access_control": {"count": 0, "text": _metric_syslog_text(0), "status": "pass"},
+        "patch_management": {"count": 0, "text": _metric_syslog_text(0), "status": "pass"},
+        "supplier_security": {"count": 0, "text": _metric_syslog_text(0), "status": "pass"},
+        "malware_defense": {"count": 0, "text": _metric_syslog_text(0), "status": "pass"},
     }
 
-    if not txt_files:
+    if not log_files:
         return {
             "error": (
-                f"在 {OT_FOLDER} 目錄下找不到 .txt 日誌檔。"
-                "請放置如 C9300-xxx_192.168.x.x_flash.txt 的設備日誌。"
+                f"在 {OT_FOLDER} 目錄下找不到 .txt 或 .jsonl 日誌檔。"
+                "請放置如 C9300-xxx_192.168.x.x_flash.txt 或 "
+                "device_syslog_YYYYMMDD.jsonl 的設備日誌。"
             )
         }
 
     try:
-        for path in txt_files:
-            events, meta, from_cache = _parse_txt_log_file_cached(path)
+        for path in log_files:
+            events, meta, from_cache = _parse_ot_log_file_cached(path)
             file_metas.append(meta)
             parsed_logs_list.extend(events)
             # 全量計數（非僅樣本）
             for k, n in (meta.get("counts_by_key") or {}).items():
                 if k in metrics:
                     metrics[k]["count"] += int(n or 0)
-            # 各控制項專桶樣本：優先用全量掃描時留下的桶（含 CDP／供應商等）
+            # 各控制項專桶樣本
             for k, evs in (meta.get("samples_by_key") or {}).items():
                 if k not in samples_by_key:
                     continue
@@ -7660,54 +9519,45 @@ def scan_ot_directory():
                     if len(samples_by_key[k]) >= 16:
                         break
                     samples_by_key[k].append(ev)
-            # 後備：截斷後的 events 列表再補一輪
             for ev in events:
                 k = ev.get("key")
                 if k in samples_by_key and len(samples_by_key[k]) < 16:
                     samples_by_key[k].append(ev)
+            fmt = meta.get("format") or path.suffix.lstrip(".").lower()
             if not from_cache:
                 print(
-                    f"📄 TXT 來源：{path.name} → 事件 {meta.get('event_lines', 0)} 筆"
+                    f"📄 {fmt.upper()} 來源：{path.name} → 事件 {meta.get('event_lines', 0)} 筆"
                     f"（樣本 {meta.get('sample_size', len(events))}，設備 {meta.get('device')}）"
                 )
     except Exception as e:
-        print(f"解析 TXT 日誌失敗: {e}")
-        return {"error": f"解析 TXT 日誌失敗：{str(e)}"}
+        print(f"解析 OT 日誌失敗: {e}")
+        return {"error": f"解析 OT 日誌失敗：{str(e)}"}
 
     # 狀態文案（門檻依 TXT 事件量調整；5 萬筆規模）
-    metrics["sec_gem_log"]["text"] = f"SECURE ({metrics['sec_gem_log']['count']})"
+    for key in metrics:
+        metrics[key]["text"] = _metric_syslog_text(metrics[key]["count"])
+
     metrics["sec_gem_log"]["status"] = (
         "review" if metrics["sec_gem_log"]["count"] > 2000 else "pass"
     )
 
-    metrics["recipe_audit"]["text"] = f"{metrics['recipe_audit']['count']} SYSLOGS"
     metrics["recipe_audit"]["status"] = (
         "review" if metrics["recipe_audit"]["count"] > 20000 else "pass"
     )
 
-    metrics["access_control"]["text"] = f"{metrics['access_control']['count']} AUTHS"
     ac = metrics["access_control"]["count"]
     metrics["access_control"]["status"] = (
         "fail" if ac > 8000 else ("review" if ac > 2000 else "pass")
     )
 
-    metrics["patch_management"]["text"] = (
-        f"PATCH HINTS ({metrics['patch_management']['count']})"
-    )
     metrics["patch_management"]["status"] = (
         "review" if metrics["patch_management"]["count"] > 100 else "pass"
     )
 
-    metrics["supplier_security"]["text"] = (
-        f"EXTERNAL ({metrics['supplier_security']['count']})"
-    )
     metrics["supplier_security"]["status"] = (
         "review" if metrics["supplier_security"]["count"] > 1500 else "pass"
     )
 
-    metrics["malware_defense"]["text"] = (
-        f"{metrics['malware_defense']['count']} INFECTION"
-    )
     metrics["malware_defense"]["status"] = (
         "fail" if metrics["malware_defense"]["count"] > 0 else "pass"
     )
@@ -7727,14 +9577,36 @@ def scan_ot_directory():
     display_logs = (priority + rest)[:180]
 
     devices = sorted({m.get("device") for m in file_metas if m.get("device")})
+    formats = sorted({m.get("format") or "txt" for m in file_metas})
+    total_event_lines = sum(int(m.get("event_lines") or 0) for m in file_metas)
+    import_stats = {
+        "total_event_lines": total_event_lines,
+        "num_files": len(file_metas),
+        "display_sample_cap": 180,
+        "files": [
+            {
+                "file": m.get("file"),
+                "format": m.get("format"),
+                "event_lines": int(m.get("event_lines") or 0),
+                "json_records": m.get("json_records"),
+                "skipped_no_message": m.get("skipped_no_message"),
+                "skipped_unclassified": m.get("skipped_unclassified"),
+                "json_parse_errors": m.get("json_parse_errors"),
+            }
+            for m in file_metas
+        ],
+    }
     summary_obj = {
-        "source": "txt",
+        "source": "+".join(formats) if formats else "txt",
+        "formats": formats,
         "folder": OT_FOLDER,
         "num_files": len(file_metas),
         "num_devices": len(devices),
         "device_ids": devices,
+        "total_event_lines": total_event_lines,
         "files": file_metas,
         "counts": {k: metrics[k]["count"] for k in metrics},
+        "import_stats": import_stats,
     }
     all_logs_content = json.dumps(summary_obj, indent=2, ensure_ascii=False)
 
@@ -7748,6 +9620,7 @@ def scan_ot_directory():
         "metrics": metrics,
         "parsed_logs": display_logs,
         "all_logs_content": all_logs_content,
+        "import_stats": import_stats,
         "control_bundles": control_bundles,
         "compliance_principle": "No Evidence, No Compliance Claim",
     }
@@ -7792,7 +9665,7 @@ _ot_scan_lock = threading.Lock()
 
 def _ot_files_signature() -> str:
     parts = []
-    for p in _list_ot_txt_files():
+    for p in _list_ot_log_files():
         try:
             st = p.stat()
             parts.append(f"{p.name}:{int(st.st_mtime)}:{st.st_size}")
@@ -7801,28 +9674,39 @@ def _ot_files_signature() -> str:
     return "|".join(parts)
 
 
-def _parse_txt_log_file_cached(path: Path, max_events_per_file: int = 500):
-    """單一檔案解析快取：mtime/size 未變則复用，避免雙檔每次都重讀。"""
+def _parse_ot_log_file_cached(path: Path, max_events_per_file: int = 500):
+    """單一檔案解析快取：mtime/size 未變則复用（.txt / .jsonl）。"""
     key = str(path.resolve()) if path.exists() else str(path)
     try:
         st = path.stat()
         mtime = int(st.st_mtime)
         size = int(st.st_size)
     except OSError:
-        return _parse_txt_log_file(path, max_events_per_file=max_events_per_file) + (False,)
+        return _parse_ot_log_file(path, max_events_per_file=max_events_per_file) + (False,)
 
     hit = _OT_FILE_PARSE_CACHE.get(key)
-    if hit and hit.get("mtime") == mtime and hit.get("size") == size:
+    if (
+        hit
+        and hit.get("mtime") == mtime
+        and hit.get("size") == size
+        and hit.get("parser_version") == _OT_LOG_PARSER_VERSION
+    ):
         return hit["events"], hit["meta"], True
 
-    events, meta = _parse_txt_log_file(path, max_events_per_file=max_events_per_file)
+    events, meta = _parse_ot_log_file(path, max_events_per_file=max_events_per_file)
     _OT_FILE_PARSE_CACHE[key] = {
         "mtime": mtime,
         "size": size,
+        "parser_version": _OT_LOG_PARSER_VERSION,
         "events": events,
         "meta": meta,
     }
     return events, meta, False
+
+
+def _parse_txt_log_file_cached(path: Path, max_events_per_file: int = 500):
+    """向後相容別名。"""
+    return _parse_ot_log_file_cached(path, max_events_per_file=max_events_per_file)
 
 
 def get_ot_monitor_data(force: bool = False):
@@ -7848,7 +9732,7 @@ def get_ot_monitor_data(force: bool = False):
             _OT_SCAN_CACHE["sig"] = sig
             _OT_SCAN_CACHE["data"] = data
             _OT_SCAN_CACHE["ts"] = now
-            print(f"📦 OT 監控快取已更新（{len(_list_ot_txt_files())} 檔）")
+            print(f"📦 OT 監控快取已更新（{len(_list_ot_log_files())} 檔）")
         return data
 
 
@@ -7856,9 +9740,14 @@ def get_ot_monitor_data(force: bool = False):
 # 3. 前端頁面與 API 路由設定
 # =======================================================
 @app.route('/')
+def serve_welcome_page():
+    """平台歡迎首頁；點擊後跳轉監控戰情室。"""
+    return send_from_directory(WEB_DIR, 'welcome.html')
+
+
 @app.route('/platform')
 def serve_platform_page():
-    """整合平台首頁：監控戰情 + AI 對話。"""
+    """整合平台：監控戰情 + AI 對話。"""
     return send_from_directory(WEB_DIR, 'platform.html')
 
 
@@ -7939,7 +9828,7 @@ def analyze_log_with_llm():
         rag_query = f"{title or control_key or ''} ISO 27001 {str(log_content or '')[:240]}"
         rag_context, rag_citations, _ = retrieve_rag_for_query(rag_query, force=True)
     else:
-        print(f"📚 RAG 略過（單項診斷無必要）| key={control_key}")
+        print(f"📚 RAG 略過（OT_RAG_SELECTIVE=1 且診斷無必要）| key={control_key}")
 
     print(f"🔍 單項診斷: key={control_key} title={title} rag_hits={len(rag_citations)}")
     ai_analysis = ask_llm(
@@ -8065,7 +9954,7 @@ def analyze_all_logs():
                 rag_query, force=True
             )
         else:
-            print(f"📚 RAG 略過（控制項無必要）| {key}")
+            print(f"📚 RAG 略過（OT_RAG_SELECTIVE=1 且控制項無必要）| {key}")
         analysis = ask_llm(
             job.get("log"),
             control_key=key,
@@ -8090,12 +9979,421 @@ def analyze_all_logs():
     })
 
 
+def _align_checklist_note_keys(notes: dict[str, str], items: list[dict]) -> dict[str, str]:
+    """將 LLM 回傳鍵（可能為 1.1）對齊至 items 的完整 id（isms:1.1 / ot:1.1）。"""
+    item_ids = [str(it.get("id") or "").strip() for it in items if it.get("id")]
+    id_set = set(item_ids)
+    aligned: dict[str, str] = {}
+
+    for key, val in (notes or {}).items():
+        k = str(key or "").strip()
+        v = str(val or "").strip()
+        if not k or not v:
+            continue
+        if k in id_set:
+            aligned[k] = v
+            continue
+        scoped = [iid for iid in item_ids if iid.endswith(":" + k)]
+        if len(scoped) == 1:
+            aligned[scoped[0]] = v
+            continue
+        if ":" not in k:
+            prefixed = [f"isms:{k}", f"ot:{k}"]
+            hits = [iid for iid in prefixed if iid in id_set]
+            if len(hits) == 1:
+                aligned[hits[0]] = v
+
+    return aligned
+
+
+def _parse_checklist_notes_json(text: str) -> dict[str, str]:
+    """從 LLM 回覆抽出 {項次: 稽核說明}。"""
+    raw = (text or "").strip()
+    if not raw or raw.startswith("⚠️"):
+        return {}
+
+    raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.I)
+    raw = re.sub(r"\s*```\s*$", "", raw)
+    raw = raw.strip()
+
+    def _from_dict(obj) -> dict[str, str]:
+        if not isinstance(obj, dict):
+            return {}
+        return {
+            str(k).strip(): str(v).strip()
+            for k, v in obj.items()
+            if k and v and str(v).strip()
+        }
+
+    try:
+        obj = json.loads(raw)
+        out = _from_dict(obj)
+        if out:
+            return out
+    except Exception:
+        pass
+
+    m = re.search(r"\{[\s\S]*\}", raw)
+    if m:
+        blob = m.group(0)
+        try:
+            out = _from_dict(json.loads(blob))
+            if out:
+                return out
+        except Exception:
+            pass
+        # 寬鬆：尾逗號、單引號鍵
+        blob2 = re.sub(r",\s*}", "}", blob)
+        blob2 = re.sub(r"'([^']+)'\s*:", r'"\1":', blob2)
+        try:
+            out = _from_dict(json.loads(blob2))
+            if out:
+                return out
+        except Exception:
+            pass
+
+    m_arr = re.search(r"\[[\s\S]*\]", raw)
+    if m_arr:
+        try:
+            arr = json.loads(m_arr.group(0))
+            if isinstance(arr, list):
+                out = {}
+                for row in arr:
+                    if isinstance(row, dict) and row.get("id"):
+                        note = row.get("note") or row.get("稽核說明") or ""
+                        if str(note).strip():
+                            out[str(row["id"]).strip()] = str(note).strip()
+                return out
+        except Exception:
+            pass
+
+    # 行內鍵值： "n01": "..." 或 n01：是。...
+    out: dict[str, str] = {}
+    for m_kv in re.finditer(
+        r'["\']?(n\d{2}|isms:\d+\.\d+|ot:\d+\.\d+)["\']?\s*[:：]\s*"([^"]{4,220})"',
+        raw,
+        re.I,
+    ):
+        out[m_kv.group(1)] = m_kv.group(2).strip()
+    if out:
+        return out
+
+    for m_kv in re.finditer(
+        r'["\']?(n\d{2})["\']?\s*[:：]\s*([^\n"{}]{6,220})',
+        raw,
+        re.I,
+    ):
+        val = m_kv.group(2).strip().rstrip(",")
+        if val:
+            out[m_kv.group(1)] = val
+    return out
+
+
+def _is_stub_checklist_note(note: str) -> bool:
+    """拒絕 prompt 範例照抄或過短無效句。"""
+    s = re.sub(r"\s+", " ", (note or "").strip())
+    if not s:
+        return True
+    if re.fullmatch(r"是。已收集 syslog[\.…\.]{0,6}", s):
+        return True
+    if re.fullmatch(r"否。未見[\.…\.]{0,6}", s):
+        return True
+    if len(s) < 32 and re.match(r"^(是|否|待改善|不適用)。[^。]{0,18}[\.…]?$", s):
+        return True
+    return False
+
+
+def _sanitize_checklist_note(note: str, max_len: int = 220) -> str:
+    s = re.sub(r"\s+", " ", (note or "").strip())
+    s = re.sub(r"【.*?】", "", s)
+    if len(s) > max_len:
+        s = s[: max_len - 1].rstrip() + "…"
+    return s
+
+
+def _remap_checklist_llm_ids(
+    notes: dict[str, str],
+    id_map: dict[str, str],
+    items: list[dict],
+) -> dict[str, str]:
+    """n01 → isms:1.1 等；並對齊裸項次。"""
+    aligned = _align_checklist_note_keys(notes, items)
+    for lid, full_id in id_map.items():
+        if full_id in aligned:
+            continue
+        for key in (lid, lid.upper(), lid.lower()):
+            if key in notes and str(notes[key]).strip():
+                aligned[full_id] = str(notes[key]).strip()
+                break
+    return aligned
+
+
+def _generate_checklist_note_one(it: dict) -> str:
+    """單項改寫稽核說明（小模型批次 JSON 失敗時使用）。"""
+    if not _llm_is_ready():
+        return ""
+    iid = str(it.get("id") or "").strip()
+    q = str(it.get("question") or "").strip()
+    finding = str(it.get("finding") or "").strip()
+    metric = str(it.get("metric_text") or "").strip()
+    status = str(it.get("metric_status") or "").strip()
+    hint = str(it.get("evidence_hint") or "").strip()
+    ai_ex = str(it.get("ai_excerpt") or "").strip()[:400]
+    if not hint and not ai_ex:
+        return ""
+
+    user_prompt = (
+        f"項次 {iid}\n"
+        f"稽核要點：{q}\n"
+        f"判定：{finding}｜KPI：{metric}（{status}）\n"
+        + (f"地端診斷：{ai_ex}\n" if ai_ex else "")
+        + f"參考說明：{hint}\n\n"
+        "請改寫成 1～2 句「稽核說明」（60～120 字、繁體中文）。"
+        "必須直接回答「稽核要點」；只能使用參考說明中的 KPI 數字與事件碼，禁止引用其他控制項數字；"
+        "開頭用是／否／不適用／待改善；禁止照抄範例句；"
+        "只輸出說明正文，不要 JSON、不要標題。"
+    )
+    messages = [
+        {
+            "role": "system",
+            "content": "你是 ISO 27001 OT 內部稽核員，只輸出稽核說明一句或兩句。",
+        },
+        {"role": "user", "content": user_prompt},
+    ]
+    try:
+        raw = ollama_service.chat(messages, max_new_tokens=220, temperature=0.15)
+    except Exception as e:
+        print(f"⚠️ checklist_note_one 失败 {iid}: {e}")
+        return ""
+    if not raw or str(raw).strip().startswith("⚠️"):
+        return ""
+    text = re.sub(r"^```[\s\S]*?```", "", str(raw).strip())
+    text = re.sub(r"^[\"']|[\"']$", "", text.strip())
+    text = re.sub(r"\s+", " ", text).strip()
+    if _is_stub_checklist_note(text) or len(text) < 24:
+        return ""
+    return _sanitize_checklist_note(text)
+
+
+def generate_checklist_notes_llm(items: list[dict], *, _allow_split: bool = True) -> dict[str, str]:
+    """批次產生查核表稽核說明（繁中、依稽核要點作答）。"""
+    if not items or not _llm_is_ready():
+        return {}
+
+    batch = items[:24]
+    id_map: dict[str, str] = {}
+    lines = []
+    for idx, it in enumerate(batch):
+        iid = str(it.get("id") or "").strip()
+        if not iid:
+            continue
+        lid = f"n{idx + 1:02d}"
+        id_map[lid] = iid
+        q = str(it.get("question") or "").strip()
+        finding = str(it.get("finding") or "").strip()
+        annex = str(it.get("annex") or "").strip()
+        metric = str(it.get("metric_text") or "").strip()
+        status = str(it.get("metric_status") or "").strip()
+        hint = str(it.get("evidence_hint") or "").strip()[:160]
+        ai_ex = str(it.get("ai_excerpt") or "").strip()[:320]
+        block = (
+            f"[{lid}] 項次={iid}\n"
+            f"  稽核要點：{q}\n"
+            f"  依據：{annex}｜判定：{finding}｜KPI：{metric}（{status}）"
+        )
+        if ai_ex:
+            block += f"\n  地端診斷摘要：{ai_ex}"
+        if hint:
+            block += f"\n  參考：{hint[:100]}"
+        lines.append(block)
+
+    keys_sample = ", ".join(f'"{k}"' for k in list(id_map.keys())[:3])
+    user_prompt = (
+        "請為下列查核項目各寫一則「稽核說明」。\n"
+        "要求：\n"
+        "1. 直接回答稽核要點；開頭用「是。」「否。」「不適用。」或「待改善。」\n"
+        "2. 每項只能引用該項 KPI 數字／syslog 事件碼，禁止混用其他項次數字；禁止虛構公司名、人名；人員稱 AI agent\n"
+        "3. 每項 1～2 句、60～120 字，繁體中文；每項內容不可相同\n"
+        f"4. 只輸出 JSON 物件，鍵為 {keys_sample} 等 n01 格式；"
+        "值為稽核說明；不要 markdown、不要其他文字；禁止輸出範例句\n\n"
+        + "\n\n".join(lines)
+    )
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "你是 ISO/IEC 27001:2022 OT 內部稽核員。"
+                "只輸出 JSON 物件，鍵為 n01、n02…，值為繁中稽核說明。"
+            ),
+        },
+        {"role": "user", "content": user_prompt},
+    ]
+
+    def _call_and_parse(msgs: list[dict]) -> dict[str, str]:
+        try:
+            raw = ollama_service.chat(msgs, max_new_tokens=3200, temperature=0.2)
+        except Exception as e:
+            print(f"⚠️ checklist_notes LLM 失败: {e}")
+            return {}
+        if not raw or str(raw).strip().startswith("⚠️"):
+            print(f"⚠️ checklist_notes LLM 無效回覆: {(raw or '')[:120]}")
+            return {}
+        parsed = _parse_checklist_notes_json(raw)
+        if not parsed:
+            print(f"⚠️ checklist_notes JSON 解析失敗，原文前 200 字: {raw[:200]!r}")
+        return _remap_checklist_llm_ids(parsed, id_map, batch)
+
+    notes = _call_and_parse(messages)
+    notes = {
+        k: _sanitize_checklist_note(v)
+        for k, v in notes.items()
+        if v and not _is_stub_checklist_note(v)
+    }
+    if len(notes) >= max(3, len(id_map) // 3) or not _allow_split:
+        return notes
+
+    # 小模型常一次寫不完：拆成 ISMS + OT 兩批
+    isms_items = [it for it in batch if str(it.get("id", "")).startswith("isms:")]
+    ot_items = [it for it in batch if str(it.get("id", "")).startswith("ot:")]
+    merged: dict[str, str] = dict(notes)
+
+    for chunk in (isms_items, ot_items):
+        if not chunk:
+            continue
+        sub = generate_checklist_notes_llm(chunk, _allow_split=False)
+        for k, v in sub.items():
+            if v and not _is_stub_checklist_note(v):
+                merged[k] = v
+
+    return merged
+
+
+def _extract_checklist_event_counts(text: str) -> set[int]:
+    return {int(m) for m in re.findall(r"(\d{1,6})\s*筆", text or "")}
+
+
+def _validate_checklist_note_for_item(note: str, it: dict) -> bool:
+    """稽核說明須對應該項 KPI／主題，避免小模型把相鄰控制項數字混用。"""
+    hint = str(it.get("evidence_hint") or "").strip()
+    note = str(note or "").strip()
+    if not note or not hint or _is_stub_checklist_note(note):
+        return False
+
+    hint_counts = _extract_checklist_event_counts(hint)
+    note_counts = _extract_checklist_event_counts(note)
+    if hint_counts and note_counts:
+        for count in note_counts:
+            if count >= 10 and count not in hint_counts:
+                return False
+
+    iid = str(it.get("id") or "")
+    topic_checks = [
+        (r"^ot:2\.", r"IPS|惡意|INFECTION|供應商風險|外部連線"),
+        (r"^ot:3\.", r"IPS|惡意|INFECTION|CDP|VLAN|BOOTLOADER|供應商"),
+        (r"^ot:4\.", r"IPS|惡意|登入|AAA|供應商風險|CDP|LLDP"),
+        (r"^ot:5\.", r"IPS|惡意|登入|AAA|BOOTLOADER|IMAGE"),
+        (r"^ot:6\.", r"CDP|VLAN|組態|介面|變更單|登入|AAA"),
+    ]
+    for id_pat, forbid_pat in topic_checks:
+        if re.search(id_pat, iid):
+            if re.search(forbid_pat, note, re.I) and not re.search(forbid_pat, hint, re.I):
+                return False
+            break
+
+    return True
+
+
+def _fill_checklist_notes_with_llm(items: list[dict]) -> tuple[dict[str, str], list[str], list[str]]:
+    """以 evidence_hint 為主；LLM 僅在通過主題／KPI 驗證時覆寫。"""
+    llm_batch = generate_checklist_notes_llm(items)
+    notes: dict[str, str] = {}
+    llm_keys: list[str] = []
+    fallback_keys: list[str] = []
+
+    for it in items:
+        iid = str(it.get("id") or "").strip()
+        if not iid:
+            continue
+        hint = str(it.get("evidence_hint") or "").strip()
+        if hint:
+            notes[iid] = _sanitize_checklist_note(hint)
+
+        cur = llm_batch.get(iid, "")
+        if cur and _validate_checklist_note_for_item(cur, it):
+            notes[iid] = _sanitize_checklist_note(cur)
+            llm_keys.append(iid)
+            continue
+
+        one = _generate_checklist_note_one(it)
+        if one and _validate_checklist_note_for_item(one, it):
+            notes[iid] = one
+            llm_keys.append(iid)
+            continue
+
+        if hint:
+            notes[iid] = _sanitize_checklist_note(hint)
+            fallback_keys.append(iid)
+        elif cur:
+            notes[iid] = _sanitize_checklist_note(cur)
+            llm_keys.append(iid)
+
+    return notes, llm_keys, fallback_keys
+
+
+@app.route('/api/audit/checklist_notes', methods=['POST'])
+def audit_checklist_notes():
+    """
+    批次產生查核表「稽核說明」。
+    Body: { "items": [{id, question, annex, finding, ...}], "model": "..." }
+    """
+    req_data = request.get_json(silent=True) or {}
+    items = req_data.get("items")
+    if not isinstance(items, list) or not items:
+        return jsonify({"error": "請傳入 items 陣列"}), 400
+
+    want_model = (req_data.get("model") or req_data.get("llm_model") or "").strip()
+    if want_model:
+        sw = switch_llm_model(want_model)
+        if not sw.get("ok"):
+            return jsonify({
+                "error": sw.get("error") or "模型切換失敗",
+                "llm_model": _current_llm_info(),
+            }), 503
+
+    if not _llm_is_ready():
+        err = "Ollama 未連線" if USE_OLLAMA else "模型未成功載入"
+        return jsonify({"error": err, "status": "error"}), 503
+
+    notes, llm_generated, fallback_used = _fill_checklist_notes_with_llm(items)
+
+    return jsonify({
+        "status": "success",
+        "notes": notes,
+        "llm_generated": llm_generated,
+        "fallback_used": fallback_used,
+        "llm_model": _current_llm_info(),
+    })
+
+
 @app.route('/api/agent/chat', methods=['POST'])
 def agent_chat():
     """前端聊天介面：護欄 → RAG 檢索 → LLM → 圖表補強 → 輸出脫敏。"""
     req_data = request.get_json(silent=True) or {}
     user_message = (req_data.get("message") or "").strip()
-    if not user_message:
+    syslog_content = (
+        req_data.get("syslog")
+        or req_data.get("log_content")
+        or req_data.get("syslog_content")
+        or ""
+    ).strip()
+    syslog_filename = (
+        req_data.get("syslog_name")
+        or req_data.get("syslog_filename")
+        or req_data.get("filename")
+        or ""
+    ).strip()
+    if not user_message and not syslog_content:
         return jsonify({"error": "請傳入 JSON：{'message': '你的問題'}"}), 400
 
     # 可選：請求時指定模型（與功能選單一致；已是目前模型則略過）
@@ -8110,9 +10408,10 @@ def agent_chat():
             }), 503
 
     # 1) 輸入護欄
-    guard = guardrail_service.check_input(user_message)
+    guard_input = user_message or syslog_content[:800]
+    guard = guardrail_service.check_input(guard_input)
+    _log_input_guardrail_cmd(guard, guard_input)
     if guard.get("blocked"):
-        print(f"🛡️ 護欄攔截: {guard.get('reason')} | {user_message[:80]}")
         try:
             enqueue_review(
                 item_type="guardrail_block",
@@ -8149,10 +10448,12 @@ def agent_chat():
     tool_query = None
     ot_context = None
     report_mode = wants_report_format(user_message)
+    syslog_deep = bool(syslog_content) or _looks_like_syslog_blob(user_message)
+    uploaded_syslog = bool(syslog_content)
 
-    # RAG 檢索（聊天）：僅必要問題才導入
+    # RAG 檢索（聊天）：僅 base 模型使用 RAG；上傳 syslog 時略過
     rag_context, rag_citations = "", []
-    if ENABLE_RAG and needs_rag(user_message):
+    if ENABLE_RAG and _llm_allows_rag() and not uploaded_syslog:
         rag_context, rag_citations, _ = retrieve_rag_for_query(
             user_message, force=True
         )
@@ -8165,12 +10466,12 @@ def agent_chat():
             print(f"📚 RAG 無命中 | {user_message[:80]}")
         if rag_context:
             rag_context = _filter_rag_for_chat(rag_context, user_message)
-    elif ENABLE_RAG:
-        print(f"📚 RAG 略過（非必要問題）| {user_message[:60]}")
 
-    # 寒暄／離題：與一般問答相同，一律進 LLM（不再固定短答略過）
-    if ENABLE_CASUAL_FIXED_REPLY and (
-        is_casual_chat(user_message) or is_off_topic_chat(user_message)
+    # 寒暄／離題：有 syslog 時一律走 LLM 詳細分析
+    if (
+        not syslog_deep
+        and ENABLE_CASUAL_FIXED_REPLY
+        and (is_casual_chat(user_message) or is_off_topic_chat(user_message))
     ):
         print(f"💬 閒聊模式（固定短答，略過 LLM／報告）| {user_message[:40]}")
         reply = build_casual_chat_reply(user_message)
@@ -8194,16 +10495,36 @@ def agent_chat():
             "llm_model": _current_llm_info(),
         }), 200
 
-    if needs_ot_context(user_message) or wants_ot_status_summary(user_message):
+    if (
+        _llm_allows_knowledge_graph()
+        and not uploaded_syslog
+        and not (is_casual_chat(user_message) or is_off_topic_chat(user_message))
+    ):
         tool_called = True
         tool_name = f"{tool_name}+scan_ot_directory" if tool_name else "scan_ot_directory"
         tool_query = (
-            f"{tool_query}; metrics + recent_parsed_logs"
+            f"{tool_query}; monitor_warroom_full"
             if tool_query
-            else "metrics + recent_parsed_logs"
+            else "monitor_warroom_full"
         )
-        print(f"🤖 Agent Tool Call: scan_ot_directory | 問題: {user_message[:80]}")
-        ot_context = build_ot_context_summary()
+        print(f"🤖 Agent Tool Call: monitor_warroom | 問題: {user_message[:80]}")
+        ot_context = build_monitor_warroom_context()
+
+    # 2b) 附加 ot/ 已匯入 syslog 原文（上傳單檔時略過，避免混用全庫）
+    if not uploaded_syslog:
+        corpus_ctx = build_imported_syslog_corpus_context(
+            user_message or (syslog_content or "")[:800]
+        )
+        if corpus_ctx:
+            ot_context = ((ot_context or "") + "\n\n" + corpus_ctx).strip()
+            tool_called = True
+            tool_name = f"{tool_name}+syslog_corpus" if tool_name else "syslog_corpus"
+            tool_query = (
+                f"{tool_query}; ot_syslog_corpus"
+                if tool_query
+                else "ot_syslog_corpus"
+            )
+            print(f"📋 Agent：已注入 ot/ syslog 語料庫 | {user_message[:48]}")
 
     # 3) LLM 生成前：若尚未探測，先隱形問「你好」並丟棄（燒掉冷啟動第一則）
     try:
@@ -8218,6 +10539,9 @@ def agent_chat():
         ot_context=ot_context,
         rag_context=rag_context or None,
         chat_history=chat_history,
+        syslog_content=syslog_content,
+        uploaded_syslog=uploaded_syslog,
+        syslog_filename=syslog_filename,
     )
     # 雙保險：對整段證據再跑一次防幻覺改寫
     reply = sanitize_agent_chat_reply(
@@ -8237,14 +10561,23 @@ def agent_chat():
     )
     reply = normalize_llm_output(
         reply,
-        mode="report" if use_report_norm else "chat",
+        mode="syslog" if syslog_deep else ("report" if use_report_norm else "chat"),
+        output_char_limit=(
+            None
+            if syslog_deep or use_report_norm
+            else _chat_output_char_limit(
+                log_grounded=bool((ot_context or "").strip()),
+                action_plan=wants_warroom_action_plan(user_message),
+            )
+        ),
     )
-    # normalize 後可能又露出模板殘留，再掃一次
+    # normalize 後可能又露出模板殘留，再掃一次（略過重複 CMD 分數）
     reply = sanitize_agent_chat_reply(
         reply,
         user_message,
         ot_context=ot_context or "",
         rag_context=rag_context or "",
+        log_cmd=False,
     )
     reply = _finalize_chat_reply(reply, user_message)
     # --- 暫時註解：對話固定輸出（結論／說明／建議）收斂 ---
@@ -8253,10 +10586,12 @@ def agent_chat():
 
     # 4) 輸出脫敏
     reply, redacted = guardrail_service.sanitize_output(reply)
+    reply_quality_failed = _is_chat_quality_fail_reply(reply)
 
     return jsonify({
         "status": "success",
         "reply": reply,
+        "reply_quality_failed": reply_quality_failed,
         "tool_called": tool_called,
         "tool_name": tool_name,
         "tool_query": tool_query,
@@ -8273,6 +10608,7 @@ def agent_chat():
         "rag_enabled": _rag_feature_enabled(),
         "rag_citations": rag_citations,
         "llm_model": _current_llm_info(),
+        "syslog_analysis": bool(syslog_deep),
     })
 
 
@@ -8456,9 +10792,10 @@ def _hub_model_load_ref(model_id: str) -> tuple[str | None, str | None]:
         # 建議改選本機已有快取
         cached_hints = []
         for mid in (
-            "Qwen/Qwen2.5-3B-Instruct",
+            "meta-llama/Llama-3.2-3B-Instruct",
             "microsoft/Phi-4-mini-instruct",
-            "Qwen/Qwen3-4B-Instruct-2507",
+            "google/gemma-2-2b-it",
+            "meta-llama/Llama-3.1-8B-Instruct",
         ):
             if _find_hf_snapshot(mid):
                 cached_hints.append(mid)
@@ -8555,6 +10892,8 @@ def _discover_local_llm_models() -> list[dict]:
         })
 
     def add_finetuned(slug: str, path: Path):
+        if _is_excluded_llm_slug(slug):
+            return
         if not _path_has_causal_weights(path):
             return
         meta = {}
@@ -8598,14 +10937,10 @@ def _discover_local_llm_models() -> list[dict]:
             continue
         for p in sorted(base.iterdir()):
             if p.is_dir() and (p / "config.json").is_file():
-                add_finetuned(p.name, p)
+                if not _is_excluded_llm_slug(p.name):
+                    add_finetuned(p.name, p)
 
     for slug, cands in {
-        "qwen_ot_merged_model": [
-            train_llm / "qwen_ot_merged_model",
-            root / "qwen_ot_merged_model",
-            train_ai / "qwen_ot_merged_model",
-        ],
         "phi4_merged_model": [
             train_llm / "phi4_merged_model",
             train_ai / "phi4_merged_model",
@@ -8625,6 +10960,8 @@ def _discover_local_llm_models() -> list[dict]:
             base_ids.add(mid)
     for mid in sorted(base_ids):
         if not _is_hub_model_id(mid):
+            continue
+        if _is_excluded_llm_slug(mid):
             continue
         preset_desc = ""
         for meta in presets.values():
@@ -8696,6 +11033,11 @@ def _resolve_switch_target(target: str) -> dict:
     raw = (target or "").strip()
     if not raw:
         return {"ok": False, "error": "請指定 model slug 或路徑"}
+    if _is_excluded_llm_slug(raw) or _is_excluded_llm_slug(raw.removeprefix("base:")):
+        return {
+            "ok": False,
+            "error": "Qwen 模型已自選單移除，請改選 Llama / Gemma / Phi / Mistral。",
+        }
 
     items = _discover_local_llm_models()
     want_base = raw.startswith("base:")
@@ -8868,7 +11210,7 @@ def switch_llm_model(target: str) -> dict:
                     "ok": False,
                     "error": (
                         f"{why}，且目前無法改用 GPU。"
-                        "請改選本機快取的 Qwen2.5-3B-Instruct／Phi-4-mini，"
+                        "請改選本機快取的 Llama-3.2-3B-Instruct／Phi-4-mini，"
                         "或設 LLM_ALLOW_GPU_FALLBACK=1 後重啟再試微調模型。"
                     ),
                     "slug": slug,
@@ -9052,7 +11394,8 @@ def list_llm_models():
         "cache_max": _LLM_CACHE_MAX,
         "release_on_switch": _LLM_RELEASE_ON_SWITCH,
         "hint": (
-            "Ollama 後端：切換即時生效。微調後＝Semi-Shield 別名／本地 merge；微調前＝官方基底。"
+            "Ollama 後端：Llama / Gemma / Phi / Mistral 等地端模型；Qwen 已自選單移除。"
+            "微調後＝Semi-Shield OT；微調前＝官方 Ollama 基底。"
             if USE_OLLAMA
             else (
                 "切換模型後會釋放舊模型顯存／記憶體，再載入新模型。"
@@ -9089,6 +11432,20 @@ def safety_status():
         "rag_mode": getattr(rs, "mode", "off") if rs else "off",
         "guardrail_mode": "disabled" if not ENABLE_GUARDRAIL else guardrail_service.mode,
         "guardrail_enabled": ENABLE_GUARDRAIL,
+        "hallucination_guard_enabled": ENABLE_HALLUCINATION_GUARD,
+        "hallucination_guard_mode": (
+            "disabled"
+            if not ENABLE_HALLUCINATION_GUARD
+            else hallucination_guard_service.mode
+        ),
+        "hallucination_guard_mechanism": (
+            hallucination_guard_service.mechanism_summary()
+            if hasattr(hallucination_guard_service, "mechanism_summary")
+            else {"mode": "disabled"}
+        ),
+        "hallucination_guard_model_dir": str(
+            Path(BASE_DIR) / "train_ai" / "train_hallucination" / "fine_tuned_hallucination_guard"
+        ),
         "guardrail_mechanism": (
             guardrail_service.mechanism_summary()
             if hasattr(guardrail_service, "mechanism_summary")
@@ -9102,6 +11459,12 @@ def safety_status():
         "evidence_traceability": traceability_stats(),
         "human_review": review_stats(),
         "reviewer_mode": reviewer_mode_summary(),
+        "api_version": 2,
+        "api_features": {
+            "ai_review_auto": True,
+            "compliance_metrics": True,
+            "compliance_pipeline": True,
+        },
         "offline_ready": offline["ready"],
         "offline": offline,
         "llm_model_path": MODEL_PATH,
@@ -9162,7 +11525,16 @@ def api_compliance_workflow():
 
 @app.route('/api/compliance/pipeline', methods=['POST'])
 def api_compliance_pipeline():
-    """執行 Collector → Auditor → Reviewer → Reporter 合規管線（地端）。"""
+    """
+    地端合規管線（預設）：Collector → Reviewer → Reporter。
+    不含 LLM 診斷、不含 AI Reviewer；兩者須分別呼叫：
+      - LLM 診斷：body {\"include_llm_audit\": true} 或 POST /api/audit/analyze_all
+      - AI 自動審核：POST /api/review/auto
+    """
+    body = request.get_json(silent=True) or {}
+    include_llm_audit = str(body.get("include_llm_audit", "")).lower() in (
+        "1", "true", "yes", "on",
+    )
 
     def _scan():
         return get_ot_monitor_data(force=True)
@@ -9184,17 +11556,32 @@ def api_compliance_pipeline():
         )
         return {"ai_analysis": analysis, "rag_citations": rag_citations}
 
+    audit_fn = _audit if include_llm_audit else None
+    if include_llm_audit:
+        print("🧠 合規管線：含 LLM 診斷（include_llm_audit=true）")
+    else:
+        print("📦 合規管線：僅掃描 OT + evidence + Review Queue（不含 LLM／AI 審核）")
+
     result = run_compliance_pipeline(
         scan_fn=_scan,
-        audit_fn=_audit,
+        audit_fn=audit_fn,
         enqueue_fn=enqueue_review,
         evidence_fn=register_control_bundle_evidence,
+        include_llm_audit=include_llm_audit,
     )
-    if ai_reviewer_enabled():
-        result["ai_review"] = run_ai_reviewer()
     result["compliance_coverage"] = coverage_stats()
     result["human_review"] = review_stats()
     result["reviewer_mode"] = reviewer_mode_summary()
+    result["ai_review"] = {
+        "skipped": True,
+        "manual_only": True,
+        "hint": "管線未執行 AI Reviewer；請於合規頁點「AI 自動審核」",
+    }
+    result["metrics_analysis"] = build_metrics_analysis(
+        traceability=traceability_stats(),
+        human_review=result["human_review"],
+        evidence_items=list_evidence(limit=50),
+    )
     return jsonify(result)
 
 
@@ -9218,8 +11605,20 @@ def api_get_evidence(evidence_id):
     return jsonify(rec)
 
 
-@app.route('/api/review/queue', methods=['GET'])
+@app.route('/api/review/queue', methods=['GET', 'POST'])
 def api_review_queue():
+    if request.method == 'POST':
+        body = request.get_json(silent=True) or {}
+        if body.get("auto") or body.get("auto_review") or body.get("action") == "auto":
+            result = run_ai_reviewer(
+                limit=min(int(body.get("limit") or 500), 2000),
+                reconcile=body.get("reconcile", True) is not False,
+            )
+            if not result.get("ok"):
+                return jsonify(result), 400
+            return jsonify(result)
+        return jsonify({"error": "POST 需帶 {\"auto\": true} 執行 AI 自動審核"}), 400
+
     status = (request.args.get("status") or "").strip() or None
     return jsonify({
         "stats": review_stats(),
@@ -9289,7 +11688,7 @@ def _lan_ipv4_addrs() -> list[str]:
             _add(info[4][0])
     except Exception:
         pass
-    # Windows：用 ipconfig 抓所有 IPv4（含 Radmin VPN / Hamachi）
+    # Windows：用 ipconfig；Linux/macOS：用 ip addr / hostname -I
     if os.name == "nt":
         try:
             out = subprocess.check_output(
@@ -9301,6 +11700,13 @@ def _lan_ipv4_addrs() -> list[str]:
                     # 去掉可能的 (Preferred) 後綴
                     ip = part.split("(")[0].strip()
                     _add(ip)
+        except Exception:
+            pass
+    else:
+        try:
+            from code.platform_compat import collect_lan_ipv4
+            for ip in collect_lan_ipv4():
+                _add(ip)
         except Exception:
             pass
     # VPN 網段優先顯示
@@ -9321,9 +11727,18 @@ def run_server() -> None:
         os.makedirs(OT_FOLDER)
     offline = _offline_vendor_status()
     port = int(os.environ.get("PORT", "2000"))
+    try:
+        from code.platform_compat import (
+            firewall_hint,
+            ip_lookup_hint,
+            kill_listeners_on_port,
+        )
+        kill_listeners_on_port(port)
+    except Exception as _port_err:
+        print(f"⚠️ 埠號清理略過：{_port_err}")
     lan_ips = _lan_ipv4_addrs()
     print("\n🚀 Semi-Shield 智慧網路資安與 LLM 整合後端伺服器已啟動。")
-    print("🏠 本機：http://127.0.0.1:%d/  或  http://127.0.0.1:%d/platform" % (port, port))
+    print("🏠 歡迎頁：http://127.0.0.1:%d/  ·  平台：http://127.0.0.1:%d/platform" % (port, port))
     print("💬 聊天：http://127.0.0.1:%d/chat" % port)
     print("📊 監控：http://127.0.0.1:%d/monitor" % port)
     if lan_ips:
@@ -9333,17 +11748,34 @@ def run_server() -> None:
             print(f"   http://{ip}:{port}/chat")
             print(f"   http://{ip}:{port}/monitor")
     else:
-        print("🌐 區網：無法自動偵測 IP，請用 ipconfig 查看後連 http://<你的IP>:%d/" % port)
-    print("   （若連不上：Windows 防火牆需允許 Python／埠 %d 傳入）" % port)
+        try:
+            from code.platform_compat import ip_lookup_hint as _iph
+            hint = _iph()
+        except Exception:
+            hint = "ipconfig 或 ip addr"
+        print("🌐 區網：無法自動偵測 IP，請用 %s 查看後連 http://<你的IP>:%d/" % (hint, port))
+    try:
+        from code.platform_compat import firewall_hint as _fw
+        print(f"   {_fw(port)}")
+    except Exception:
+        print("   （若連不上：請確認防火牆已允許 Python／埠 %d 傳入）" % port)
     print(f"📚 RAG：{'啟用' if _rag_feature_enabled() else '停用（功能關閉）'}")
     print(f"🛡️ 護欄：{'啟用 (' + guardrail_service.mode + ')' if ENABLE_GUARDRAIL else '停用'}")
+    print(
+        f"🔍 幻覺護欄："
+        f"{'啟用 (' + hallucination_guard_service.mode + ')' if ENABLE_HALLUCINATION_GUARD else '停用'}"
+    )
+    print(
+        f"🤖 AI Reviewer：{'啟用' if ai_reviewer_enabled() else '停用'}"
+        " · POST /api/review/auto 或 /api/review/queue {\"auto\": true}"
+    )
     print(
         f"📴 離線前端套件：{'就緒' if offline['ready'] else '缺少 ' + ','.join(offline['missing'])}"
     )
     if EDGE_MODE:
         print(
-            "🍊 Edge 提示：預設 Qwen2.5-0.5B + 關 RAG/護欄；"
-            "8GB 記憶體可設 EDGE_LLM_MODEL=Qwen/Qwen2.5-1.5B-Instruct"
+            "🍊 Edge 提示：預設 Phi-4-mini / Llama 3.2 3B + 關 RAG/護欄；"
+            "8GB 記憶體可設 EDGE_LLM_MODEL=meta-llama/Llama-3.2-3B-Instruct"
         )
 
     def _warm_ot_monitor_cache():

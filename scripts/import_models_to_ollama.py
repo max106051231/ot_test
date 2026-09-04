@@ -5,7 +5,7 @@
 用法（在專案根目錄）：
   python scripts/import_models_to_ollama.py
   python scripts/import_models_to_ollama.py --list
-  python scripts/import_models_to_ollama.py --only qwen3_4b_ot,gemma_2b_ot
+  python scripts/import_models_to_ollama.py --only llama32_3b_ot,gemma_2b_ot
   python scripts/import_models_to_ollama.py --quantize q4_K_M
   python scripts/import_models_to_ollama.py --skip-pull
 
@@ -38,39 +38,42 @@ SYSTEM_PROMPT = (
     "無日誌證據時勿臆測合規狀態（No Evidence, No Compliance Claim）。"
 )
 
-# HuggingFace model_id → Ollama 官方 tag（pull 用）
+# HuggingFace model_id → Ollama 官方 tag（pull 用；不含 Qwen）
 HF_TO_OLLAMA: dict[str, str] = {
-    "Qwen/Qwen2.5-0.5B-Instruct": "qwen2.5:0.5b",
-    "Qwen/Qwen2.5-1.5B-Instruct": "qwen2.5:1.5b",
-    "Qwen/Qwen2.5-3B-Instruct": "qwen2.5:3b",
-    "Qwen/Qwen2.5-7B-Instruct": "qwen2.5:7b",
-    "Qwen/Qwen3-4B-Instruct-2507": "qwen3:4b",
-    "Qwen/Qwen3-14B": "qwen3:14b",
     "microsoft/Phi-4-mini-instruct": "phi4",
     "google/gemma-2-2b-it": "gemma2:2b",
+    "google/gemma-2-9b-it": "gemma2:9b",
     "meta-llama/Llama-3.2-3B-Instruct": "llama3.2:3b",
+    "meta-llama/Llama-3.2-1B-Instruct": "llama3.2:1b",
+    "meta-llama/Llama-3.1-8B-Instruct": "llama3.1:8b",
+    "mistralai/Mistral-7B-Instruct-v0.3": "mistral:7b",
+    "google/gemma-3-1b-it": "gemma3:1b-it-qat",
+    "google/gemma-3-4b-it": "gemma3:4b-it-qat",
+    "google/gemma-4-E2B-it-qat-q4_0-unquantized": "gemma4:e2b-it-qat",
+    "google/gemma-4-E4B-it-qat-q4_0-unquantized": "gemma4:e4b-it-qat",
 }
 
 LEGACY_SLUG_MAP: dict[str, str] = {
-    "qwen_ot_merged_model": "qwen25_3b_ot",
     "phi4_merged_model": "phi4_mini_ot",
 }
 
-# 舊目錄名 → 匯入到 Ollama 的正式 slug
 IMPORT_AS: dict[str, str] = {
-    "qwen_ot_merged_model": "qwen25_3b_ot",
     "phi4_merged_model": "phi4_mini_ot",
 }
 
-# Ollama 無法正確載入 safetensors 的 slug → 改以基底 + SYSTEM 建立別名
-SAFETENSORS_SKIP_SLUGS = frozenset({"gemma_2b_ot"})
+SAFETENSORS_SKIP_SLUGS = frozenset({"gemma_2b_ot", "gemma2_2b", "gemma2_9b"})
 
-# safetensors 匯入失敗時改用的 Ollama 基底 tag
 FALLBACK_BASE: dict[str, str] = {
-    "qwen3_4b_ot": "qwen3:4b",
-    "qwen25_3b_ot": "qwen2.5:3b",
     "phi4_mini_ot": "phi4",
     "gemma_2b_ot": "gemma2:2b",
+    "gemma2_2b": "gemma2:2b",
+    "gemma2_9b": "gemma2:9b",
+    "llama32_3b_ot": "llama3.2:3b",
+    "llama32_1b": "llama3.2:1b",
+    "gemma3_1b_ot": "gemma3:1b-it-qat",
+    "gemma3_4b_ot": "gemma3:4b-it-qat",
+    "gemma4_e2b_ot": "gemma4:e2b-it-qat",
+    "gemma4_e4b_ot": "gemma4:e4b-it-qat",
 }
 
 
@@ -78,11 +81,21 @@ def find_ollama() -> str:
     exe = shutil.which("ollama")
     if exe:
         return exe
-    for cand in (
-        os.environ.get("OLLAMA_EXE", "").strip(),
-        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Ollama\ollama.exe"),
-        r"C:\Program Files\Ollama\ollama.exe",
-    ):
+    candidates: list[str] = []
+    if sys.platform == "win32":
+        candidates.extend([
+            os.environ.get("OLLAMA_EXE", "").strip(),
+            os.path.expandvars(r"%LOCALAPPDATA%\Programs\Ollama\ollama.exe"),
+            r"C:\Program Files\Ollama\ollama.exe",
+        ])
+    else:
+        candidates.extend([
+            os.environ.get("OLLAMA_EXE", "").strip(),
+            "/usr/local/bin/ollama",
+            "/usr/bin/ollama",
+            str(Path.home() / ".local" / "bin" / "ollama"),
+        ])
+    for cand in candidates:
         if cand and Path(cand).is_file():
             return str(Path(cand).resolve())
     raise FileNotFoundError(
@@ -118,7 +131,14 @@ def load_presets() -> list[dict]:
 
 
 def _has_merged_weights(path: Path) -> bool:
-    return (path / "model.safetensors").is_file() and (path / "config.json").is_file()
+    """train_ai/models 目錄是否含可載入權重（含分片 safetensors）。"""
+    if not path.is_dir() or not (path / "config.json").is_file():
+        return False
+    if any(path.glob("*.safetensors")) or any(path.glob("pytorch_model*.bin")):
+        return True
+    if (path / "model.safetensors.index.json").is_file():
+        return True
+    return False
 
 
 def _has_lora_adapter(path: Path) -> bool:
@@ -212,10 +232,6 @@ def discover_local_merged() -> dict[str, Path]:
 
     # 舊路徑別名
     legacy_dirs = {
-        "qwen_ot_merged_model": [
-            BASE_DIR / "train_ai" / "train_llm" / "qwen_ot_merged_model",
-            BASE_DIR / "qwen_ot_merged_model",
-        ],
         "phi4_merged_model": [
             BASE_DIR / "train_ai" / "train_llm" / "phi4_merged_model",
             BASE_DIR / "phi4_merged_model",
@@ -387,7 +403,7 @@ def main() -> int:
 
     print("=== 本地微調（safetensors）===")
     for slug, path in sorted(local.items()):
-        gb = (path / "model.safetensors").stat().st_size / (1024**3)
+        gb = sum(f.stat().st_size for f in path.glob("**/*") if f.is_file()) / (1024**3)
         print(f"  {slug:22} {gb:5.1f} GB  {path}")
     if not local:
         print("  （無）")
@@ -414,12 +430,16 @@ def main() -> int:
         if not has_local and base and slug not in lora_only:
             wrapper_jobs.append((slug, base))
 
-    # 額外：設定檔別名中的 Ollama tag
+    official_tags = set(HF_TO_OLLAMA.values())
+    # 額外：設定檔別名中的 Ollama 官方 tag（勿 pull 自訂 OT slug）
     if CONFIG_PATH.is_file():
         cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         for _alias, tag in (cfg.get("aliases") or {}).items():
-            if ":" in str(tag) or str(tag).startswith(("qwen", "phi", "gemma", "llama")):
-                pull_tags.add(str(tag).split(":")[0] + (":" + str(tag).split(":")[1] if ":" in str(tag) else ""))
+            t = str(tag)
+            if "qwen" in t.lower() or "qwen" in str(_alias).lower():
+                continue
+            if ":" in t or t in official_tags:
+                pull_tags.add(t)
 
     if args.list:
         return 0
@@ -488,10 +508,20 @@ def main() -> int:
     # 常用 Ollama 基底 tag（供 UI 切換）
     print("\n=== 註冊微調前基底別名 base:* ===")
     base_aliases = [
-        ("base_qwen3_4b", "qwen3:4b"),
-        ("base_qwen25_3b", "qwen2.5:3b"),
+        ("base_llama32_3b", "llama3.2:3b"),
+        ("base_llama32_1b", "llama3.2:1b"),
+        ("base_llama31_8b", "llama3.1:8b"),
         ("base_phi4_mini", "phi4"),
         ("base_gemma2_2b", "gemma2:2b"),
+        ("base_gemma2_9b", "gemma2:9b"),
+        ("base_mistral_7b", "mistral:7b"),
+        ("gemma2_2b", "gemma2:2b"),
+        ("gemma2_9b", "gemma2:9b"),
+        ("llama32_1b", "llama3.2:1b"),
+        ("base_gemma3_1b_qat", "gemma3:1b-it-qat"),
+        ("base_gemma3_4b_qat", "gemma3:4b-it-qat"),
+        ("base_gemma4_e2b_qat", "gemma4:e2b-it-qat"),
+        ("base_gemma4_e4b_qat", "gemma4:e4b-it-qat"),
     ]
     for slug, tag in base_aliases:
         if only and slug not in only:
@@ -500,7 +530,7 @@ def main() -> int:
 
     print(f"\n完成：成功 {ok}，失敗 {fail}")
     print("檢查：ollama list")
-    print("啟動：run_ollama.bat  或  set OLLAMA_MODEL=qwen3_4b_ot && python app.py")
+    print("啟動：run_ollama.bat  或  set OLLAMA_MODEL=llama32_3b_ot && python app.py")
     return 0 if fail == 0 else 1
 
 

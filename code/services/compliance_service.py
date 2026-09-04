@@ -631,7 +631,7 @@ def build_metrics_analysis(
         status="ok",
         current_display=f"≤{rpt_cfg.get('target', 2)} 天",
         target_display=f"≤{rpt_cfg.get('target', 2)} 天（基線 {rpt_cfg.get('baseline_days', 28)} 天）",
-        summary="地端 Agent 管線：掃描 OT → LLM 診斷 → Review → PDF／TXT 匯出。",
+        summary="地端 Agent 管線：掃描 OT → LLM 診斷 → Review → PDF 匯出。",
         formula="管線完成時間 + 分析師覆核時間",
         detail=rpt_cfg.get("note", ""),
         breakdown=[

@@ -247,7 +247,7 @@
         "output_redacted": false,
         "reason": "微調護欄模型放行",
         "safe_prob": 0.9999997615814209,
-        "unsafe_prob": 2.1073815048566757e-07
+        "unsafe_prob": 2.107383494376336e-07
       },
       "ok": true
     },
@@ -283,6 +283,6 @@
       "ok": true
     }
   ],
-  "api_fails": 1,
+  "api_fails": 0,
   "direct_fails": 0
 }

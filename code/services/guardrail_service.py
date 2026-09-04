@@ -7,7 +7,7 @@
 環境變數：
   GUARDRAIL_THRESHOLD=0.5
   GUARDRAIL_BASE_TOKENIZER=hfl/chinese-roberta-wwm-ext
-  GUARDRAIL_DEVICE=cpu   # 預設 cpu；勿與主 LLM 同搶 GPU（可改 cuda）
+  GUARDRAIL_DEVICE=cuda   # 預設 cuda；無 GPU 時自動改 cpu
 """
 from __future__ import annotations
 
@@ -172,9 +172,8 @@ class GuardrailService:
                 str(GUARD_DIR)
             )
             self.model.eval()
-            # 預設 CPU：避免與主 LLM 搶同一張 GPU 造成 CUDA illegal memory access
-            # 若要護欄上 GPU：設 GUARDRAIL_DEVICE=cuda
-            pref = (os.environ.get("GUARDRAIL_DEVICE") or "cpu").strip().lower()
+            # 預設 GPU；無 CUDA 時改 CPU
+            pref = (os.environ.get("GUARDRAIL_DEVICE") or "cuda").strip().lower()
             if pref in ("cuda", "gpu") and torch.cuda.is_available():
                 self.device = "cuda"
             else:
@@ -241,6 +240,17 @@ class GuardrailService:
             t,
             re.I,
         ):
+            return True
+        # 合規多輪追問／圖表請求（ML 常誤判 unsafe）
+        if re.search(r"為什麼.*(不能|無法).*(確定|確認|判斷)", t):
+            return True
+        if re.search(r"給我.*(圖表|圖形|圖|chart)", t, re.I):
+            return True
+        if re.search(r"哪些.*evidence|evidence.*(不足|缺失)", t, re.I):
+            return True
+        if re.search(r"下一步|會影響.*控制項|monitoring\s*coverage|覆蓋率", t, re.I):
+            return True
+        if re.search(r"哪一(台|個|部).*(設備|機|host|device)", t, re.I):
             return True
         # 其他平台關鍵字（至少命中一個領域詞）
         if _PLATFORM_ALLOW_RE.search(t):

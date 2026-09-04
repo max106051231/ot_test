@@ -1,7 +1,9 @@
 """
 Semi-Shield ISMS — 啟動入口。
 
-請從專案根目錄執行：python app.py  或  run_ollama.bat
+請從專案根目錄執行：
+  Windows: run_ollama.bat  或  python app.py
+  Linux/macOS: ./run_ollama.sh  或  python3 app.py
 """
 from code.server.app import app, run_server
 

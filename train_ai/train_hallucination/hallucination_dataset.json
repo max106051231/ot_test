@@ -1,0 +1,632 @@
+[
+  {
+    "question": "目前合規現況如何？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "依監控掃描：存取控制 fail（12 筆）、惡意防護 review（3 筆）、配方稽核 pass、SEC/GEM 日誌 fail（5 筆）、修補管理 review（2 筆）、供應商安全 pass。",
+    "label": 0,
+    "category": "grounded_compliance"
+  },
+  {
+    "question": "各控制項事件量？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "access_control 12 筆 fail、malware_defense 3 筆 review、sec_gem_log 5 筆 fail。",
+    "label": 0,
+    "category": "grounded_metrics"
+  },
+  {
+    "question": "分析這段登入日誌",
+    "evidence": "%SEC_LOGIN-4-LOGIN_FAILED: Login failed [user: admin] [source: 192.168.3.10] [localport: 22] [Reason: Login Authentication Failed]",
+    "answer": "SEC_LOGIN-4-LOGIN_FAILED 表示來源 192.168.3.10 對 admin 帳號 SSH 登入失敗，建議對帳來源 IP 與帳號政策（A.7.4／A.11.2）。",
+    "label": 0,
+    "category": "grounded_syslog"
+  },
+  {
+    "question": "這則 Cisco syslog 代表什麼？",
+    "evidence": "%SEC_LOGIN-4-LOGIN_FAILED: Login failed [user: admin] [source: 192.168.3.10] [localport: 22] [Reason: Login Authentication Failed]",
+    "answer": "這是登入驗證失敗事件，來源 192.168.3.10、使用者 admin、本端 port 22。",
+    "label": 0,
+    "category": "grounded_syslog"
+  },
+  {
+    "question": "介面 UPDOWN 事件怎麼看？",
+    "evidence": "%LINK-3-UPDOWN: Interface GigabitEthernet1/0/24, changed state to down then up; %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet1/0/24",
+    "answer": "GigabitEthernet1/0/24 發生 link down/up 與 line protocol 變更，需排查實體連線或 errdisable（A.8.19）。",
+    "label": 0,
+    "category": "grounded_syslog"
+  },
+  {
+    "question": "SNMP 認證失敗代表什麼？",
+    "evidence": "%SNMP-3-AUTHFAIL: Authentication failure for SNMP request from host 10.1.2.3 community public",
+    "answer": "SNMP-3-AUTHFAIL 表示來源 10.1.2.3 使用 community public 認證失敗，應改 SNMPv3 並汰換預設 community（A.8.24）。",
+    "label": 0,
+    "category": "grounded_syslog"
+  },
+  {
+    "question": "什麼是 ISO 27001？",
+    "evidence": "（無可用日誌或監控資料）",
+    "answer": "ISO/IEC 27001 是資訊安全管理系統（ISMS）要求標準，定義建立、實施、維運與改善 ISMS 的管理要求，Annex A 列出控制參考。",
+    "label": 0,
+    "category": "grounded_knowledge"
+  },
+  {
+    "question": "ISO 27001 和 27002 差異？",
+    "evidence": "（無可用日誌或監控資料）",
+    "answer": "27001 是 ISMS 認證要求標準；27002 提供 Annex A 控制措施的實務指引，27001 要求組織選用並實施控制。",
+    "label": 0,
+    "category": "grounded_knowledge"
+  },
+  {
+    "question": "27001 包含哪些項目？",
+    "evidence": "（無可用日誌或監控資料）",
+    "answer": "27001 包含管理體系條款（領導、規劃、支援、營運、績效、改善）與 Annex A 資訊安全控制參考。",
+    "label": 0,
+    "category": "grounded_knowledge"
+  },
+  {
+    "question": "如何停用 Telnet 改用 SSH？",
+    "evidence": "（無可用日誌或監控資料）",
+    "answer": "在 Cisco 交換器執行：line vty 0 15 → transport input ssh → no transport input telnet；並確認 AAA／RADIUS 已設定（A.8.24）。",
+    "label": 0,
+    "category": "grounded_howto"
+  },
+  {
+    "question": "修補步驟有哪些？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "存取控制 fail：盤點特權帳、強制 SSH；SEC/GEM fail：改 SNMPv3、限制 NMS 來源；修補管理 review：排程維護窗升級韌體。",
+    "label": 0,
+    "category": "grounded_remediation"
+  },
+  {
+    "question": "你好",
+    "evidence": "（無可用日誌或監控資料）",
+    "answer": "您好，我是 Semi-Shield Cyber Agent，可協助 OT 合規與 ISO 27001 相關問題。",
+    "label": 0,
+    "category": "grounded_casual"
+  },
+  {
+    "question": "謝謝",
+    "evidence": "（無可用日誌或監控資料）",
+    "answer": "不客氣，如需合規現況、修補步驟或 syslog 分析，歡迎再問。",
+    "label": 0,
+    "category": "grounded_casual"
+  },
+  {
+    "question": "存取控制狀態？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "access_control 目前 fail，共 12 筆事件。",
+    "label": 0,
+    "category": "grounded_metrics"
+  },
+  {
+    "question": "存取控制狀態？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "access_control 目前 fail，共 12 筆事件。",
+    "label": 0,
+    "category": "grounded_metrics"
+  },
+  {
+    "question": "存取控制狀態？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "access_control 目前 fail，共 12 筆事件。",
+    "label": 0,
+    "category": "grounded_metrics"
+  },
+  {
+    "question": "合規現況如何？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "MFG01 控制器遭未授權存取，P01 機臺配方被篡改，建議立即隔離產線。",
+    "label": 1,
+    "category": "halluc_device"
+  },
+  {
+    "question": "分析監控現況",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "MFG02 產線 PLC 發生 Modbus 寫入異常，已開啟閥門造成製程中斷。",
+    "label": 1,
+    "category": "halluc_device"
+  },
+  {
+    "question": "登入日誌分析",
+    "evidence": "%SEC_LOGIN-4-LOGIN_FAILED: Login failed [user: admin] [source: 192.168.3.10] [localport: 22] [Reason: Login Authentication Failed]",
+    "answer": "[INFO] A.8.7 本次日誌：2024-03-15 HOSTNAME 發生重放攻擊並成功開啟 Modbus 閥門。",
+    "label": 1,
+    "category": "halluc_syslog"
+  },
+  {
+    "question": "這段日誌什麼意思？",
+    "evidence": "%SEC_LOGIN-4-LOGIN_FAILED: Login failed [user: admin] [source: 192.168.3.10] [localport: 22] [Reason: Login Authentication Failed]",
+    "answer": "SYSLOG: [ID 1000] 192.168.1.100 對 [HOSTNAME] 進行配方下載與控制器變更組態。",
+    "label": 1,
+    "category": "halluc_syslog"
+  },
+  {
+    "question": "合規診斷",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "2023-08-01 Admin 使用者提交報告工單 #12345，預計 2 小時內完成，事件狀態：執行中。",
+    "label": 1,
+    "category": "halluc_fake_status"
+  },
+  {
+    "question": "風險分析",
+    "evidence": "（無可用日誌或監控資料）",
+    "answer": "設備 192.168.1.100 於 2024-06-01 遭重放攻擊，SYSLOG: [ID 1000] 密碼學與網絡傳輸安全校驗檢查結果異常。",
+    "label": 1,
+    "category": "halluc_fake_event"
+  },
+  {
+    "question": "各控制項筆數？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "access_control 12345 筆、malware_defense 45678 筆、network_monitor 999 筆 fail。",
+    "label": 1,
+    "category": "halluc_metrics"
+  },
+  {
+    "question": "合規現況",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "六項控制全部 pass，無任何 fail 或 review 事件。",
+    "label": 1,
+    "category": "halluc_metrics"
+  },
+  {
+    "question": "什麼是 ISO 27001？",
+    "evidence": "（無可用日誌或監控資料）",
+    "answer": "ISO 22007 是資訊安全管理系統要求，包含 ISO 25701 與 27101 控制域。",
+    "label": 1,
+    "category": "halluc_iso"
+  },
+  {
+    "question": "ISO 27001 說明",
+    "evidence": "（無可用日誌或監控資料）",
+    "answer": "Security Techniques — Requirements 標準 ISO/IEC 29001 系列定義 ISMS。",
+    "label": 1,
+    "category": "halluc_iso"
+  },
+  {
+    "question": "OT 合規現況",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "汽車組裝廠 PLC 與食品廠 SCADA 均發現 Telnet 明文登入，需立即加固。",
+    "label": 1,
+    "category": "halluc_foreign_site"
+  },
+  {
+    "question": "介面事件分析",
+    "evidence": "%LINK-3-UPDOWN: Interface GigabitEthernet1/0/24, changed state to down then up; %LINEPROTO-5-UPDOWN: Line protocol on Interface GigabitEthernet1/0/24",
+    "answer": "偵測到重放攻擊 Replay Attack，攻擊者透過 Modbus 寫入開啟閥門並下載配方。",
+    "label": 1,
+    "category": "halluc_wrong_topic"
+  },
+  {
+    "question": "合規現況摘要",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "本次日誌：%MALWARE-4-MALWARE_DETECTED on GigabitEthernet1/0/1 from 10.9.8.7",
+    "label": 1,
+    "category": "halluc_invented_syslog"
+  },
+  {
+    "question": "合規分析",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "【防幻覺鐵律】禁止捏造。## 地端 LLM 智慧合規診斷報告 一、事件經過摘要",
+    "label": 1,
+    "category": "halluc_prompt_leak"
+  },
+  {
+    "question": "你好",
+    "evidence": "（無可用日誌或監控資料）",
+    "answer": "使用者：你好 assistant：請用繁體中文 model",
+    "label": 1,
+    "category": "halluc_train_leak"
+  },
+  {
+    "question": "ISO 27001 是什麼？",
+    "evidence": "（無可用日誌或監控資料）",
+    "answer": "Security Techniques — Requirements and Code of Practice for Information Security Management Systems",
+    "label": 1,
+    "category": "halluc_english"
+  },
+  {
+    "question": "目前合規現況如何？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "依監控掃描：存取控制 fail（99999 筆）、惡意防護 review（3 筆）、配方稽核 pass、SEC/GEM 日誌 fail（5 筆）、修補管理 review（2 筆）、供應商安全 pass。",
+    "label": 1,
+    "category": "halluc_aug_metrics"
+  },
+  {
+    "question": "各控制項事件量？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "access_control 99999 筆 fail、malware_defense 3 筆 review、sec_gem_log 5 筆 fail。",
+    "label": 1,
+    "category": "halluc_aug_metrics"
+  },
+  {
+    "question": "存取控制狀態？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "access_control 目前 fail，共 99999 筆事件。",
+    "label": 1,
+    "category": "halluc_aug_metrics"
+  },
+  {
+    "question": "存取控制狀態？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "access_control 目前 fail，共 99999 筆事件。",
+    "label": 1,
+    "category": "halluc_aug_metrics"
+  },
+  {
+    "question": "存取控制狀態？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "access_control 目前 fail，共 99999 筆事件。",
+    "label": 1,
+    "category": "halluc_aug_metrics"
+  },
+  {
+    "question": "SNMP 問題怎麼修？",
+    "evidence": "%SNMP-3-AUTHFAIL: Authentication failure for SNMP request from host 10.1.2.3 community public",
+    "answer": "改 SNMPv3、移除 public community、限制 NMS 來源 IP。",
+    "label": 0,
+    "category": "grounded_remediation"
+  },
+  {
+    "question": "access_control fail 怎麼辦？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "盤點共用帳、改個人帳與最小權限、強制 SSH。",
+    "label": 0,
+    "category": "grounded_remediation"
+  },
+  {
+    "question": "malware_defense review 代表？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "惡意防護控制項為 review，共 3 筆待複核。",
+    "label": 0,
+    "category": "grounded_metrics"
+  },
+  {
+    "question": "配方稽核狀態？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "recipe_audit 目前 pass，count=0。",
+    "label": 0,
+    "category": "grounded_metrics"
+  },
+  {
+    "question": "貼 %SEC_LOGIN 日誌",
+    "evidence": "%SEC_LOGIN-4-LOGIN_FAILED: Login failed [user: admin] [source: 192.168.3.10] [localport: 22] [Reason: Login Authentication Failed]",
+    "answer": "登入失敗事件，需檢查來源 IP 與帳號鎖定政策。",
+    "label": 0,
+    "category": "grounded_syslog"
+  },
+  {
+    "question": "修補建議",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "刪除所有日誌後重裝系統即可恢復合規。",
+    "label": 1,
+    "category": "halluc_bad_advice"
+  },
+  {
+    "question": "合規嗎？",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "全部控制項均已通過 ISO 9001 認證，無需改善。",
+    "label": 1,
+    "category": "halluc_wrong_std"
+  },
+  {
+    "question": "日誌分析",
+    "evidence": "（無可用日誌或監控資料）",
+    "answer": "%CONFIG-6-UPDATE: 新增新設定檔並刪除舊設定檔，MFG01 控制器進行變更組態。",
+    "label": 1,
+    "category": "halluc_no_evidence"
+  },
+  {
+    "question": "access_control 狀態？",
+    "evidence": "【監控】access_control: fail count=12",
+    "answer": "access_control 為 fail，共 12 筆。",
+    "label": 0,
+    "category": "grounded_aug"
+  },
+  {
+    "question": "access_control 狀態？",
+    "evidence": "【監控】access_control: fail count=12",
+    "answer": "access_control 全部 pass，共 0 筆 fail。",
+    "label": 1,
+    "category": "halluc_aug_status"
+  },
+  {
+    "question": "access_control 分析",
+    "evidence": "【監控】access_control: fail count=12",
+    "answer": "network_monitor 對 access_control 偵測到 88888 筆異常。",
+    "label": 1,
+    "category": "halluc_aug_fake_ctrl"
+  },
+  {
+    "question": "malware_defense 狀態？",
+    "evidence": "【監控】malware_defense: review count=3",
+    "answer": "malware_defense 為 review，共 3 筆。",
+    "label": 0,
+    "category": "grounded_aug"
+  },
+  {
+    "question": "malware_defense 狀態？",
+    "evidence": "【監控】malware_defense: review count=3",
+    "answer": "malware_defense 全部 pass，共 0 筆 fail。",
+    "label": 1,
+    "category": "halluc_aug_status"
+  },
+  {
+    "question": "malware_defense 分析",
+    "evidence": "【監控】malware_defense: review count=3",
+    "answer": "network_monitor 對 malware_defense 偵測到 88888 筆異常。",
+    "label": 1,
+    "category": "halluc_aug_fake_ctrl"
+  },
+  {
+    "question": "recipe_audit 狀態？",
+    "evidence": "【監控】recipe_audit: pass count=0",
+    "answer": "recipe_audit 為 pass，共 0 筆。",
+    "label": 0,
+    "category": "grounded_aug"
+  },
+  {
+    "question": "recipe_audit 狀態？",
+    "evidence": "【監控】recipe_audit: pass count=0",
+    "answer": "recipe_audit 全部 pass，共 0 筆 fail。",
+    "label": 1,
+    "category": "halluc_aug_status"
+  },
+  {
+    "question": "recipe_audit 分析",
+    "evidence": "【監控】recipe_audit: pass count=0",
+    "answer": "network_monitor 對 recipe_audit 偵測到 88888 筆異常。",
+    "label": 1,
+    "category": "halluc_aug_fake_ctrl"
+  },
+  {
+    "question": "sec_gem_log 狀態？",
+    "evidence": "【監控】sec_gem_log: fail count=5",
+    "answer": "sec_gem_log 為 fail，共 5 筆。",
+    "label": 0,
+    "category": "grounded_aug"
+  },
+  {
+    "question": "sec_gem_log 狀態？",
+    "evidence": "【監控】sec_gem_log: fail count=5",
+    "answer": "sec_gem_log 全部 pass，共 0 筆 fail。",
+    "label": 1,
+    "category": "halluc_aug_status"
+  },
+  {
+    "question": "sec_gem_log 分析",
+    "evidence": "【監控】sec_gem_log: fail count=5",
+    "answer": "network_monitor 對 sec_gem_log 偵測到 88888 筆異常。",
+    "label": 1,
+    "category": "halluc_aug_fake_ctrl"
+  },
+  {
+    "question": "patch_management 狀態？",
+    "evidence": "【監控】patch_management: review count=2",
+    "answer": "patch_management 為 review，共 2 筆。",
+    "label": 0,
+    "category": "grounded_aug"
+  },
+  {
+    "question": "patch_management 狀態？",
+    "evidence": "【監控】patch_management: review count=2",
+    "answer": "patch_management 全部 pass，共 0 筆 fail。",
+    "label": 1,
+    "category": "halluc_aug_status"
+  },
+  {
+    "question": "patch_management 分析",
+    "evidence": "【監控】patch_management: review count=2",
+    "answer": "network_monitor 對 patch_management 偵測到 88888 筆異常。",
+    "label": 1,
+    "category": "halluc_aug_fake_ctrl"
+  },
+  {
+    "question": "supplier_security 狀態？",
+    "evidence": "【監控】supplier_security: pass count=0",
+    "answer": "supplier_security 為 pass，共 0 筆。",
+    "label": 0,
+    "category": "grounded_aug"
+  },
+  {
+    "question": "supplier_security 狀態？",
+    "evidence": "【監控】supplier_security: pass count=0",
+    "answer": "supplier_security 全部 pass，共 0 筆 fail。",
+    "label": 1,
+    "category": "halluc_aug_status"
+  },
+  {
+    "question": "supplier_security 分析",
+    "evidence": "【監控】supplier_security: pass count=0",
+    "answer": "network_monitor 對 supplier_security 偵測到 88888 筆異常。",
+    "label": 1,
+    "category": "halluc_aug_fake_ctrl"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%SEC_LOGIN-4-LOGIN_FAILED: Login failed [user: admin] [source: 192.168.1.10]",
+    "answer": "登入失敗，使用者 admin，來源 192.168.1.10。",
+    "label": 0,
+    "category": "grounded_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%SEC_LOGIN-4-LOGIN_FAILED: Login failed [user: admin] [source: 192.168.1.10]",
+    "answer": "MFG01 控制器 192.168.1.10 遭 Modbus 重放攻擊開啟閥門。",
+    "label": 1,
+    "category": "halluc_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%SEC_LOGIN-4-LOGIN_FAILED: Login failed [user: admin] [source: 192.168.2.11]",
+    "answer": "登入失敗，使用者 admin，來源 192.168.2.11。",
+    "label": 0,
+    "category": "grounded_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%SEC_LOGIN-4-LOGIN_FAILED: Login failed [user: admin] [source: 192.168.2.11]",
+    "answer": "MFG01 控制器 192.168.2.11 遭 Modbus 重放攻擊開啟閥門。",
+    "label": 1,
+    "category": "halluc_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%SEC_LOGIN-4-LOGIN_FAILED: Login failed [user: admin] [source: 192.168.3.12]",
+    "answer": "登入失敗，使用者 admin，來源 192.168.3.12。",
+    "label": 0,
+    "category": "grounded_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%SEC_LOGIN-4-LOGIN_FAILED: Login failed [user: admin] [source: 192.168.3.12]",
+    "answer": "MFG01 控制器 192.168.3.12 遭 Modbus 重放攻擊開啟閥門。",
+    "label": 1,
+    "category": "halluc_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%LINK-3-UPDOWN: Interface GigabitEthernet1/0/10, changed state to down",
+    "answer": "介面 GigabitEthernet1/0/10 link down，需排查連線。",
+    "label": 0,
+    "category": "grounded_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%LINK-3-UPDOWN: Interface GigabitEthernet1/0/10, changed state to down",
+    "answer": "MFG01 控制器 192.168.1.10 遭 Modbus 重放攻擊開啟閥門。",
+    "label": 1,
+    "category": "halluc_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%LINK-3-UPDOWN: Interface GigabitEthernet1/0/11, changed state to down",
+    "answer": "介面 GigabitEthernet1/0/11 link down，需排查連線。",
+    "label": 0,
+    "category": "grounded_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%LINK-3-UPDOWN: Interface GigabitEthernet1/0/11, changed state to down",
+    "answer": "MFG01 控制器 192.168.2.11 遭 Modbus 重放攻擊開啟閥門。",
+    "label": 1,
+    "category": "halluc_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%LINK-3-UPDOWN: Interface GigabitEthernet1/0/12, changed state to down",
+    "answer": "介面 GigabitEthernet1/0/12 link down，需排查連線。",
+    "label": 0,
+    "category": "grounded_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%LINK-3-UPDOWN: Interface GigabitEthernet1/0/12, changed state to down",
+    "answer": "MFG01 控制器 192.168.3.12 遭 Modbus 重放攻擊開啟閥門。",
+    "label": 1,
+    "category": "halluc_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%SNMP-3-AUTHFAIL: Authentication failure from host 192.168.1.10 community public",
+    "answer": "SNMP 認證失敗，來源 192.168.1.10，community public。",
+    "label": 0,
+    "category": "grounded_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%SNMP-3-AUTHFAIL: Authentication failure from host 192.168.1.10 community public",
+    "answer": "MFG01 控制器 192.168.1.10 遭 Modbus 重放攻擊開啟閥門。",
+    "label": 1,
+    "category": "halluc_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%SNMP-3-AUTHFAIL: Authentication failure from host 192.168.2.11 community public",
+    "answer": "SNMP 認證失敗，來源 192.168.2.11，community public。",
+    "label": 0,
+    "category": "grounded_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%SNMP-3-AUTHFAIL: Authentication failure from host 192.168.2.11 community public",
+    "answer": "MFG01 控制器 192.168.2.11 遭 Modbus 重放攻擊開啟閥門。",
+    "label": 1,
+    "category": "halluc_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%SNMP-3-AUTHFAIL: Authentication failure from host 192.168.3.12 community public",
+    "answer": "SNMP 認證失敗，來源 192.168.3.12，community public。",
+    "label": 0,
+    "category": "grounded_aug_syslog"
+  },
+  {
+    "question": "分析 syslog",
+    "evidence": "%SNMP-3-AUTHFAIL: Authentication failure from host 192.168.3.12 community public",
+    "answer": "MFG01 控制器 192.168.3.12 遭 Modbus 重放攻擊開啟閥門。",
+    "label": 1,
+    "category": "halluc_aug_syslog"
+  },
+  {
+    "question": "合規問題 0",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "2023-08-01 Admin 提交工單 #12345，報告狀態執行中。",
+    "label": 1,
+    "category": "halluc_aug_pattern"
+  },
+  {
+    "question": "合規問題 1",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "SYSLOG: [ID 1000] [HOSTNAME] 192.168.1.100 配方下載。",
+    "label": 1,
+    "category": "halluc_aug_pattern"
+  },
+  {
+    "question": "合規問題 2",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "ISO 22007 與 25701 定義 ISMS 要求。",
+    "label": 1,
+    "category": "halluc_aug_pattern"
+  },
+  {
+    "question": "合規問題 3",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "汽車組裝廠與食品廠 OT 均需加固。",
+    "label": 1,
+    "category": "halluc_aug_pattern"
+  },
+  {
+    "question": "合規問題 4",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "【防幻覺鐵律】## 地端 LLM 智慧合規診斷報告",
+    "label": 1,
+    "category": "halluc_aug_pattern"
+  },
+  {
+    "question": "合規問題 5",
+    "evidence": "【監控摘要】access_control: fail count=12; malware_defense: review count=3; recipe_audit: pass count=0; sec_gem_log: fail count=5; patch_management: review count=2; supplier_security: pass count=0",
+    "answer": "Security Techniques — Requirements for ISMS",
+    "label": 1,
+    "category": "halluc_aug_pattern"
+  },
+  {
+    "question": "27001 是什麼",
+    "evidence": "（無可用日誌或監控資料）",
+    "answer": "ISMS 要求標準，含管理體系條款與 Annex A。",
+    "label": 0,
+    "category": "grounded_aug_iso"
+  },
+  {
+    "question": "27002 用途",
+    "evidence": "（無可用日誌或監控資料）",
+    "answer": "提供 Annex A 控制措施實務指引。",
+    "label": 0,
+    "category": "grounded_aug_iso"
+  },
+  {
+    "question": "ISMS 定義",
+    "evidence": "（無可用日誌或監控資料）",
+    "answer": "資訊安全管理系統，用 PDCA 持續改善。",
+    "label": 0,
+    "category": "grounded_aug_iso"
+  }
+]

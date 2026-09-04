@@ -258,10 +258,49 @@
             .topbar { padding: 0 10px; }
             .nav-tabs button { padding: 8px 12px; font-size: 12px; }
         }
+
+        /* 從歡迎頁進場 */
+        .shell.enter-from-welcome {
+            animation: shell-enter 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+
+        @keyframes shell-enter {
+            from {
+                opacity: 0;
+                transform: scale(1.04) translateY(12px);
+                filter: brightness(1.4) blur(4px);
+            }
+            55% {
+                filter: brightness(1.1) blur(0);
+            }
+            to {
+                opacity: 1;
+                transform: none;
+                filter: none;
+            }
+        }
+
+        .shell.enter-from-welcome .topbar {
+            animation: bar-slide 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+        }
+
+        @keyframes bar-slide {
+            from { opacity: 0; transform: translateY(-16px); }
+            to { opacity: 1; transform: none; }
+        }
+
+        .shell.enter-from-welcome #pane-monitor.active {
+            animation: pane-reveal 0.9s cubic-bezier(0.22, 1, 0.36, 1) 0.18s both;
+        }
+
+        @keyframes pane-reveal {
+            from { opacity: 0; transform: translateY(24px) scale(0.98); }
+            to { opacity: 1; transform: none; }
+        }
     </style>
 </head>
 <body>
-    <div class="shell">
+    <div class="shell" id="platformShell">
         <header class="topbar">
             <div class="brand">
                 <div class="brand-mark">SS</div>
@@ -479,6 +518,15 @@
 
         initViewFromUrl();
         applyView();
+
+        (function welcomeEnterFx() {
+            try {
+                if (sessionStorage.getItem('ss_welcome_enter') !== '1') return;
+                sessionStorage.removeItem('ss_welcome_enter');
+                const shell = document.getElementById('platformShell');
+                if (shell) shell.classList.add('enter-from-welcome');
+            } catch (_) {}
+        })();
     </script>
 </body>
 </html>

@@ -72,6 +72,10 @@ CONTROL_META = {
         "iso": "A.8.19",
         "title": "組態變更管理稽核",
     },
+    "storage_maintenance": {
+        "iso": "A.7.13 / A.8.15 / A.8.16",
+        "title": "設備維護／日誌記錄／監控活動（Flash 儲存）",
+    },
 }
 
 # facility/mnemonic → 控制項（與監控分類對齊，避免 LOGIN 被誤判成重放攻擊）
@@ -83,6 +87,11 @@ TYPE_RULES = [
     )),
     ("sec_gem_log", re.compile(
         r"SNMP|CRYPTO|PKI|TLS|SSL|IPSEC|IKE|CERTIFICATE|SUDI|COMMUNITY",
+        re.I,
+    )),
+    ("storage_maintenance", re.compile(
+        r"\[sda\]|EXT2|SUPERBLOCK|EXT2_FS|EXT2_FSYNC|device offline or changed|"
+        r"metadata write I/O error|FLASH_CHECK|sda\d",
         re.I,
     )),
     ("patch_management", re.compile(
@@ -315,6 +324,44 @@ def analysis_for_event(facility: str, severity: str, mnemonic: str, body: str, r
         )
         return key, instruction, output
 
+    if re.search(
+        r"\[SDA\]|EXT2|SUPERBLOCK|EXT2_FSYNC|DEVICE OFFLINE OR CHANGED|"
+        r"METADATA WRITE I/O ERROR|SDA\d",
+        hay,
+    ):
+        key = "storage_maintenance"
+        meta = CONTROL_META[key]
+        instruction = (
+            f"請分析此 Catalyst 9300 Flash／儲存子系統 syslog（{SITE}）：\n{raw.strip()}"
+        )
+        output = (
+            f"## 地端 LLM 智慧合規診斷報告\n\n"
+            f"## 一、事件經過摘要\n"
+            f"設備產生 `{code}`，核心訊息涉及 Linux **block device `sda`** 與 **EXT2 檔案系統 I/O**。\n"
+            f"在 Cisco Catalyst 9300 上，`sda` 是**內部 Flash／eUSB 儲存裝置的 kernel 區塊裝置名稱**，"
+            f"**不是**外接 SD 記憶卡、也不是現場 PLC 可移除媒體。\n"
+            f"常見因果：`[sda] device offline or changed`（底層儲存不可用）→ "
+            f"EXT2 superblock／metadata write I/O error（檔案系統無法可靠讀寫）。"
+            f"大量重複訊息通常代表 **log storm**，應視為同一儲存子系統問題的連鎖反應。\n\n"
+            f"## 二、不合規／風險分析\n"
+            f"- 控制項：{meta['iso']} {meta['title']}\n"
+            f"- 亦可能涉及 A.5.25／A.5.26（事件評估與回應）、A.8.13（設定備份）、"
+            f"A.8.32（變更管理，若需 reload／升級 IOS XE）。\n"
+            f"- 風險：Flash 讀寫可能已受影響；下次存設定、升級或 reload 可能失敗。"
+            f"設備可能仍能轉送封包，但**可用性與設定完整性**已受威脅。\n"
+            f"- **禁止**解讀為 SD 卡拔出、相機記憶卡、ICS 重放攻擊或 MFG 配方變更。\n"
+            f"- syslog 能證明儲存異常，**不能單獨**斷言一定需 RMA；需 reload、版本檢查、"
+            f"`dir flash:`／diagnostic 與 Cisco TAC 進一步判定。\n\n"
+            f"## 三、具體修補建議\n"
+            f"- **立即**將 running-config／startup-config 備份到外部安全位置並驗證可還原。\n"
+            f"- 收集 `show version`、`show file systems`、`dir flash:`、`show logging`、"
+            f"`show diagnostic result module all detail`。\n"
+            f"- 依變更程序於維護窗口 reload；確認 IOS XE 是否含 CSCvm77197 等相關修正。\n"
+            f"- reload／升級後 24–72 小時監控 sda、EXT2、FLASH_CHECK；若仍失敗則開 TAC／評估 RMA。\n"
+            f"- 修正 severity mapping（原始 %IOSXE-2/3-PLATFORM 勿一律降為 info）並建立高頻 I/O 告警。\n"
+        )
+        return key, instruction, output
+
     if re.search(r"BOOT|INSTALL|IOSXE|PLATFORM|IMAGE|UPGRADE", hay):
         instruction = f"請從弱點／韌體管理角度分析（{SITE}）：\n{raw.strip()}"
         output = (
@@ -398,31 +445,62 @@ def analysis_for_event(facility: str, severity: str, mnemonic: str, body: str, r
     return key, instruction, output
 
 
+def _iter_ot_syslog_lines() -> list[str]:
+    """從 ot/*.txt 與 ot/*.jsonl 收集 Cisco syslog 行。"""
+    lines: list[str] = []
+    for path in sorted(OT_DIR.iterdir()):
+        if not path.is_file():
+            continue
+        low = path.name.lower()
+        if low.endswith(".txt") and not low.startswith("expand_"):
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    line = line.rstrip("\n")
+                    if line.strip():
+                        lines.append(line)
+        elif low.endswith(".jsonl"):
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                for raw in f:
+                    raw = raw.strip()
+                    if not raw:
+                        continue
+                    try:
+                        obj = json.loads(raw)
+                    except json.JSONDecodeError:
+                        continue
+                    if not isinstance(obj, dict):
+                        continue
+                    msg = (
+                        obj.get("message")
+                        or obj.get("raw")
+                        or obj.get("log")
+                        or obj.get("syslog")
+                        or obj.get("msg")
+                        or ""
+                    )
+                    if isinstance(msg, str) and msg.strip():
+                        lines.append(msg.strip())
+    return lines
+
+
 def load_ot_log_docs(per_type: int, max_docs: int) -> list[dict]:
-    files = sorted(
-        p for p in OT_DIR.glob("*.txt")
-        if not p.name.lower().startswith("expand_")
-    )
-    if not files:
-        print(f"⚠️ OT 目錄無 txt：{OT_DIR}")
+    all_lines = _iter_ot_syslog_lines()
+    if not all_lines:
+        print(f"⚠️ OT 目錄無可解析 syslog：{OT_DIR}")
         return []
 
     buckets: dict[str, list[str]] = defaultdict(list)
-    for path in files:
-        with open(path, "r", encoding="utf-8", errors="ignore") as f:
-            for line in f:
-                line = line.rstrip("\n")
-                m = CISCO_RE.search(line)
-                if not m:
-                    continue
-                facility, sev, mnemonic, body = m.group(1), m.group(2), m.group(3), m.group(4)
-                type_key = f"{facility}-{mnemonic}"
-                if len(buckets[type_key]) >= per_type:
-                    continue
-                # 去重（同 type 內 raw 太像就跳過）
-                if any(line[-80:] == x[-80:] for x in buckets[type_key]):
-                    continue
-                buckets[type_key].append(line)
+    for line in all_lines:
+        m = CISCO_RE.search(line)
+        if not m:
+            continue
+        facility, sev, mnemonic, body = m.group(1), m.group(2), m.group(3), m.group(4)
+        type_key = f"{facility}-{mnemonic}"
+        if len(buckets[type_key]) >= per_type:
+            continue
+        if any(line[-80:] == x[-80:] for x in buckets[type_key]):
+            continue
+        buckets[type_key].append(line)
 
     docs = []
     idx = 0
@@ -450,7 +528,7 @@ def load_ot_log_docs(per_type: int, max_docs: int) -> list[dict]:
         if len(docs) >= max_docs:
             break
 
-    print(f"✓ ot/*.txt → {len(docs)} 篇（{len(buckets)} 種訊息類型）")
+    print(f"✓ ot/*.txt + *.jsonl → {len(docs)} 篇（{len(buckets)} 種訊息類型）")
     return docs
 
 
@@ -505,6 +583,32 @@ def curated_control_docs() -> list[dict]:
             "- 禁止解讀為控制器配置檔變更或 ICS 指令攻擊。\n\n"
             "## 三、具體修補建議\n"
             "- 現場查線與對端；確認 PoE／協商；監控短時間 UPDOWN 次數並留存證據。",
+        ),
+        (
+            "Cisco Catalyst syslog 中的 sda 是 SD 卡嗎？",
+            "**不是。** 在 Catalyst 9300／9500 的 IOS XE 上，kernel 訊息 `[sda]` 代表 "
+            "**Linux block device（區塊裝置）名稱**，對應交換器**內部 Flash／eUSB 儲存子系統**，"
+            "用來掛載 flash: 等檔案系統。**禁止**解讀成外接 SD 記憶卡、相機記憶卡或可現場拔插的媒體。\n"
+            "若同時出現 EXT2 superblock I/O error、metadata write I/O error，"
+            "表示底層 sda 不可用後，上層 EXT2 檔案系統連鎖失敗；"
+            "應優先備份 running-config／startup-config，再依程序 reload、升級 IOS XE 或開 TAC。",
+        ),
+        (
+            "C9300 [sda] device offline or changed 與 EXT2 I/O error 是否相關？",
+            "**高度相關，應視為同一 Flash／儲存問題的連鎖反應。**\n"
+            "1. 底層：`[sda] device offline or changed` — kernel 認為 sda 離線或狀態改變。\n"
+            "2. 上層：EXT2 previous I/O error to superblock — 檔案系統關鍵結構讀寫失敗。\n"
+            "3. 上層：ext2_fsync metadata write I/O error — 同步 metadata 時寫入失敗。\n"
+            "常見分割區 sda3／sda4。大量重複訊息多為 log storm。\n"
+            "**不是 SD 卡問題**；可能根因含 IOS XE 已知缺陷、Flash 媒體劣化或儲存控制器異常。"
+            "ISO 27001 可映射 A.7.13 設備維護、A.8.15 日誌、A.8.16 監控、A.5.25／A.5.26 事件管理、A.8.13 備份。",
+        ),
+        (
+            "C9300 Flash 儲存異常 syslog 禁止怎麼寫？",
+            "禁止寫成：SD 卡故障、記憶卡損壞、外接卡未插入、ICS 重放攻擊、MFG 配方變更、"
+            "控制器新增刪除設定檔。\n"
+            "正確寫法：內部 Flash／eUSB 儲存子系統、sda block device、EXT2 檔案系統 I/O 錯誤、"
+            "設定備份、reload／IOS XE 升級、diagnostic 與 TAC／RMA 評估。",
         ),
     ]
     docs = []

@@ -45,6 +45,13 @@ train_ai/train_gur/fine_tuned_guardrail/scheduler.pt
 train_ai/train_gur/fine_tuned_guardrail/rng_state.pth
 train_ai/train_gur/fine_tuned_guardrail/scaler.pt
 train_ai/train_gur/fine_tuned_guardrail/training_args.bin
+train_ai/train_hallucination/hallucination_checkpoints/
+train_ai/train_hallucination/fine_tuned_hallucination_guard/model.safetensors
+train_ai/train_hallucination/fine_tuned_hallucination_guard/optimizer.pt
+train_ai/train_hallucination/fine_tuned_hallucination_guard/scheduler.pt
+train_ai/train_hallucination/fine_tuned_hallucination_guard/rng_state.pth
+train_ai/train_hallucination/fine_tuned_hallucination_guard/scaler.pt
+train_ai/train_hallucination/fine_tuned_hallucination_guard/training_args.bin
 train_ai/train_rag/fine_tuned_rag_embedder/
 train_ai/train_rag/checkpoints/
 train_ai/train_rag/index/embeddings.npy
@@ -55,8 +62,14 @@ train_ai/unsloth_compiled_cache/
 
 # 暫存檢查腳本／雜訊檔
 _check_*.py
-0.46.1`
 _archive/
+docs/_video_frames/
+docs/_subtitle_out.txt
+docs/_video_list.txt
+_font_test.pdf
+_verify_cjk.pdf
+新文字文件.txt
+train_ai/train_rag/knowledge_base.backup_*.json
 
 # 合規 evidence / review 執行期資料
 data/evidence_registry.jsonl

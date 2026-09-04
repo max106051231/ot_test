@@ -44,13 +44,143 @@ TRAIN_AI_DIR = SCRIPT_DIR.parent
 PROJECT_ROOT = TRAIN_AI_DIR.parent
 MODELS_DIR = TRAIN_AI_DIR / "models"
 PRESETS_PATH = SCRIPT_DIR / "model_presets.json"
-DEFAULT_DATA = SCRIPT_DIR / "train.json"
+DEFAULT_DATA = (
+    SCRIPT_DIR / "train.jsonl"
+    if (SCRIPT_DIR / "train.jsonl").is_file()
+    else SCRIPT_DIR / "train.json"
+)
 
 # 常見 Causal LM LoRA 目標層（Qwen / Llama / Phi 系）
 DEFAULT_TARGET_MODULES = [
     "q_proj", "k_proj", "v_proj", "o_proj",
     "gate_proj", "up_proj", "down_proj",
 ]
+
+# Gemma 4 多模態塔使用 Gemma4ClippableLinear；PEFT>=0.19 內建 LM-only 預設 regex。
+# 若手動傳 DEFAULT_TARGET_MODULES 會誤命中 vision/audio 而失敗。
+GEMMA4_LORA_TARGET_MODULES = None
+
+
+def _read_model_config(source: str) -> dict:
+    p = Path(source)
+    if p.is_dir() and (p / "config.json").is_file():
+        try:
+            return json.loads((p / "config.json").read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
+
+
+def _model_family(source: str, model_id: str = "") -> str:
+    cfg = _read_model_config(source)
+    model_type = str(cfg.get("model_type") or "").lower()
+    archs = " ".join(str(a) for a in (cfg.get("architectures") or [])).lower()
+    blob = f"{model_type} {archs} {model_id}".lower()
+    if model_type == "gemma3_text" or "gemma3forcausallm" in archs:
+        return "gemma3_text"
+    if "gemma4" in blob or "multimodallm" in archs:
+        return "gemma4"
+    if "gemma3" in blob:
+        return "gemma3"
+    if "gemma" in blob:
+        return "gemma"
+    return "default"
+
+
+def _bnb_config_for_family(family: str) -> BitsAndBytesConfig:
+    compute = (
+        torch.bfloat16
+        if family in ("gemma3", "gemma4", "gemma")
+        and torch.cuda.is_available()
+        and torch.cuda.is_bf16_supported()
+        else torch.float16
+    )
+    return BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=compute,
+        bnb_4bit_use_double_quant=True,
+    )
+
+
+def load_pretrained_for_training(
+    base_source: str,
+    *,
+    hf_token: str | None,
+    bnb_config: BitsAndBytesConfig | None = None,
+    for_merge: bool = False,
+    merge_device: str = "auto",
+):
+    """依 config 選擇 CausalLM / Gemma3 / MultimodalLM 載入。"""
+    family = _model_family(base_source)
+    common = dict(token=hf_token, trust_remote_code=True)
+    extra: dict = {}
+    if for_merge:
+        dtype = (
+            torch.bfloat16
+            if torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+            else torch.float16
+        )
+        device_map = "auto"
+        if merge_device == "cpu" or (
+            merge_device == "auto" and not torch.cuda.is_available()
+        ):
+            device_map = None
+        elif merge_device == "cuda":
+            device_map = "auto"
+        extra = dict(
+            torch_dtype=dtype,
+            device_map=device_map,
+            low_cpu_mem_usage=True,
+        )
+    elif bnb_config is not None:
+        extra = dict(
+            quantization_config=bnb_config,
+            device_map="auto",
+        )
+        if family in ("gemma3", "gemma3_text", "gemma4", "gemma"):
+            extra["attn_implementation"] = "eager"
+    else:
+        dtype = (
+            torch.bfloat16
+            if torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+            else torch.float16
+        )
+        extra = dict(torch_dtype=dtype, device_map="auto", low_cpu_mem_usage=True)
+        if family in ("gemma3", "gemma3_text", "gemma4", "gemma"):
+            extra["attn_implementation"] = "eager"
+
+    if family == "gemma4":
+        try:
+            from transformers import AutoModelForMultimodalLM
+
+            return AutoModelForMultimodalLM.from_pretrained(
+                base_source, **common, **extra
+            )
+        except ImportError as e:
+            raise ImportError(
+                "Gemma 4 需 transformers>=4.51；請 pip install -U transformers"
+            ) from e
+
+    if family == "gemma3_text":
+        try:
+            from transformers import Gemma3ForCausalLM
+
+            return Gemma3ForCausalLM.from_pretrained(base_source, **common, **extra)
+        except ImportError:
+            pass
+
+    if family == "gemma3":
+        try:
+            from transformers import Gemma3ForConditionalGeneration
+
+            return Gemma3ForConditionalGeneration.from_pretrained(
+                base_source, **common, **extra
+            )
+        except ImportError:
+            pass
+
+    return AutoModelForCausalLM.from_pretrained(base_source, **common, **extra)
 
 
 def load_presets() -> dict:
@@ -80,6 +210,58 @@ def resolve_data_path(data_arg: str) -> Path:
         f"找不到訓練資料：{data_arg}\n"
         f"請確認存在：{DEFAULT_DATA}"
     )
+
+
+def resolve_model_source(model_id: str, slug: str = "") -> str:
+    """
+    若 train_ai/models/<slug> 已有完整權重，優先用本地路徑載入基底（省頻寬）。
+    回傳 HuggingFace id 或本地目錄字串。
+    """
+    candidates: list[Path] = []
+    if slug:
+        candidates.append(MODELS_DIR / slug)
+        if slug.endswith("_ot"):
+            base_slug = slug[: -len("_ot")]
+            if base_slug:
+                candidates.append(MODELS_DIR / base_slug)
+    name = model_id.split("/")[-1].lower()
+    for p in MODELS_DIR.iterdir() if MODELS_DIR.is_dir() else []:
+        if not p.is_dir() or not (p / "config.json").is_file():
+            continue
+        if p.name.lower() == name or p.name.lower().replace("_ot", "") in name:
+            candidates.append(p)
+    seen: set[str] = set()
+    for cand in candidates:
+        key = str(cand.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        if (cand / "config.json").is_file() and (
+            (cand / "model.safetensors").is_file()
+            or list(cand.glob("model-*.safetensors"))
+            or list(cand.glob("pytorch_model*.bin"))
+        ):
+            try:
+                cfg = json.loads((cand / "config.json").read_text(encoding="utf-8"))
+                auto_map = cfg.get("auto_map") or {}
+                for rel in auto_map.values():
+                    if not isinstance(rel, str):
+                        continue
+                    mod_file = rel.split("::")[0].strip()
+                    if mod_file and not mod_file.endswith(".py"):
+                        mod_file = mod_file.split(".")[0] + ".py"
+                    if mod_file and not (cand / mod_file).is_file():
+                        print(
+                            f"⚠️ 本地 {cand.name} 缺 {mod_file}，改從 HuggingFace 載入"
+                        )
+                        break
+                else:
+                    print(f"📂 使用本地基底：{cand}")
+                    return str(cand.resolve())
+            except Exception as e:
+                print(f"⚠️ 讀取 {cand}/config.json 失敗（{e}），改從 HF 載入")
+            continue
+    return model_id
 
 
 def parse_args():
@@ -221,13 +403,11 @@ def _export_full_precision_merge(
     print(f"  device : {merge_device} (device_map={device_map})")
     print("=" * 60)
 
-    base = AutoModelForCausalLM.from_pretrained(
+    base = load_pretrained_for_training(
         model_id,
-        torch_dtype=dtype,
-        device_map=device_map,
-        low_cpu_mem_usage=True,
-        token=hf_token,
-        trust_remote_code=True,
+        hf_token=hf_token,
+        for_merge=True,
+        merge_device=merge_device,
     )
     if device_map is None:
         base = base.to("cpu")
@@ -297,54 +477,80 @@ def train_one(
     merge_device: str = "auto",
 ):
     hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_HUB_TOKEN")
+    base_source = resolve_model_source(model_id, slug=slug)
     ckpt_dir = SCRIPT_DIR / "outputs" / slug
     merged_dir = output_root / slug
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     output_root.mkdir(parents=True, exist_ok=True)
 
     print("=" * 60)
-    print(f"基底模型 : {model_id}")
+    print(f"基底模型 : {base_source}")
+    if base_source != model_id:
+        print(f"  (HF id : {model_id})")
     print(f"資料集   : {data_path}")
     print(f"checkpoint: {ckpt_dir}")
     print(f"合併輸出 : {merged_dir}")
     print(f"max_steps={max_steps}, batch_size={batch_size}, max_length={max_length}")
-    print(f"訓練方式 : QLoRA 4-bit（省顯存）")
+    family = _model_family(base_source, model_id)
+    train_mode = "bf16 LoRA" if family == "gemma4" else "QLoRA 4-bit（省顯存）"
+    print(f"訓練方式 : {train_mode}")
     print(
         f"匯出方式 : "
         + ("只存 adapter（--skip-merge）" if skip_merge else "全精度基底+LoRA merge")
     )
     print("=" * 60)
 
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_use_double_quant=True,
-    )
-
-    model = AutoModelForCausalLM.from_pretrained(
-        model_id,
-        quantization_config=bnb_config,
-        device_map="auto",
-        token=hf_token,
-        trust_remote_code=True,
-    )
+    bnb_config = _bnb_config_for_family(family)
+    load_kwargs: dict = dict(hf_token=hf_token, bnb_config=bnb_config)
+    if family == "gemma4":
+        # Gemma 4 多模態 + QLoRA 4-bit 與 PEFT 常不相容，改 bf16 LoRA
+        dtype = (
+            torch.bfloat16
+            if torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+            else torch.float16
+        )
+        load_kwargs = dict(
+            hf_token=hf_token,
+            bnb_config=None,
+            for_merge=False,
+        )
+        model = load_pretrained_for_training(
+            base_source,
+            **load_kwargs,
+        )
+        if hasattr(model, "vision_tower") and model.vision_tower is not None:
+            for p in model.vision_tower.parameters():
+                p.requires_grad = False
+        if hasattr(model, "multi_modal_projector") and model.multi_modal_projector is not None:
+            for p in model.multi_modal_projector.parameters():
+                p.requires_grad = False
+    else:
+        model = load_pretrained_for_training(
+            base_source,
+            hf_token=hf_token,
+            bnb_config=bnb_config,
+        )
     tokenizer = AutoTokenizer.from_pretrained(
-        model_id,
+        base_source,
         token=hf_token,
         trust_remote_code=True,
     )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    peft_config = LoraConfig(
+    lora_targets = (
+        GEMMA4_LORA_TARGET_MODULES if family == "gemma4" else DEFAULT_TARGET_MODULES
+    )
+    lora_kwargs: dict = dict(
         r=16,
         lora_alpha=16,
-        target_modules=DEFAULT_TARGET_MODULES,
         lora_dropout=0.05,
         bias="none",
         task_type="CAUSAL_LM",
     )
+    if lora_targets is not None:
+        lora_kwargs["target_modules"] = lora_targets
+    peft_config = LoraConfig(**lora_kwargs)
     model = get_peft_model(model, peft_config)
 
     system_prompt = (
@@ -391,42 +597,105 @@ def train_one(
             {"role": "assistant", "content": output},
         ]
 
-    def format_prompts(examples):
-        texts = []
-        for instruction, output in zip(examples["instruction"], examples["output"]):
-            if hasattr(tokenizer, "apply_chat_template"):
-                messages = _build_messages(instruction, output)
-                try:
-                    text = tokenizer.apply_chat_template(
-                        messages,
+    def _normalize_raw_messages(raw) -> list[dict]:
+        if isinstance(raw, str):
+            raw = json.loads(raw)
+        if not isinstance(raw, list):
+            return []
+        out: list[dict] = []
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            role = (item.get("role") or "").strip().lower()
+            content = (item.get("content") or "").strip()
+            if role in ("user", "assistant", "system") and content:
+                out.append({"role": role, "content": content})
+        return out
+
+    def _messages_for_template(raw_messages: list[dict]) -> list[dict]:
+        """保留資料集 system；Gemma 等不支援 system 時併入 user。"""
+        msgs = [dict(m) for m in raw_messages if m.get("content")]
+        if supports_system:
+            return msgs
+        merged: list[dict] = []
+        sys_parts = [m["content"] for m in msgs if m.get("role") == "system"]
+        for m in msgs:
+            role = m.get("role")
+            if role == "system":
+                continue
+            if role == "user" and sys_parts and not any(
+                x.get("role") == "user" for x in merged
+            ):
+                prefix = "\n\n".join(sys_parts).strip()
+                merged.append({
+                    "role": "user",
+                    "content": f"{prefix}\n\n{m['content']}".strip(),
+                })
+            else:
+                merged.append(dict(m))
+        if not merged and sys_parts:
+            merged.append({"role": "user", "content": sys_parts[0]})
+        return merged
+
+    def _render_chat(messages: list[dict], *, fallback_user: str = "", fallback_out: str = "") -> str:
+        if hasattr(tokenizer, "apply_chat_template"):
+            try:
+                return tokenizer.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=False,
+                )
+            except Exception as e:
+                if "system" in str(e).lower():
+                    fixed = _messages_for_template(messages)
+                    return tokenizer.apply_chat_template(
+                        fixed,
                         tokenize=False,
                         add_generation_prompt=False,
                     )
-                except Exception as e:
-                    # 後備：再試一次強制無 system
-                    if "system" in str(e).lower():
-                        user_content = f"{system_prompt}\n\n{instruction}".strip()
-                        text = tokenizer.apply_chat_template(
-                            [
-                                {"role": "user", "content": user_content},
-                                {"role": "assistant", "content": output},
-                            ],
-                            tokenize=False,
-                            add_generation_prompt=False,
-                        )
-                    else:
-                        raise
-            else:
-                text = (
-                    f"<|system|>\n{system_prompt}<|end|>\n"
-                    f"<|user|>\n{instruction}<|end|>\n"
-                    f"<|assistant|>\n{output}<|end|>"
-                )
-            texts.append(text)
+                raise
+        return (
+            f"<|user|>\n{fallback_user}<|end|>\n"
+            f"<|assistant|>\n{fallback_out}<|end|>"
+        )
+
+    def format_prompts_legacy(examples):
+        texts = []
+        for instruction, output in zip(examples["instruction"], examples["output"]):
+            messages = _build_messages(instruction, output)
+            texts.append(_render_chat(messages, fallback_user=instruction, fallback_out=output))
+        return {"text": texts}
+
+    def format_prompts_messages(examples):
+        texts = []
+        for raw in examples["messages"]:
+            messages = _messages_for_template(_normalize_raw_messages(raw))
+            if not any(m.get("role") == "assistant" for m in messages):
+                continue
+            user_txt = "\n\n".join(
+                m["content"] for m in messages if m.get("role") == "user"
+            )
+            asst_txt = next(
+                (m["content"] for m in messages if m.get("role") == "assistant"),
+                "",
+            )
+            texts.append(_render_chat(messages, fallback_user=user_txt, fallback_out=asst_txt))
         return {"text": texts}
 
     dataset = load_dataset("json", data_files=str(data_path), split="train")
-    dataset = dataset.map(format_prompts, batched=True)
+    if "messages" in dataset.column_names:
+        print(f"📚 資料格式：messages（{len(dataset)} 筆）")
+        dataset = dataset.map(format_prompts_messages, batched=True)
+    elif "instruction" in dataset.column_names and "output" in dataset.column_names:
+        print(f"📚 資料格式：instruction/output（{len(dataset)} 筆）")
+        dataset = dataset.map(format_prompts_legacy, batched=True)
+    else:
+        raise ValueError(
+            "訓練資料需含 messages 或 instruction+output 欄位；"
+            f"目前欄位：{dataset.column_names}"
+        )
+    dataset = dataset.filter(lambda x: bool((x.get("text") or "").strip()))
+    print(f"📚 有效訓練樣本：{len(dataset)} 筆")
 
     def tokenize_function(examples):
         return tokenizer(

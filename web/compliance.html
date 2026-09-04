@@ -827,16 +827,18 @@
 
         <div class="principle">
             <strong>設計原則：No Evidence, No Compliance Claim</strong><br>
-            每項 ISO 控制項宣稱必須具備 <span class="mono">evidence_id</span>、可追溯 hash chain、
-            且 LLM 診斷經 Human Review 後方可納入稽核報告。
-            PDF／TXT 匯出請至 <a href="/platform?view=monitor" data-platform-view="monitor" style="color:var(--accent)">監控戰情室</a>。
+            每項 ISO 控制項宣稱必須具備 <span class="mono">evidence_id</span>、可追溯 hash chain。
+            <span id="principleHumanReviewNote" class="human-review-deferred" hidden>
+            LLM 診斷須經 Human Review 後方可納入稽核報告。
+            </span>
+            PDF 匯出請至 <a href="/platform?view=monitor" data-platform-view="monitor" style="color:var(--accent)">監控戰情室</a>。
         </div>
 
         <div class="action-bar">
             <button type="button" class="btn" id="runPipeline">▶ 執行地端合規管線</button>
-            <button type="button" class="btn" id="runAiReview">🤖 AI 自動審核</button>
-            <a class="btn" href="/platform?view=monitor" data-platform-view="monitor" id="linkExportPdf">📄 前往匯出 PDF／TXT 報告</a>
-            <span class="action-bar-note" id="reviewerModeNote">管線掃描 OT 日誌並寫入 evidence；無分析師時可用 AI Reviewer 自動審核 pending 項目。</span>
+            <button type="button" class="btn" id="runAiReview" disabled>🤖 AI 自動審核</button>
+            <a class="btn" href="/platform?view=monitor" data-platform-view="monitor" id="linkExportPdf">📄 前往匯出 PDF 報告</a>
+            <span class="action-bar-note" id="reviewerModeNote">① 管線：掃描 OT + Evidence + 入列（不含 LLM）　② 另按「AI 自動審核」處理 pending queue</span>
         </div>
 
         <div id="scanResults">
@@ -968,6 +970,28 @@
         let coverageGapsData = null;
         let workflowData = null;
         let coverageModalTab = 'not_in_matrix';
+        /** 僅在使用者於本頁執行「地端合規管線」成功後才顯示 KPI／覆蓋率／Evidence 等量化指標 */
+        let pipelineScanDone = false;
+        /** Human Review／待審佇列等須人工覆核的指標，須等「AI 自動審核」完成後才顯示 */
+        let aiReviewDone = false;
+
+        const HUMAN_REVIEW_METRIC_IDS = new Set([
+            'kpi_human_review_adoption_rate',
+            'ev_pending_review',
+        ]);
+
+        function humanReviewMetricsVisible() {
+            return pipelineScanDone && aiReviewDone;
+        }
+
+        function isHumanReviewMetric(metricId) {
+            return HUMAN_REVIEW_METRIC_IDS.has(metricId);
+        }
+
+        function syncHumanReviewUiVisibility() {
+            const note = document.getElementById('principleHumanReviewNote');
+            if (note) note.hidden = !humanReviewMetricsVisible();
+        }
         function escapeHtml(s) {
             return String(s ?? '')
                 .replace(/&/g, '&amp;')
@@ -988,7 +1012,7 @@
                     { label: '原則', value: 'No Evidence, No Compliance Claim' },
                     { label: '部署', value: '地端 Ollama + Flask' },
                     { label: 'Phase 1', value: 'A.5 + A.8 · 50 項 MVP' },
-                    { label: '輸出', value: 'PDF/TXT + evidence_id' },
+                    { label: '輸出', value: 'PDF + evidence_id' },
                 ],
                 apis: '/platform · /monitor · /chat · /compliance · /api/compliance/pipeline',
             },
@@ -1042,12 +1066,12 @@
             },
             L5: {
                 title: '⑤ Agent Workflow 管線',
-                subtitle: 'Collector → Auditor → Reviewer → Reporter · 地端順序編排',
-                summary: 'agent_orchestrator.py 編排四階段 Agent：收集 OT 證據 → LLM 稽核診斷 → 護欄審核 → 彙整報告。Phase 2 可升級 LangGraph / CrewAI。',
+                subtitle: 'Collector → Reviewer → Reporter · LLM／AI 審核分開觸發',
+                summary: 'agent_orchestrator.py：預設管線僅收集 OT 證據、寫入 evidence、入列 Review Queue；「AI 自動審核」與 LLM 診斷須分別按鈕／API 觸發。',
                 chips: [
                     { label: 'Collector', value: 'scan_ot · register_evidence' },
-                    { label: 'Auditor', value: 'retrieve_rag · ask_llm' },
-                    { label: 'Reviewer', value: 'guardrail · enqueue · AI Reviewer' },
+                    { label: 'Auditor', value: '可選 ask_llm（非管線預設）' },
+                    { label: 'Reviewer', value: 'enqueue · POST /review/auto' },
                     { label: 'Reporter', value: 'KPI · evidence 附錄 · 匯出' },
                 ],
                 apis: 'POST /api/compliance/pipeline · GET /api/compliance/workflow',
@@ -1126,7 +1150,7 @@
                         { id: 'ai-rag', icon: '◉', code: 'RAG-02', name: 'RAG Engine', spec: 'retrieve_rag_for_query', field: 'FIELD · RETR', status: 'live', statusText: 'LIVE', layerId: 'L4',
                           detail: 'Agentic RAG 拼接上下文供 LLM grounding。' },
                         { id: 'ai-ollama', icon: '▣', code: 'LLM-01', name: 'Ollama Local', spec: '127.0.0.1:11434', field: 'FIELD · LLM', status: 'live', statusText: 'LIVE', layerId: 'L4',
-                          detail: 'qwen2.5 / gemma / phi · 敏感資料不離地端。' },
+                          detail: 'llama3.2 / gemma / phi / mistral · 敏感資料不離地端。' },
                     ],
                     links: [
                         { id: 'l4-a', from: 'ai-kb', to: 'ai-rag', dir: 'KB → RETR', metric: 'Top-K 5', status: 'live' },
@@ -1145,7 +1169,7 @@
                         { id: 'ag-reviewer', icon: '▥', code: 'AGT-03', name: 'Reviewer', spec: 'agent-reviewer', field: 'FIELD · REV', status: 'live', statusText: 'LIVE', layerId: 'L5',
                           detail: 'Guardrails + review_queue + AI Reviewer。' },
                         { id: 'ag-reporter', icon: '▣', code: 'AGT-04', name: 'Reporter', spec: 'agent-reporter', field: 'FIELD · RPT', status: 'live', statusText: 'LIVE', layerId: 'L5',
-                          detail: 'PDF/TXT 合規報告 + evidence 附錄。' },
+                          detail: 'PDF 合規報告 + evidence 附錄。' },
                     ],
                     links: [
                         { id: 'l5-a', from: 'ag-collector', to: 'ag-auditor', dir: 'COL → AUD', metric: 'pipeline', status: 'live' },
@@ -1520,12 +1544,15 @@
         }
 
         function refreshArchTopoLiveStatus() {
-            const hr = metricsAnalysisData?.generated_from?.human_review;
-            const queueNode = archFindNode('gr-queue').node;
-            if (queueNode && hr) {
-                const p = hr.pending || 0;
-                queueNode.status = p > 0 ? 'warn' : 'live';
-                queueNode.statusText = p > 0 ? `PEND ${p}` : 'LIVE';
+            if (!pipelineScanDone) return;
+            if (humanReviewMetricsVisible()) {
+                const hr = metricsAnalysisData?.generated_from?.human_review;
+                const queueNode = archFindNode('gr-queue').node;
+                if (queueNode && hr) {
+                    const p = hr.pending || 0;
+                    queueNode.status = p > 0 ? 'warn' : 'live';
+                    queueNode.statusText = p > 0 ? `PEND ${p}` : 'LIVE';
+                }
             }
             if (archSafetySnapshot) {
                 const gr = archFindNode('gr-roberta').node;
@@ -1723,6 +1750,14 @@
         }
 
         function openMetricDetail(metricId) {
+            if (!pipelineScanDone) {
+                showBanner('請先執行「▶ 地端合規管線」以載入指標詳細分析', 'err');
+                return;
+            }
+            if (isHumanReviewMetric(metricId) && !humanReviewMetricsVisible()) {
+                showBanner('Human Review／待審指標請先執行「🤖 AI 自動審核」後再查看', 'err');
+                return;
+            }
             const m = metricsAnalysisData?.by_id?.[metricId];
             if (!m) return;
 
@@ -1781,7 +1816,59 @@
             if (location.protocol === 'file:') {
                 return '請勿直接開啟 HTML 檔，改從 http://localhost:2000/compliance 進入';
             }
-            return '請重啟 run_ollama.bat 載入最新 API（/api/review/auto 等）';
+            return '後端 API 版本過舊或未重啟。請關閉舊視窗後重新執行 run_ollama.bat';
+        }
+
+        let aiReviewApiReady = false;
+
+        async function probeAiReviewApi() {
+            try {
+                const r = await fetch('/api/review/mode');
+                if (r.ok) {
+                    const ct = (r.headers.get('content-type') || '').toLowerCase();
+                    if (ct.includes('application/json')) {
+                        aiReviewApiReady = true;
+                        return true;
+                    }
+                }
+            } catch (_) {}
+            try {
+                const r = await fetch('/api/safety/status');
+                if (r.ok) {
+                    const j = await r.json();
+                    if (j.api_features && j.api_features.ai_review_auto) {
+                        aiReviewApiReady = true;
+                        return true;
+                    }
+                    if (j.reviewer_mode && j.reviewer_mode.enabled) {
+                        aiReviewApiReady = true;
+                        return true;
+                    }
+                }
+            } catch (_) {}
+            aiReviewApiReady = false;
+            return false;
+        }
+
+        async function callAiReviewApi() {
+            const payloads = [
+                { url: '/api/review/auto', body: '{}' },
+                { url: '/api/review/queue', body: JSON.stringify({ auto: true }) },
+            ];
+            let lastErr = null;
+            for (const p of payloads) {
+                try {
+                    const r = await fetch(p.url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: p.body,
+                    });
+                    return await parseJsonResponse(r);
+                } catch (err) {
+                    lastErr = err;
+                }
+            }
+            throw lastErr || new Error('AI 審核 API 不可用');
         }
 
         async function parseJsonResponse(r) {
@@ -1789,7 +1876,10 @@
             if (!ct.includes('application/json')) {
                 const text = await r.text();
                 if (/^\s*</.test(text)) {
-                    throw new Error('API 回傳 HTML 而非 JSON。' + apiHtmlErrorHint());
+                    const hint = r.status === 404
+                        ? '找不到此 API（HTTP 404）。' + apiHtmlErrorHint()
+                        : 'API 回傳 HTML 而非 JSON。' + apiHtmlErrorHint();
+                    throw new Error(hint);
                 }
                 throw new Error(`非 JSON 回應 (HTTP ${r.status})`);
             }
@@ -1801,8 +1891,63 @@
         }
 
         async function loadJson(url) {
-            const r = await fetch(url);
+            const bust = url + (url.includes('?') ? '&' : '?') + '_ts=' + Date.now();
+            const r = await fetch(bust, { cache: 'no-store' });
             return parseJsonResponse(r);
+        }
+
+        function setScanMetricsVisible(visible) {
+            pipelineScanDone = !!visible;
+            if (!visible) aiReviewDone = false;
+            const aiBtn = document.getElementById('runAiReview');
+            if (aiBtn) aiBtn.disabled = !pipelineScanDone;
+            syncHumanReviewUiVisibility();
+            if (!pipelineScanDone) showScanPlaceholder();
+        }
+
+        function applyMetricsSnapshot(data) {
+            if (!pipelineScanDone || !data || !data.items) return;
+            metricsAnalysisData = data;
+            coverageGapsData = data.coverage_gaps || coverageGapsData;
+            renderKpiFromMetrics();
+            refreshArchTopoLiveStatus();
+        }
+
+        async function refreshComplianceDashboard(opts) {
+            if (!pipelineScanDone && !(opts && opts.pipelineResult)) return;
+
+            const options = opts || {};
+            const pipelineResult = options.pipelineResult || null;
+
+            if (pipelineResult && pipelineResult.metrics_analysis) {
+                applyMetricsSnapshot(pipelineResult.metrics_analysis);
+            }
+            if (pipelineResult && pipelineResult.compliance_coverage) {
+                renderCoverage({ coverage: pipelineResult.compliance_coverage });
+            }
+
+            const [matrix, evidence, metrics] = await Promise.all([
+                loadJson('/api/compliance/matrix'),
+                loadJson('/api/evidence?limit=50'),
+                loadJson('/api/compliance/metrics'),
+            ]);
+
+            coverageGapsData = matrix.coverage_gaps || coverageGapsData;
+            metricsAnalysisData = metrics;
+            coverageGapsData = metrics.coverage_gaps || coverageGapsData;
+
+            renderKpiFromMetrics();
+            renderCoverage(matrix);
+            renderMonitored(matrix.controls);
+            renderEvidenceStats(evidence.traceability || {}, evidence.items || []);
+
+            try {
+                const safety = await loadJson('/api/safety/status');
+                archSafetySnapshot = safety;
+                renderGuardrail(safety);
+            } catch (_) {}
+
+            refreshArchTopoLiveStatus();
         }
 
         function scanPlaceholderHtml() {
@@ -1817,6 +1962,7 @@
         function showScanPlaceholder() {
             const ph = scanPlaceholderHtml();
             document.getElementById('kpiGrid').innerHTML = ph;
+            document.getElementById('coverageGrid').innerHTML = ph;
             document.querySelector('#monitoredTable tbody').innerHTML =
                 '<tr><td colspan="5" class="loading">請先執行地端合規管線</td></tr>';
             document.getElementById('evidenceGrid').innerHTML = ph;
@@ -1824,44 +1970,21 @@
                 '<tr><td colspan="5" class="loading">管線掃描完成後顯示</td></tr>';
         }
 
-        async function renderCoverageFromApi() {
-            await loadMetricsAnalysis();
-            try {
-                const matrix = await loadJson('/api/compliance/matrix');
-                coverageGapsData = matrix.coverage_gaps || coverageGapsData;
-                renderCoverage(matrix);
-            } catch (_) {}
-            renderKpiFromMetrics();
-        }
-
-        async function loadAndRenderScanResults() {
-            const matrix = await loadJson('/api/compliance/matrix');
-            coverageGapsData = matrix.coverage_gaps || coverageGapsData;
-            const evidence = await loadJson('/api/evidence?limit=50');
-            await loadMetricsAnalysis();
-            renderKpiFromMetrics();
-            renderCoverage(matrix);
-            renderMonitored(matrix.controls);
-            renderEvidenceStats(evidence.traceability || {}, evidence.items || []);
-            try { sessionStorage.setItem('compliance_scan_done', '1'); } catch (_) {}
-        }
-
         async function initScanSection() {
-            showScanPlaceholder();
-            await renderCoverageFromApi();
-            try {
-                const evidence = await loadJson('/api/evidence?limit=1');
-                const hasRecords = (evidence.traceability?.total_evidence_records || 0) > 0
-                    || (evidence.items || []).length > 0;
-                if (hasRecords) {
-                    await loadAndRenderScanResults();
-                }
-            } catch (_) {}
+            setScanMetricsVisible(false);
+            metricsAnalysisData = null;
+            syncHumanReviewUiVisibility();
         }
 
         function renderKpiFromMetrics() {
             const grid = document.getElementById('kpiGrid');
-            const kpis = (metricsAnalysisData?.items || []).filter(x => x.category === 'kpi');
+            if (!pipelineScanDone) {
+                grid.innerHTML = scanPlaceholderHtml();
+                return;
+            }
+            const kpis = (metricsAnalysisData?.items || [])
+                .filter(x => x.category === 'kpi')
+                .filter(x => humanReviewMetricsVisible() || !isHumanReviewMetric(x.id));
             if (!kpis.length) {
                 grid.innerHTML = scanPlaceholderHtml();
                 return;
@@ -1882,6 +2005,10 @@
 
         function renderCoverage(c) {
             const grid = document.getElementById('coverageGrid');
+            if (!pipelineScanDone) {
+                grid.innerHTML = scanPlaceholderHtml();
+                return;
+            }
             const cov = c.coverage || c;
             const notInMatrix = cov.not_in_matrix_count ?? (coverageGapsData?.not_in_matrix_count ?? 22);
             const matrixPct = Math.round((cov.coverage_rate_matrix || 0) * 100);
@@ -1896,6 +2023,10 @@
 
         function renderMonitored(controls) {
             const tb = document.querySelector('#monitoredTable tbody');
+            if (!pipelineScanDone) {
+                tb.innerHTML = '<tr><td colspan="5" class="loading">請先執行地端合規管線</td></tr>';
+                return;
+            }
             const rows = (controls || []).filter(c => c.monitored);
             if (!rows.length) {
                 tb.innerHTML = '<tr><td colspan="5">尚無自動監控控制項</td></tr>';
@@ -1916,13 +2047,22 @@
 
         function renderEvidenceStats(trace, items) {
             const grid = document.getElementById('evidenceGrid');
+            if (!pipelineScanDone) {
+                grid.innerHTML = scanPlaceholderHtml();
+                document.querySelector('#evidenceTable tbody').innerHTML =
+                    '<tr><td colspan="5" class="loading">管線掃描完成後顯示</td></tr>';
+                return;
+            }
             const rate = Math.round((trace.traceability_rate || 0) * 100);
-            grid.innerHTML = [
+            const cards = [
                 metricCardHtml('ev_total_records', 'Evidence 紀錄', `${trace.total_evidence_records || 0}`, '點擊查看分組與詳細分析', ''),
                 metricCardHtml('ev_with_evidence_id', '含 evidence_id', `${trace.with_evidence_id || 0}`, '點擊查看 ID 格式與覆蓋', ''),
                 metricCardHtml('ev_traceability_rate', '追溯率', trace.total_evidence_records ? `${rate}%` : '—', '目標 100% · 點擊詳細分析', ''),
-                metricCardHtml('ev_pending_review', '待審', `${trace.pending_review || 0}`, '可點「AI 自動審核」或詳細分析', ''),
-            ].join('');
+            ];
+            if (humanReviewMetricsVisible()) {
+                cards.push(metricCardHtml('ev_pending_review', '待審', `${trace.pending_review || 0}`, '可點「AI 自動審核」或詳細分析', ''));
+            }
+            grid.innerHTML = cards.join('');
             bindMetricCards(grid);
             const tb = document.querySelector('#evidenceTable tbody');
             const list = (items || []).slice(-8).reverse();
@@ -1936,7 +2076,9 @@
                     <td>${r.control_key || r.annex_a_id || ''}</td>
                     <td>${r.event_count ?? '—'}</td>
                     <td>${(r.collected_at || '').slice(0, 19).replace('T', ' ')}</td>
-                    <td>${r.review_status === 'pending' ? '<span class="badge-warn">pending</span>' : '<span class="badge-ok">ok</span>'}</td>
+                    <td>${humanReviewMetricsVisible()
+                        ? (r.review_status === 'pending' ? '<span class="badge-warn">pending</span>' : '<span class="badge-ok">ok</span>')
+                        : '<span style="color:var(--muted)">—</span>'}</td>
                 </tr>`).join('');
         }
 
@@ -1956,26 +2098,46 @@
             const m = g.guardrail_mechanism || {};
             const hr = g.human_review || {};
             const rm = g.reviewer_mode || {};
+            let reviewBlock = '';
+            if (!pipelineScanDone) {
+                reviewBlock = '<p style="color:var(--muted);font-size:0.85rem">Human Review 佇列與採納率：請先執行地端合規管線。</p>';
+            } else if (!humanReviewMetricsVisible()) {
+                reviewBlock = '<p style="color:var(--muted);font-size:0.85rem">Human Review 佇列與採納率：請先執行上方「🤖 AI 自動審核」。</p>';
+            } else {
+                const pendingLine = `待審：${hr.pending ?? rm.pending_queue ?? 0} · 採納率目標 ≥75%`;
+                reviewBlock = `<p><strong>Human Review</strong></p><ul class="compact">${(m.human_review||[]).map(x=>`<li>${x}</li>`).join('')}</ul>
+                <p style="color:var(--muted);font-size:0.85rem">${pendingLine}</p>`;
+            }
             box.innerHTML = `<p>模式：<strong>${g.guardrail_enabled === false ? 'disabled' : (g.guardrail_mode || 'n/a')}</strong></p>
-                <p><strong>審核模式</strong>：<strong>${escapeHtml(rm.label || 'Human Analyst')}</strong>
-                <span style="color:var(--muted);font-size:0.85rem"> — ${escapeHtml(rm.note || '')}</span></p>
                 <p><strong>輸入層</strong></p><ul class="compact">${(m.input_layers||[]).map(x=>`<li>${x}</li>`).join('')}</ul>
                 <p><strong>輸出層</strong></p><ul class="compact">${(m.output_layers||[]).map(x=>`<li>${x}</li>`).join('')}</ul>
-                <p><strong>Human Review</strong></p><ul class="compact">${(m.human_review||[]).map(x=>`<li>${x}</li>`).join('')}</ul>
-                <p style="color:var(--muted);font-size:0.85rem">待審：${hr.pending ?? rm.pending_queue ?? 0} · 採納率目標 ≥75%</p>`;
+                ${reviewBlock}`;
         }
 
         async function runAiReviewBatch() {
             const btn = document.getElementById('runAiReview');
+            if (!pipelineScanDone) {
+                showBanner('請先執行「▶ 地端合規管線」再進行 AI 自動審核', 'err');
+                return;
+            }
+            if (!aiReviewApiReady) {
+                const ok = await probeAiReviewApi();
+                if (!ok) {
+                    showBanner('AI 自動審核不可用：' + apiHtmlErrorHint(), 'err');
+                    return;
+                }
+            }
             btn.disabled = true;
             btn.textContent = 'AI 審核中…';
             showBanner('AI Reviewer 正在處理 pending 項目…', 'ok');
             try {
-                const r = await fetch('/api/review/auto', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-                const j = await parseJsonResponse(r);
+                const j = await callAiReviewApi();
                 if (j.ok) {
+                    aiReviewDone = true;
+                    syncHumanReviewUiVisibility();
+                    showBanner((j.summary || 'AI 審核完成') + ' · 正在更新儀表板…', 'ok');
+                    await refreshComplianceDashboard();
                     showBanner(j.summary || 'AI 審核完成', 'ok');
-                    await loadAndRenderScanResults();
                 } else {
                     showBanner('AI 審核失敗：' + (j.error || 'unknown'), 'err');
                 }
@@ -2006,22 +2168,38 @@
 
         document.getElementById('runPipeline').addEventListener('click', async (e) => {
             e.preventDefault();
-            if (!confirm('執行完整合規管線（掃描 OT + LLM 診斷 + Review Queue）？可能需數分鐘。')) return;
+            if (!confirm('執行地端合規管線？\n\n• 掃描 ot/ 日誌\n• 寫入 Evidence\n• review/fail 控制項入列\n\n不含 LLM 診斷、不含 AI 自動審核（請分別另行執行）。')) return;
             const btn = e.target;
             btn.disabled = true;
-            btn.textContent = '執行中…';
-            showBanner('合規管線執行中，請稍候…', 'ok');
+            btn.textContent = '掃描中…';
+            showBanner('合規管線：掃描 OT 並寫入 evidence…', 'ok');
             try {
-                const r = await fetch('/api/compliance/pipeline', { method: 'POST' });
+                const r = await fetch('/api/compliance/pipeline', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: '{}',
+                    cache: 'no-store',
+                });
                 const j = await parseJsonResponse(r);
                 if (j.ok) {
-                    const stages = (j.stages || []).map(s => s.stage).join(' → ');
+                    setScanMetricsVisible(true);
+                    const stages = (j.stages || []).map(s => {
+                        if (s.stage === 'Auditor' && s.status === 'skipped') return 'Auditor⊘';
+                        return s.stage;
+                    }).join(' → ');
+                    const pending = j.human_review?.pending || 0;
                     let msg = `管線完成：${stages}。Evidence：${Object.keys(j.evidence_map || {}).length} 項`;
-                    if (j.ai_review && j.ai_review.summary) {
-                        msg += ' · ' + j.ai_review.summary;
+                    if (j.include_llm_audit && j.llm_audit_count) {
+                        msg += ` · LLM 診斷 ${j.llm_audit_count} 項`;
+                    } else {
+                        msg += ' · LLM 未執行';
                     }
+                    if (pending > 0) {
+                        msg += ` · 待審 ${pending} 項（請點「AI 自動審核」）`;
+                    }
+                    showBanner(msg + ' · 正在更新儀表板…', 'ok');
+                    await refreshComplianceDashboard({ pipelineResult: j });
                     showBanner(msg, 'ok');
-                    await loadAndRenderScanResults();
                 } else {
                     showBanner('管線失敗：' + (j.error || 'unknown'), 'err');
                 }
@@ -2035,6 +2213,10 @@
 
         (async () => {
             await initScanSection();
+            const aiReady = await probeAiReviewApi();
+            if (!aiReady) {
+                showBanner('⚠️ AI 自動審核 API 尚未載入 — 請重新執行 run_ollama.bat 後再試', 'err');
+            }
 
             const jobs = [
                 {

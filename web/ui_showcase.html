@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UI 樣板預覽 · Semi-Shield ISMS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/sensel-theme.css">
+    <style>
+        body { margin: 0; }
+        .showcase-banner {
+            background: linear-gradient(90deg, #141820, #1e293b);
+            color: #e2e8f0;
+            padding: 14px 24px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .showcase-banner a {
+            color: #93c5fd;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .showcase-banner a:hover { text-decoration: underline; }
+        .mono { font-family: var(--ss-mono); font-size: 11px; color: var(--ss-text-muted); }
+    </style>
+</head>
+<body>
+    <div class="showcase-banner">
+        <span>🎨 <strong>UI 樣板預覽</strong> — 參考 SenseL 企業資安工作台風格，可切換三種版型比較</span>
+        <span>
+            <a href="/platform">← 回到整合平台</a>
+            &nbsp;·&nbsp;
+            <a href="/platform?view=monitor">套用樣板 A 至平台</a>
+        </span>
+    </div>
+
+    <div class="ss-app">
+        <aside class="ss-sidebar">
+            <div class="ss-sidebar-brand">
+                <h1>Semi-Shield</h1>
+                <span>Network Security</span>
+            </div>
+            <nav class="ss-nav" id="sideNav">
+                <button type="button" class="ss-nav-item active" data-template="workbench">
+                    <svg class="ss-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    工作台
+                </button>
+                <button type="button" class="ss-nav-item" data-template="compliance">
+                    <svg class="ss-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                    合規稽核
+                </button>
+                <button type="button" class="ss-nav-item" data-template="ai">
+                    <svg class="ss-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                    AI 協作
+                </button>
+                <a class="ss-nav-item" href="/monitor">
+                    <svg class="ss-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    實際監控頁
+                </a>
+            </nav>
+            <div class="ss-sidebar-footer">
+                <strong>manager@semi-shield.local</strong>
+                OT 稽核 · ISO 27001
+            </div>
+        </aside>
+
+        <div class="ss-main">
+            <header class="ss-topbar">
+                <div class="ss-topbar-left">
+                    <div>
+                        <h2 class="ss-page-title" id="pageTitle">安全營運工作台</h2>
+                        <div class="ss-page-sub" id="pageSub">樣板 A · 事件列表 + 右側調查面板</div>
+                    </div>
+                </div>
+                <div class="ss-topbar-filters">
+                    <span class="ss-filter-chip">🌏 全區域 ▾</span>
+                    <span class="ss-filter-chip">🕐 近 24 小時 ▾</span>
+                    <span class="ss-filter-chip"><span class="ss-status-dot"></span> 26/26 來源正常</span>
+                </div>
+                <div class="ss-topbar-actions">
+                    <button type="button" class="ss-btn">重新整理</button>
+                    <button type="button" class="ss-btn ss-btn-primary">✦ AI Copilot</button>
+                </div>
+            </header>
+
+            <div class="ss-content">
+                <div class="ss-template-bar">
+                    <button type="button" class="ss-template-tab active" data-template="workbench">樣板 A · 安全工作台</button>
+                    <button type="button" class="ss-template-tab" data-template="compliance">樣板 B · 合規儀表板</button>
+                    <button type="button" class="ss-template-tab" data-template="ai">樣板 C · AI 協作中心</button>
+                </div>
+
+                <!-- ═══ Template A: Workbench ═══ -->
+                <div class="ss-template-pane active" id="tpl-workbench">
+                    <div class="ss-kpi-row">
+                        <div class="ss-kpi-card">
+                            <div class="ss-kpi-label">獨立節點</div>
+                            <div class="ss-kpi-value">8</div>
+                            <div class="ss-kpi-meta">C9300 × 3 · JSONL 匯入</div>
+                        </div>
+                        <div class="ss-kpi-card">
+                            <div class="ss-kpi-label">高風險資產</div>
+                            <div class="ss-kpi-value" style="color:var(--ss-danger)">5</div>
+                            <div class="ss-kpi-meta">IPS 命中 · 硬體異常</div>
+                        </div>
+                        <div class="ss-kpi-card">
+                            <div class="ss-kpi-label">資料源異常</div>
+                            <div class="ss-kpi-value">0</div>
+                            <div class="ss-kpi-meta">ot/ syslog 正常</div>
+                        </div>
+                        <div class="ss-kpi-card">
+                            <div class="ss-kpi-label">限制連接埠</div>
+                            <div class="ss-kpi-value">6</div>
+                            <div class="ss-kpi-meta">Telnet 關閉 · SSH 限定</div>
+                        </div>
+                    </div>
+
+                    <div class="ss-split">
+                        <div class="ss-panel">
+                            <div class="ss-panel-head">
+                                <h3>優先處理事件</h3>
+                                <span class="mono">3 危急 · 2 高</span>
+                            </div>
+                            <div class="ss-panel-body">
+                                <table class="ss-table" id="eventTable">
+                                    <thead>
+                                        <tr>
+                                            <th>等級</th>
+                                            <th>事件</th>
+                                            <th>受影響資產</th>
+                                            <th>建議處置</th>
+                                            <th>負責人</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="ss-panel ss-detail" id="detailPanel">
+                            <div class="ss-panel-head">
+                                <h3>調查摘要</h3>
+                            </div>
+                            <div class="ss-detail-section">
+                                <div class="ss-detail-label">事件</div>
+                                <div class="ss-detail-text" id="detailEvent">—</div>
+                            </div>
+                            <div class="ss-detail-section">
+                                <div class="ss-detail-label">事件來源</div>
+                                <div class="ss-detail-text" id="detailSource">—</div>
+                            </div>
+                            <div class="ss-detail-section">
+                                <div class="ss-detail-label">可能原因</div>
+                                <ul class="ss-detail-list" id="detailCauses"></ul>
+                            </div>
+                            <div class="ss-detail-section">
+                                <div class="ss-detail-label">建議下一步</div>
+                                <div class="ss-detail-text" id="detailNext">—</div>
+                            </div>
+                            <div class="ss-detail-actions">
+                                <button type="button" class="ss-btn ss-btn-primary" style="width:100%">開啟完整調查</button>
+                            </div>
+                            <div class="ss-ai-input">
+                                <input type="text" placeholder="向 AI 詢問此事件分析…" readonly>
+                                <button type="button" class="ss-btn ss-btn-primary">→</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ Template B: Compliance ═══ -->
+                <div class="ss-template-pane" id="tpl-compliance">
+                    <div class="ss-kpi-row">
+                        <div class="ss-kpi-card">
+                            <div class="ss-kpi-label">Annex A 覆蓋率</div>
+                            <div class="ss-kpi-value" style="color:var(--ss-primary)">83%</div>
+                            <div class="ss-kpi-meta">6 大 OT 控制域</div>
+                        </div>
+                        <div class="ss-kpi-card">
+                            <div class="ss-kpi-label">不符合項</div>
+                            <div class="ss-kpi-value" style="color:var(--ss-danger)">1</div>
+                            <div class="ss-kpi-meta">3.2 異常登入</div>
+                        </div>
+                        <div class="ss-kpi-card">
+                            <div class="ss-kpi-label">建議事項</div>
+                            <div class="ss-kpi-value" style="color:var(--ss-warning)">3</div>
+                            <div class="ss-kpi-meta">CDP/LLDP · 供應商</div>
+                        </div>
+                        <div class="ss-kpi-card">
+                            <div class="ss-kpi-label">Evidence 紀錄</div>
+                            <div class="ss-kpi-value">142</div>
+                            <div class="ss-kpi-meta">registry + syslog</div>
+                        </div>
+                    </div>
+
+                    <div class="ss-control-grid">
+                        <div class="ss-control-card">
+                            <div class="ss-progress-ring" style="border-top-color:#059669">92%</div>
+                            <h4>A.8.19 組態變更</h4>
+                            <p>介面 UPDOWN 事件已記錄，建議比對變更單。</p>
+                            <span class="ss-badge pass">符合</span>
+                        </div>
+                        <div class="ss-control-card">
+                            <div class="ss-progress-ring" style="border-top-color:#dc2626">68%</div>
+                            <h4>A.5.15 存取控制</h4>
+                            <p>3,454 惡意事件尚未完成隔離與證據保全。</p>
+                            <span class="ss-badge fail">不符合</span>
+                        </div>
+                        <div class="ss-control-card">
+                            <div class="ss-progress-ring">88%</div>
+                            <h4>A.8.8 弱點修補</h4>
+                            <p>IOS-XE 版本事件已納入資產清冊監控。</p>
+                            <span class="ss-badge pass">符合</span>
+                        </div>
+                        <div class="ss-control-card">
+                            <div class="ss-progress-ring" style="border-top-color:#d97706">75%</div>
+                            <h4>A.5.19 供應商安全</h4>
+                            <p>5,429 外部連線事件，風險評估紀錄待補。</p>
+                            <span class="ss-badge review">建議</span>
+                        </div>
+                        <div class="ss-control-card">
+                            <div class="ss-progress-ring" style="border-top-color:#d97706">71%</div>
+                            <h4>A.8.16 惡意軟體防護</h4>
+                            <p>IPS syslog 非零，需依事件單處置。</p>
+                            <span class="ss-badge review">待改善</span>
+                        </div>
+                        <div class="ss-control-card">
+                            <div class="ss-progress-ring">95%</div>
+                            <h4>A.8.20 傳輸加密</h4>
+                            <p>SNMP/TLS/IKE 事件可完整追溯。</p>
+                            <span class="ss-badge pass">符合</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══ Template C: AI Copilot ═══ -->
+                <div class="ss-template-pane" id="tpl-ai">
+                    <div class="ss-chat-layout">
+                        <div class="ss-chat-sidebar">
+                            <div class="ss-detail-label">對話情境</div>
+                            <button type="button" class="ss-nav-item active" style="margin-bottom:6px;border-radius:8px">OT syslog 分析</button>
+                            <button type="button" class="ss-nav-item" style="margin-bottom:6px;border-radius:8px">ISO 27001 稽核</button>
+                            <button type="button" class="ss-nav-item" style="margin-bottom:6px;border-radius:8px">硬體異常排查</button>
+                            <hr style="border:none;border-top:1px solid var(--ss-border);margin:14px 0">
+                            <div class="ss-detail-label">上下文</div>
+                            <p style="font-size:12px;color:var(--ss-text-muted);line-height:1.5;margin:0">
+                                已載入 ot/ 目錄 3 份 syslog<br>
+                                C9300-24P · 192.168.3.3<br>
+                                RAG + 護欄 ON
+                            </p>
+                        </div>
+                        <div class="ss-chat-main">
+                            <div class="ss-panel-head">
+                                <h3>AI Agent · 合規專家</h3>
+                                <span class="mono">gemma4_e4b_ot</span>
+                            </div>
+                            <div class="ss-chat-messages">
+                                <div class="ss-bubble user">C9300 的 %ILPOWER 事件代表什麼？需要立即處理嗎？</div>
+                                <div class="ss-bubble agent">依 ot/ 抽樣，%ILPOWER-3-CONTROLLER_PORT_ERR 表示 PoE 控制器埠異常，常見於供電過載或硬體老化。建議：<br><br>1. 確認受影響埠與連接設備<br>2. 比對 maintenance window 是否有計畫性重啟<br>3. 若持續出現，安排硬體檢測<br><br>目前 KPI 標記為「待改善」，非最高危急等級。</div>
+                                <div class="ss-bubble user">幫我對照 ISO 27001 A.5.15 稽核要點</div>
+                                <div class="ss-bubble agent">A.5.15 存取控制：管理面登入（SSH/Telnet/Console）須可追溯至帳號與來源。依 syslog，存取／登入事件 3,454 筆可追溯到 AAA 紀錄；但 3.2 項因惡意事件未隔離標為不符合。</div>
+                            </div>
+                            <div class="ss-chat-composer">
+                                <input type="text" placeholder="輸入問題，Enter 送出…">
+                                <button type="button" class="ss-btn ss-btn-primary">送出</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const EVENTS = [
+            {
+                severity: 'critical', severityLabel: '危急',
+                title: '惡意軟體命中',
+                asset: 'C9300-24P · 192.168.3.3',
+                action: '隔離並保全證據',
+                owner: 'SOC-01',
+                source: 'Syslog · IPS-4-SIGNATURE',
+                causes: ['惡意特徵碼命中', '可能為測試流量未標記', '尚未建立事件單'],
+                next: '依 A.8.16 建立事件單，完成隔離後重新評估 KPI。'
+            },
+            {
+                severity: 'critical', severityLabel: '危急',
+                title: '磁碟 I/O 錯誤',
+                asset: 'C9300-48P · 192.168.3.254',
+                action: '檢查 flash / 硬體',
+                owner: 'NOC-02',
+                source: 'Syslog · [sda] I/O error',
+                causes: ['儲存媒體老化', '檔案系統未正常卸載', '可能為開機階段短暫錯誤'],
+                next: '比對連續性，若 >24h 持續則安排硬體維護。'
+            },
+            {
+                severity: 'high', severityLabel: '高',
+                title: 'PoE 供電異常',
+                asset: 'C9300-24P · Gi1/0/12',
+                action: '檢查受電設備',
+                owner: 'OT-03',
+                source: 'Syslog · %ILPOWER-3-CONTROLLER_PORT_ERR',
+                causes: ['PoE 負載過高', '受電設備異常', '控制器韌體問題'],
+                next: '確認埠狀態與 PD 設備清單，必要時關閉非必要 PoE。'
+            },
+            {
+                severity: 'high', severityLabel: '高',
+                title: 'CDP VLAN 不一致',
+                asset: 'Trunk · Gi1/0/24',
+                action: '修正 VLAN 設定',
+                owner: 'NET-01',
+                source: 'Syslog · %CDP-4-NATIVE_VLAN_MISMATCH',
+                causes: ['Native VLAN 設定不一致', '新設備接入未依 SOP', 'Trunk 兩端設定不同步'],
+                next: '依 A.5.19 比對鄰接設備設定，更新變更紀錄。'
+            },
+            {
+                severity: 'medium', severityLabel: '中',
+                title: '登入失敗累積',
+                asset: '192.168.3.3 · VTY',
+                action: '核對來源 IP',
+                owner: 'IAM-01',
+                source: 'Syslog · LOGIN_FAILED',
+                causes: ['來源非白名單', '帳號密碼錯誤', '自動化掃描'],
+                next: '比對 AAA 紀錄，確認是否需封鎖來源。'
+            }
+        ];
+
+        const titles = {
+            workbench: ['安全營運工作台', '樣板 A · 事件列表 + 右側調查面板'],
+            compliance: ['合規稽核儀表板', '樣板 B · ISO 27001 控制域卡片'],
+            ai: ['AI 協作中心', '樣板 C · 對話 + 上下文側欄']
+        };
+
+        function renderEvents() {
+            const tbody = document.querySelector('#eventTable tbody');
+            tbody.innerHTML = EVENTS.map((ev, i) => `
+                <tr data-idx="${i}" class="${i === 0 ? 'selected' : ''}">
+                    <td><span class="ss-severity ${ev.severity}"><span class="ss-severity-dot"></span>${ev.severityLabel}</span></td>
+                    <td><strong>${ev.title}</strong></td>
+                    <td>${ev.asset}</td>
+                    <td>${ev.action}</td>
+                    <td>${ev.owner}</td>
+                </tr>
+            `).join('');
+            showDetail(0);
+            tbody.querySelectorAll('tr').forEach((tr) => {
+                tr.addEventListener('click', () => {
+                    tbody.querySelectorAll('tr').forEach((r) => r.classList.remove('selected'));
+                    tr.classList.add('selected');
+                    showDetail(Number(tr.dataset.idx));
+                });
+            });
+        }
+
+        function showDetail(idx) {
+            const ev = EVENTS[idx];
+            document.getElementById('detailEvent').textContent = ev.title;
+            document.getElementById('detailSource').textContent = ev.source;
+            document.getElementById('detailCauses').innerHTML = ev.causes.map((c) => `<li>${c}</li>`).join('');
+            document.getElementById('detailNext').textContent = ev.next;
+        }
+
+        function switchTemplate(name) {
+            document.querySelectorAll('.ss-template-pane').forEach((p) => p.classList.remove('active'));
+            document.querySelectorAll('.ss-template-tab').forEach((t) => t.classList.toggle('active', t.dataset.template === name));
+            document.querySelectorAll('#sideNav .ss-nav-item[data-template]').forEach((n) => n.classList.toggle('active', n.dataset.template === name));
+            const pane = document.getElementById('tpl-' + name);
+            if (pane) pane.classList.add('active');
+            const [title, sub] = titles[name] || titles.workbench;
+            document.getElementById('pageTitle').textContent = title;
+            document.getElementById('pageSub').textContent = sub;
+        }
+
+        document.querySelectorAll('.ss-template-tab, #sideNav .ss-nav-item[data-template]').forEach((el) => {
+            el.addEventListener('click', () => switchTemplate(el.dataset.template));
+        });
+
+        renderEvents();
+    </script>
+</body>
+</html>

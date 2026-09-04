@@ -1,0 +1,12 @@
+{
+  "format": " [Q] question [E] evidence [A] answer",
+  "base_model": "hfl/chinese-roberta-wwm-ext",
+  "label2id": {
+    "grounded": 0,
+    "hallucinated": 1
+  },
+  "id2label": {
+    "0": "grounded",
+    "1": "hallucinated"
+  }
+}

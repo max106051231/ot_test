@@ -1,0 +1,1473 @@
+{
+  "generated_at": "2026-08-25T07:46:19.655558+00:00",
+  "base_url": "http://127.0.0.1:2000",
+  "questions": [
+    [
+      "q1_iso_compliant",
+      "我們現在符合 ISO27001 嗎？"
+    ],
+    [
+      "q2_why_uncertain",
+      "為什麼你不能確定？"
+    ],
+    [
+      "q3_evidence_gap",
+      "哪些 evidence 不足？"
+    ],
+    [
+      "q4_coverage_device",
+      "哪一台設備造成 monitoring coverage 下降？"
+    ],
+    [
+      "q5_chart",
+      "給我圖表。"
+    ],
+    [
+      "q6_controls",
+      "這會影響哪些控制項？"
+    ],
+    [
+      "q7_next_steps",
+      "下一步要做什麼？"
+    ]
+  ],
+  "results": [
+    {
+      "model_slug": "gemma_2b_ot",
+      "model_label": "Gemma 2B OT",
+      "passed": 5,
+      "total": 7,
+      "turns": [
+        {
+          "id": "q1_iso_compliant",
+          "question": "我們現在符合 ISO27001 嗎？",
+          "status": "success",
+          "elapsed_s": 1.7,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "ISO/IEC 27001 是 ISMS（資訊安全管理系統）的國際要求標準，用來證明組織能系統化管理資訊安全風險並持續改善。 控制措施細節多見於 ISO/IEC 27002（指引）；27000 提供詞彙，27005 提供風險管理方法。 Semi-Shield 則以 OT 日誌對照相關 Annex A 控制做合規輔助。請勿與其他亂編的 ISO 編號（如 2900 系列、22007）混淆。",
+          "reply_len": 196
+        },
+        {
+          "id": "q2_why_uncertain",
+          "question": "為什麼你不能確定？",
+          "status": "blocked",
+          "elapsed_s": 0.5,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q3_evidence_gap",
+          "question": "哪些 evidence 不足？",
+          "status": "success",
+          "elapsed_s": 1.6,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "目前資訊不足，無法判斷哪些 evidence 不足。 需要更多資訊，例如： * 什麼樣的情況下，您需要確認 ISO 27001 合規？ * 您想確認哪些證據？ * 您是否已了解 ISO 27001 的基本要求？",
+          "reply_len": 105
+        },
+        {
+          "id": "q4_coverage_device",
+          "question": "哪一台設備造成 monitoring coverage 下降？",
+          "status": "success",
+          "elapsed_s": 0.9,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve",
+          "rag_citations": 3,
+          "reply_preview": "可能是某臺 OT 工控設備的監控設定調整導致的。",
+          "reply_len": 24
+        },
+        {
+          "id": "q5_chart",
+          "question": "給我圖表。",
+          "status": "blocked",
+          "elapsed_s": 0.3,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q6_controls",
+          "question": "這會影響哪些控制項？",
+          "status": "success",
+          "elapsed_s": 1.6,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "監控摘要顯示，A.8.24 密碼學與網絡傳輸安全校驗、A.8.19 變更組態管理稽核、A.5.15 存取控制等控制項的監控coverage會受到影響。",
+          "reply_len": 75
+        },
+        {
+          "id": "q7_next_steps",
+          "question": "下一步要做什麼？",
+          "status": "success",
+          "elapsed_s": 1.1,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve",
+          "rag_citations": 3,
+          "reply_preview": "需要確認監控設定調整原因，並根據調整結果調整監控策略。",
+          "reply_len": 27
+        }
+      ]
+    },
+    {
+      "model_slug": "llama32_3b_ot",
+      "model_label": "Llama 3.2 3B OT",
+      "passed": 5,
+      "total": 7,
+      "turns": [
+        {
+          "id": "q1_iso_compliant",
+          "question": "我們現在符合 ISO27001 嗎？",
+          "status": "success",
+          "elapsed_s": 2.2,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "ISO/IEC 27001 是 ISMS（資訊安全管理系統）的國際要求標準，用來證明組織能系統化管理資訊安全風險並持續改善。 控制措施細節多見於 ISO/IEC 27002（指引）；27000 提供詞彙，27005 提供風險管理方法。 Semi-Shield 則以 OT 日誌對照相關 Annex A 控制做合規輔助。請勿與其他亂編的 ISO 編號（如 2900 系列、22007）混淆。",
+          "reply_len": 196
+        },
+        {
+          "id": "q2_why_uncertain",
+          "question": "為什麼你不能確定？",
+          "status": "blocked",
+          "elapsed_s": 0.3,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q3_evidence_gap",
+          "question": "哪些 evidence 不足？",
+          "status": "success",
+          "elapsed_s": 3.3,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "根據目前的 OT / ISO 27001 監控摘要，以下 evidence 不足： - A.8.24 密碼學與網絡傳輸安全校驗：sec_gem_log數字不夠完整（僅有 11988），需要進一步檢查。 - A.8.19 變更組態管理稽核：recipe_audit數字不夠完整（僅有 26717），需要進一步檢查。 - A.5.15 存取控制（OT）：缺乏相關日誌證據，無法確認是否符合合規標準。 - ",
+          "reply_len": 319
+        },
+        {
+          "id": "q4_coverage_device",
+          "question": "哪一台設備造成 monitoring coverage 下降？",
+          "status": "success",
+          "elapsed_s": 1.7,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve",
+          "rag_citations": 3,
+          "reply_preview": "根據目前的 OT / ISO 27001 監控摘要，無法確定哪一臺設備造成監控覆蓋下降，因為沒有具體的日誌證據或監控數據。需要進一步檢查 OT 監控系統的日誌和數據，才能確定哪一臺設備造成監控覆蓋下降。",
+          "reply_len": 101
+        },
+        {
+          "id": "q5_chart",
+          "question": "給我圖表。",
+          "status": "blocked",
+          "elapsed_s": 0.3,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q6_controls",
+          "question": "這會影響哪些控制項？",
+          "status": "success",
+          "elapsed_s": 2.5,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "根據目前的 OT / ISO 27001 監控摘要，A.5.15 存取控制（OT）和 A.6.2.1 信息安全政策的監控覆蓋下降可能會影響以下控制項： - A.5.15 存取控制（OT）：缺乏相關日誌證據，無法確認是否符合合規標準。 - A.6.2.1 信息安全政策：缺乏相關文檔證據，無法確認是否符合合規標準。 這兩項控制項的監控覆蓋下降可能會導致整體 OT / ISO 27001 監控摘要的不完",
+          "reply_len": 208
+        },
+        {
+          "id": "q7_next_steps",
+          "question": "下一步要做什麼？",
+          "status": "success",
+          "elapsed_s": 1.3,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve",
+          "rag_citations": 3,
+          "reply_preview": "下一步要做的是進一步檢查 OT 監控系統的日誌和數據，確定哪一臺設備造成監控覆蓋下降，並進行相關的調整和修正，以恢復監控系統的完整性和準確性。",
+          "reply_len": 71
+        }
+      ]
+    },
+    {
+      "model_slug": "phi4_mini_ot",
+      "model_label": "Phi-4 Mini OT",
+      "passed": 5,
+      "total": 7,
+      "turns": [
+        {
+          "id": "q1_iso_compliant",
+          "question": "我們現在符合 ISO27001 嗎？",
+          "status": "success",
+          "elapsed_s": 7.1,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "ISO/IEC 27001 是資訊安全管理系統（ISMS）的要求標準，幫助組織建立、實施、維護並持續改善 ISMS。要判斷是否符合 ISO 27001，組織需遵循該標準的要求，包括風險評估、控制措施的實施，以及持續改善的過程。本平臺可藉由對 OT 與 Cisco 日誌的分析，協助組織對照 ISO 27001 的控制精神進行合規輔助。若想確認符合性，建議進行全面的合規審查，並考量 27002 中的控",
+          "reply_len": 206
+        },
+        {
+          "id": "q2_why_uncertain",
+          "question": "為什麼你不能確定？",
+          "status": "blocked",
+          "elapsed_s": 0.8,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q3_evidence_gap",
+          "question": "哪些 evidence 不足？",
+          "status": "success",
+          "elapsed_s": 8.1,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "根據目前的監控摘要，以下是可能的證據不足之處： 1. A.8.24 密碼學與網絡傳輸安全校驗：雖然有 11988 筆記錄被標記為 SECURE，但仍需進一步審查以確保所有傳輸都符合安全標準。 2. A.8.19 變更組態管理稽核：有 26717 筆 SYSLOGS 記錄，但需確認每一筆記錄是否涵蓋所有必要的變更管理細節，並且進行審查以驗證其完整性。 3. A.5.15 存取控制（OT）：摘要未提供",
+          "reply_len": 231
+        },
+        {
+          "id": "q4_coverage_device",
+          "question": "哪一台設備造成 monitoring coverage 下降？",
+          "status": "success",
+          "elapsed_s": 4.1,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve",
+          "rag_citations": 3,
+          "reply_preview": "根據目前的監控摘要，Cisco 3750 設備的 SYSLOGS 數量顯著增加，從 0 增加到 26717，這可能導致監控覆蓋下降。建議檢查此設備的日誌設置和資源使用情況，以確保其不會影響整體監控效能。",
+          "reply_len": 101
+        },
+        {
+          "id": "q5_chart",
+          "question": "給我圖表。",
+          "status": "blocked",
+          "elapsed_s": 0.8,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q6_controls",
+          "question": "這會影響哪些控制項？",
+          "status": "success",
+          "elapsed_s": 7.3,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "根據目前的監控摘要，Cisco 3750 設備的 SYSLOGS 數量增加可能會影響以下控制項： 1. A.8.19 變更組態管理稽核：由於 SYSLOGS 數量增加，可能會影響變更管理的監控和審查效率，需要確保所有變更都被正確記錄和審查。 2. A.8.24 密碼學與網絡傳輸安全校驗：雖然目前狀態為 SECURE，但增加的 SYSLOGS 數量可能會影響對網絡傳輸安全的持續監控和審查。 這些影響",
+          "reply_len": 227
+        },
+        {
+          "id": "q7_next_steps",
+          "question": "下一步要做什麼？",
+          "status": "success",
+          "elapsed_s": 4.8,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve",
+          "rag_citations": 3,
+          "reply_preview": "下一步，應優先檢查 Cisco 3750 設備的日誌設置，確認是否有不必要的詳細級別或錯誤設定導致 SYSLOGS 數量增加。同時，應監控該設備的資源使用情況，確保其不會影響其他系統的性能。若發現問題，應調整日誌設置或資源分配，並重新評估監控系統的覆蓋效能。",
+          "reply_len": 129
+        }
+      ]
+    },
+    {
+      "model_slug": "qwen25_1p5b_ot",
+      "model_label": "Qwen2.5-1.5B OT",
+      "passed": 5,
+      "total": 7,
+      "turns": [
+        {
+          "id": "q1_iso_compliant",
+          "question": "我們現在符合 ISO27001 嗎？",
+          "status": "success",
+          "elapsed_s": 1.6,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "您好，根據 ISO/IEC 27001（資訊安全管理系統／ISMS 要求）的標準，我們目前已經符合 ISO27001 的要求。這代表我們的 ISMS（資訊安全管理系統）已經建立、實施、維護並持續改善，符合了標準的規定。如果您需要進一步的確認或有其他相關問題，請隨時告訴我。",
+          "reply_len": 136
+        },
+        {
+          "id": "q2_why_uncertain",
+          "question": "為什麼你不能確定？",
+          "status": "blocked",
+          "elapsed_s": 0.2,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q3_evidence_gap",
+          "question": "哪些 evidence 不足？",
+          "status": "success",
+          "elapsed_s": 2.2,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "使用者您好，目前的監控摘要顯示有以下幾個控制項需要進一步確認： - A.8.24 密碼學與網絡傳輸安全校驗：目前有 11,988 個記錄，但狀態為「審閱中」，需要進一步審核。 - A.8.19 變更組態管理稽核：目前有 26,717 個記錄，狀態為「審閱中」，也需要確認。 這些控制項的狀態為「審閱中」，表示目前尚未完成審核和確認，因此需要進一步的稽核和驗證來確保符合 ISO/IEC 27001 的",
+          "reply_len": 230
+        },
+        {
+          "id": "q4_coverage_device",
+          "question": "哪一台設備造成 monitoring coverage 下降？",
+          "status": "success",
+          "elapsed_s": 1.5,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve",
+          "rag_citations": 3,
+          "reply_preview": "使用者您好，根據您的問題，目前的監控摘要顯示有以下幾個控制項需要進一步確認： - A.8.24 密碼學與網絡傳輸安全校驗：目前有 11,988 個記錄，但狀態為「審閱中」，需要進一步審核。 - A.8.19 變更組態管理稽核：目前有 26,717 個記錄，狀態為「審閱中」，也需要確認。 這些控制項的狀態為「審閱中」，表示目前尚未完成審核和確認，因此需要進一步的稽核和驗證來確保符合 ISO/IEC ",
+          "reply_len": 237
+        },
+        {
+          "id": "q5_chart",
+          "question": "給我圖表。",
+          "status": "blocked",
+          "elapsed_s": 0.2,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q6_controls",
+          "question": "這會影響哪些控制項？",
+          "status": "success",
+          "elapsed_s": 1.7,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "使用者您好，根據您的問題，目前的監控摘要顯示有以下幾個控制項需要進一步確認： - A.8.24 密碼學與網絡傳輸安全校驗：目前有 11,988 個記錄，但狀態為「審閱中」，需要進一步審核。 - A.8.19 變更組態管理稽核：目前有 26,717 個記錄，狀態為「審閱中」，也需要確認。 這些控制項的狀態為「審閱中」，表示目前尚未完成審核和確認，因此需要進一步的稽核和驗證來確保符合 ISO/IEC ",
+          "reply_len": 237
+        },
+        {
+          "id": "q7_next_steps",
+          "question": "下一步要做什麼？",
+          "status": "success",
+          "elapsed_s": 1.5,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve",
+          "rag_citations": 3,
+          "reply_preview": "使用者您好，根據您的問題，目前的監控摘要顯示有以下幾個控制項需要進一步確認： - A.8.24 密碼學與網絡傳輸安全校驗：目前有 11,988 個記錄，但狀態為「審閱中」，需要進一步審核。 - A.8.19 變更組態管理稽核：目前有 26,717 個記錄，狀態為「審閱中」，也需要確認。 這些控制項的狀態為「審閱中」，表示目前尚未完成審核和確認，因此需要進一步的稽核和驗證來確保符合 ISO/IEC ",
+          "reply_len": 237
+        }
+      ]
+    },
+    {
+      "model_slug": "qwen25_3b_ot",
+      "model_label": "Qwen2.5-3B OT",
+      "passed": 5,
+      "total": 7,
+      "turns": [
+        {
+          "id": "q1_iso_compliant",
+          "question": "我們現在符合 ISO27001 嗎？",
+          "status": "success",
+          "elapsed_s": 1.7,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "目前符合 ISO/IEC 27001 的組織需要定期進行內部審核，確保所有控制項都得到適當的實施和維護。如果您想知道目前的狀態，請檢查 A.8.24 密碼學與網絡傳輸安全校驗和 A.8.19 變更組態管理稽核這兩個控制項的數字，如果數字顯示為 SYSLOGS 或 SECURE，那麼就表示這些控制項已經得到適當的審核和確認。",
+          "reply_len": 162
+        },
+        {
+          "id": "q2_why_uncertain",
+          "question": "為什麼你不能確定？",
+          "status": "blocked",
+          "elapsed_s": 0.2,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q3_evidence_gap",
+          "question": "哪些 evidence 不足？",
+          "status": "success",
+          "elapsed_s": 1.7,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "根據目前的摘要，A.8.24 密碼學與網絡傳輸安全校驗的 evidence 確實足夠，因為計數為 11988，且狀態為 review。A.8.19 變更組態管理稽核的 evidence 也足夠，計數為 26717，狀態為 review。對於其他控制項，如果沒有提供詳細信息，我們無法評估其 evidence 是否足夠。請提供其他控制項的詳細信息以便評估。",
+          "reply_len": 177
+        },
+        {
+          "id": "q4_coverage_device",
+          "question": "哪一台設備造成 monitoring coverage 下降？",
+          "status": "success",
+          "elapsed_s": 1.0,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve",
+          "rag_citations": 3,
+          "reply_preview": "要回答哪一臺設備造成監控覆蓋下降，我們需要具體的監控數據和設備列表。請提供相關設備的名稱和其監控數據，這樣才能分析哪一臺設備的數據異常導致了覆蓋下降的情況。",
+          "reply_len": 78
+        },
+        {
+          "id": "q5_chart",
+          "question": "給我圖表。",
+          "status": "blocked",
+          "elapsed_s": 0.2,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q6_controls",
+          "question": "這會影響哪些控制項？",
+          "status": "success",
+          "elapsed_s": 1.7,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "根據目前的監控摘要，只有 A.8.24 密碼學與網絡傳輸安全校驗和 A.8.19 變更組態管理稽核的 evidence 確實足夠，狀態為 review。其他控制項沒有提供詳細信息，無法評估其 evidence 是否足夠。因此，這些未評估的控制項可能會受到影響，因為他們的 evidence 現在不足。",
+          "reply_len": 150
+        },
+        {
+          "id": "q7_next_steps",
+          "question": "下一步要做什麼？",
+          "status": "success",
+          "elapsed_s": 1.3,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve",
+          "rag_citations": 3,
+          "reply_preview": "根據目前的情況，下一步應該是評估並補充那些 evidence 足夠不足的控制項。確認是否有相關的記錄、日誌或變更管理資料可以作為支持，以確保這些控制項的 evidence 能夠達到足夠的標準。完成評估後，根據 ISO/IEC 27001 的要求，進行必要的更新和記錄，確保所有控制項都符合要求。",
+          "reply_len": 147
+        }
+      ]
+    },
+    {
+      "model_slug": "qwen25_7b_ot",
+      "model_label": "Qwen2.5-7B OT",
+      "passed": 5,
+      "total": 7,
+      "turns": [
+        {
+          "id": "q1_iso_compliant",
+          "question": "我們現在符合 ISO27001 嗎？",
+          "status": "success",
+          "elapsed_s": 3.2,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "目前根據 OT 工控系統的日誌顯示，A.8.24 密碼學與網絡傳輸安全校驗和 A.8.19 變更組態管理稽核的監控計數均在審閱中，尚未完成審核。因此無法確認是否完全符合 ISO/IEC 27001 的要求。請進一步審閱相關控制項並完成審核流程。",
+          "reply_len": 122
+        },
+        {
+          "id": "q2_why_uncertain",
+          "question": "為什麼你不能確定？",
+          "status": "blocked",
+          "elapsed_s": 0.4,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q3_evidence_gap",
+          "question": "哪些 evidence 不足？",
+          "status": "success",
+          "elapsed_s": 2.7,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "目前缺乏足夠的審閱文件和記錄來確認 A.8.24 和 A.8.19 控制項已完全符合要求。sec_gem_log 和 recipe_audit 的監控計數顯示狀態為 review，尚未完成審核流程。",
+          "reply_len": 99
+        },
+        {
+          "id": "q4_coverage_device",
+          "question": "哪一台設備造成 monitoring coverage 下降？",
+          "status": "success",
+          "elapsed_s": 1.4,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve",
+          "rag_citations": 3,
+          "reply_preview": "根據目前的日誌顯示，sec_gem_log 和 recipe_audit 的監控覆蓋率下降可能是由於最近一次的變更組態管理稽核尚未完成審核流程。請確認相關設備和日誌記錄以進一步確認原因。",
+          "reply_len": 93
+        },
+        {
+          "id": "q5_chart",
+          "question": "給我圖表。",
+          "status": "blocked",
+          "elapsed_s": 0.4,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q6_controls",
+          "question": "這會影響哪些控制項？",
+          "status": "success",
+          "elapsed_s": 2.1,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "根據目前的監控摘要，sec_gem_log 和 recipe_audit 的監控覆蓋率下降可能影響 A.8.24 密碼學與網絡傳輸安全校驗 和 A.8.19 變更組態管理稽核 這兩個控制項的審核狀態。請確認相關日誌以進一步確認具體影響。",
+          "reply_len": 118
+        },
+        {
+          "id": "q7_next_steps",
+          "question": "下一步要做什麼？",
+          "status": "success",
+          "elapsed_s": 1.3,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve",
+          "rag_citations": 3,
+          "reply_preview": "請確認 sec_gem_log 和 recipe_audit 的相關日誌，並檢查變更組態管理稽核的狀態，以確定監控覆蓋率下降的原因。",
+          "reply_len": 66
+        }
+      ]
+    },
+    {
+      "model_slug": "qwen3_4b_ot",
+      "model_label": "Qwen3-4B OT",
+      "passed": 3,
+      "total": 7,
+      "turns": [
+        {
+          "id": "q1_iso_compliant",
+          "question": "我們現在符合 ISO27001 嗎？",
+          "status": "success",
+          "elapsed_s": 8.7,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "ISO/IEC 27001 是 ISMS（資訊安全管理系統）的國際要求標準，用來證明組織能系統化管理資訊安全風險並持續改善。 控制措施細節多見於 ISO/IEC 27002（指引）；27000 提供詞彙，27005 提供風險管理方法。 Semi-Shield 則以 OT 日誌對照相關 Annex A 控制做合規輔助。請勿與其他亂編的 ISO 編號（如 2900 系列、22007）混淆。",
+          "reply_len": 196
+        },
+        {
+          "id": "q2_why_uncertain",
+          "question": "為什麼你不能確定？",
+          "status": "blocked",
+          "elapsed_s": 2.9,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q3_evidence_gap",
+          "question": "哪些 evidence 不足？",
+          "status": "success",
+          "elapsed_s": 6.1,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "從摘要中，我看到： - 有兩個控制項有計數和狀態（status=review），但摘要已截斷，所以可能還有其他控制項。",
+          "reply_len": 59
+        },
+        {
+          "id": "q4_coverage_device",
+          "question": "哪一台設備造成 monitoring coverage 下降？",
+          "status": "success",
+          "elapsed_s": 6.0,
+          "issues": [],
+          "tool_called": true,
+          "tool_name": "rag_retrieve",
+          "rag_citations": 3,
+          "reply_preview": "在之前的回應中，我說摘要截斷，所以可能有其他控制項，但沒有指定設備。",
+          "reply_len": 34
+        },
+        {
+          "id": "q5_chart",
+          "question": "給我圖表。",
+          "status": "blocked",
+          "elapsed_s": 2.6,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q6_controls",
+          "question": "這會影響哪些控制項？",
+          "status": "success",
+          "elapsed_s": 6.5,
+          "issues": [
+            "bad_fallback",
+            "off_topic"
+          ],
+          "tool_called": true,
+          "tool_name": "rag_retrieve+scan_ot_directory",
+          "rag_citations": 3,
+          "reply_preview": "剛才這則回覆異常（疑似模型輸出不穩），請再問一次；我會依 RAG 與監控資料重新生成。",
+          "reply_len": 43
+        },
+        {
+          "id": "q7_next_steps",
+          "question": "下一步要做什麼？",
+          "status": "success",
+          "elapsed_s": 6.5,
+          "issues": [
+            "bad_fallback"
+          ],
+          "tool_called": true,
+          "tool_name": "rag_retrieve",
+          "rag_citations": 3,
+          "reply_preview": "剛才這則回覆異常（疑似模型輸出不穩），請再問一次；我會依 RAG 與監控資料重新生成。",
+          "reply_len": 43
+        }
+      ]
+    },
+    {
+      "model_slug": "gemma2:2b",
+      "model_label": "Gemma 2B",
+      "passed": 5,
+      "total": 7,
+      "turns": [
+        {
+          "id": "q1_iso_compliant",
+          "question": "我們現在符合 ISO27001 嗎？",
+          "status": "success",
+          "elapsed_s": 1.9,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "根據我所知道的，符合 ISO/IEC 27001 的標準，需要具備多項安全管理措施，像是資訊安全策略、風險管理、安全控制措施等等。 要確認是否符合 ISO/IEC 27001，建議您參考相關標準文件，並進行必要的評估和驗證。",
+          "reply_len": 112
+        },
+        {
+          "id": "q2_why_uncertain",
+          "question": "為什麼你不能確定？",
+          "status": "blocked",
+          "elapsed_s": 0.3,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q3_evidence_gap",
+          "question": "哪些 evidence 不足？",
+          "status": "success",
+          "elapsed_s": 2.8,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "目前無法確定哪些證據不足，因為我需要更多資訊才能判斷。 例如，您需要提供： * 哪個證據不足？ (例如：安全策略、風險評估、安全控制措施等) * 您想了解哪方面的不足？ (例如：符合標準的程度、特定項目缺失等) 請提供更多細節，以便我協助您。",
+          "reply_len": 121
+        },
+        {
+          "id": "q4_coverage_device",
+          "question": "哪一台設備造成 monitoring coverage 下降？",
+          "status": "success",
+          "elapsed_s": 1.3,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "可能是某臺設備的監控範圍調整導致，導致監控coverage下降。",
+          "reply_len": 32
+        },
+        {
+          "id": "q5_chart",
+          "question": "給我圖表。",
+          "status": "blocked",
+          "elapsed_s": 0.3,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q6_controls",
+          "question": "這會影響哪些控制項？",
+          "status": "success",
+          "elapsed_s": 1.4,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "這可能會影響 OT 工控系統的控制項，例如： * 監控系統的運作 * 數據收集和分析 * 權限管理 * alarms 和 alerts 的設定。",
+          "reply_len": 72
+        },
+        {
+          "id": "q7_next_steps",
+          "question": "下一步要做什麼？",
+          "status": "success",
+          "elapsed_s": 1.5,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "下一步，需要確認監控範圍調整的具體原因，並評估對系統安全和運作的影響。",
+          "reply_len": 35
+        }
+      ]
+    },
+    {
+      "model_slug": "llama3.2:3b",
+      "model_label": "Llama 3.2 3B",
+      "passed": 5,
+      "total": 7,
+      "turns": [
+        {
+          "id": "q1_iso_compliant",
+          "question": "我們現在符合 ISO27001 嗎？",
+          "status": "success",
+          "elapsed_s": 2.6,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "目前沒有具體的資訊可以確認您是否符合 ISO/IEC 27001。您需要進行自我評估、評估結果、制定控制措施、實施控制措施、監控和評估等步驟，才能確定是否符合 ISO/IEC 27001 的標準。",
+          "reply_len": 98
+        },
+        {
+          "id": "q2_why_uncertain",
+          "question": "為什麼你不能確定？",
+          "status": "blocked",
+          "elapsed_s": 0.3,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q3_evidence_gap",
+          "question": "哪些 evidence 不足？",
+          "status": "success",
+          "elapsed_s": 2.6,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "在 ISO/IEC 27001 的證據評估中，以下幾類證據可能不足： 1. 未完成的自我評估或評估結果。 2. 缺乏足夠的控制措施。 3. 控制措施未被實施或未被監控。 4. 證據無法證明控制措施有效。 5. 證據無法證明組織的資安管理體系有效。",
+          "reply_len": 123
+        },
+        {
+          "id": "q4_coverage_device",
+          "question": "哪一台設備造成 monitoring coverage 下降？",
+          "status": "success",
+          "elapsed_s": 3.2,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "我無法提供具體的資訊，因為我不知道您所使用的設備或監控系統。您可以提供更多資訊，例如設備型號或監控系統的配置，才能幫助我提供更具體的答案。",
+          "reply_len": 69
+        },
+        {
+          "id": "q5_chart",
+          "question": "給我圖表。",
+          "status": "blocked",
+          "elapsed_s": 0.3,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q6_controls",
+          "question": "這會影響哪些控制項？",
+          "status": "success",
+          "elapsed_s": 2.0,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "如果監控系統的 coverage 下降，可能會影響到以下控制項： 1. 資安事件反應機制 2. 事件追蹤和分析 3. 事件應對和恢復計畫 4. 資安風險評估和管理。",
+          "reply_len": 82
+        },
+        {
+          "id": "q7_next_steps",
+          "question": "下一步要做什麼？",
+          "status": "success",
+          "elapsed_s": 2.0,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "下一步要做的是檢查監控系統的配置和設定，確保它們是否符合ISO/IEC 27001的要求，是否有任何不安全的開放或未關閉的門戶。",
+          "reply_len": 64
+        }
+      ]
+    },
+    {
+      "model_slug": "phi4",
+      "model_label": "Phi-4 Mini",
+      "passed": 0,
+      "total": 7,
+      "skip": "timed out",
+      "turns": []
+    },
+    {
+      "model_slug": "qwen2.5:1.5b",
+      "model_label": "Qwen2.5-1.5B",
+      "passed": 5,
+      "total": 7,
+      "turns": [
+        {
+          "id": "q1_iso_compliant",
+          "question": "我們現在符合 ISO27001 嗎？",
+          "status": "success",
+          "elapsed_s": 0.9,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "目前我們已經通過了ISO/IEC 27001的認證，可以說我們已經符合了ISO27001的要求。",
+          "reply_len": 48
+        },
+        {
+          "id": "q2_why_uncertain",
+          "question": "為什麼你不能確定？",
+          "status": "blocked",
+          "elapsed_s": 0.3,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q3_evidence_gap",
+          "question": "哪些 evidence 不足？",
+          "status": "success",
+          "elapsed_s": 1.1,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "使用者的問題是：哪些 evidence 不足？ 根據使用者的問題，我們需要確認目前的證據是否足以證明符合 ISO/IEC 27001 的要求。請提供更多的相關信息或證據，以便我們進行進一步的分析和確認。",
+          "reply_len": 101
+        },
+        {
+          "id": "q4_coverage_device",
+          "question": "哪一台設備造成 monitoring coverage 下降？",
+          "status": "success",
+          "elapsed_s": 1.0,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "使用者的問題是：哪一臺設備造成 monitoring coverage 下降？ 目前我們已經通過了ISO/IEC 27001的認證，可以說我們已經符合了ISO27001的要求。",
+          "reply_len": 88
+        },
+        {
+          "id": "q5_chart",
+          "question": "給我圖表。",
+          "status": "blocked",
+          "elapsed_s": 0.3,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q6_controls",
+          "question": "這會影響哪些控制項？",
+          "status": "success",
+          "elapsed_s": 3.5,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "使用者的問題是：這會影響哪些控制項？ 根據先前的對話，我們已經確認了設備的監控覆蓋率下降。這可能會影響以下幾個控制項： 1. 物理控制：如果設備的物理位置或物理安全措施（如門禁系統）受到影響，可能會影響物理控制項。 2. 系統控制：系統控制項可能會受到影響，因為系統監控和管理功能可能會受到影響。 3. 數據控制：數據控制項可能會受到影響，因為數據的監控和保護措施可能會受到影響。 4. 人員控制：人",
+          "reply_len": 278
+        },
+        {
+          "id": "q7_next_steps",
+          "question": "下一步要做什麼？",
+          "status": "success",
+          "elapsed_s": 2.3,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "使用者的問題是：下一步要做什麼？ 根據先前的對話，我們已經確認了設備的監控覆蓋率下降。下一步應該是進行進一步的調查和評估，以確定監控覆蓋率下降的原因。這可能需要與相關部門進行溝通，了解設備的使用情況和可能的影響因素。此外，還需要考慮是否需要調整相關的控制項，以確保系統的資安控制符合ISO/IEC 27001的要求。",
+          "reply_len": 158
+        }
+      ]
+    },
+    {
+      "model_slug": "qwen2.5:3b",
+      "model_label": "Qwen2.5-3B",
+      "passed": 4,
+      "total": 7,
+      "turns": [
+        {
+          "id": "q1_iso_compliant",
+          "question": "我們現在符合 ISO27001 嗎？",
+          "status": "success",
+          "elapsed_s": 1.8,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "要確認是否符合 ISO/IEC 27001，需要進行全面的風險評估和控制措施審核。如果你已經完成了所有必要的審核和驗證程序，並且獲得認證機構的認證，那麼可以說是符合 ISO/IEC 27001。",
+          "reply_len": 97
+        },
+        {
+          "id": "q2_why_uncertain",
+          "question": "為什麼你不能確定？",
+          "status": "blocked",
+          "elapsed_s": 0.3,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q3_evidence_gap",
+          "question": "哪些 evidence 不足？",
+          "status": "success",
+          "elapsed_s": 1.2,
+          "issues": [
+            "off_topic"
+          ],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "請提供具體的情況或問題背景，以便我能夠更好地回答您的問題。",
+          "reply_len": 29
+        },
+        {
+          "id": "q4_coverage_device",
+          "question": "哪一台設備造成 monitoring coverage 下降？",
+          "status": "success",
+          "elapsed_s": 1.5,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "請提供更多的背景信息，包括哪些設備被監控，以及監控 coverage 下降的具體情況，這樣我才能更準確地回答您的問題。",
+          "reply_len": 59
+        },
+        {
+          "id": "q5_chart",
+          "question": "給我圖表。",
+          "status": "blocked",
+          "elapsed_s": 0.3,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q6_controls",
+          "question": "這會影響哪些控制項？",
+          "status": "success",
+          "elapsed_s": 1.2,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "請提供具體的控制項名稱或類型，以便我能夠回答哪一項控制項可能會受到影響。",
+          "reply_len": 36
+        },
+        {
+          "id": "q7_next_steps",
+          "question": "下一步要做什麼？",
+          "status": "success",
+          "elapsed_s": 1.4,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "根據目前的情況，下一步應該是確定哪一項控制項可能會受到影響，然後根據影響的程度來決定是進行修正還是需要進行額外的風險評估和控制。",
+          "reply_len": 64
+        }
+      ]
+    },
+    {
+      "model_slug": "qwen2.5:7b",
+      "model_label": "Qwen2.5-7B",
+      "passed": 4,
+      "total": 7,
+      "turns": [
+        {
+          "id": "q1_iso_compliant",
+          "question": "我們現在符合 ISO27001 嗎？",
+          "status": "success",
+          "elapsed_s": 2.0,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "要看是否符合ISO27001，需要進行完整的風險評估和管理系統建立，並通過外部審核。目前是否符合，需由專業機構評估後才能確定。",
+          "reply_len": 63
+        },
+        {
+          "id": "q2_why_uncertain",
+          "question": "為什麼你不能確定？",
+          "status": "blocked",
+          "elapsed_s": 0.5,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q3_evidence_gap",
+          "question": "哪些 evidence 不足？",
+          "status": "success",
+          "elapsed_s": 1.9,
+          "issues": [
+            "off_topic"
+          ],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "缺乏完整的文件記錄、風險評估報告和內部審核報告。此外，缺少員工培訓記錄和應急演練報告也是不足之處。",
+          "reply_len": 49
+        },
+        {
+          "id": "q4_coverage_device",
+          "question": "哪一台設備造成 monitoring coverage 下降？",
+          "status": "success",
+          "elapsed_s": 2.0,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "根據最新的監控資料，發現網路交換機 SW201 的連線異常導致監控覆蓋率下降。請檢查該設備的連線狀態。",
+          "reply_len": 51
+        },
+        {
+          "id": "q5_chart",
+          "question": "給我圖表。",
+          "status": "blocked",
+          "elapsed_s": 0.4,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q6_controls",
+          "question": "這會影響哪些控制項？",
+          "status": "success",
+          "elapsed_s": 1.5,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "這可能會影響「監控與事件反應」和「資安事件管理」兩個控制項。",
+          "reply_len": 30
+        },
+        {
+          "id": "q7_next_steps",
+          "question": "下一步要做什麼？",
+          "status": "success",
+          "elapsed_s": 1.4,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "下一步是檢查 SW201 的連線狀態，並確認是否有資安事件發生。",
+          "reply_len": 32
+        }
+      ]
+    },
+    {
+      "model_slug": "qwen3:14b",
+      "model_label": "Qwen3-14B",
+      "passed": 4,
+      "total": 7,
+      "turns": [
+        {
+          "id": "q1_iso_compliant",
+          "question": "我們現在符合 ISO27001 嗎？",
+          "status": "success",
+          "elapsed_s": 2.7,
+          "issues": [
+            "off_topic"
+          ],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "建議進行內部稽核或委託第三方機構進行認證審查，才能得出明確結論。",
+          "reply_len": 32
+        },
+        {
+          "id": "q2_why_uncertain",
+          "question": "為什麼你不能確定？",
+          "status": "blocked",
+          "elapsed_s": 0.6,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q3_evidence_gap",
+          "question": "哪些 evidence 不足？",
+          "status": "success",
+          "elapsed_s": 2.8,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "例如：資產清冊、風險評估報告、控制措施落實紀錄等，皆可能為常見缺失項目。",
+          "reply_len": 36
+        },
+        {
+          "id": "q4_coverage_device",
+          "question": "哪一台設備造成 monitoring coverage 下降？",
+          "status": "success",
+          "elapsed_s": 2.1,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "需檢查 network traffic log 或 monitoring system 的 alert 記錄，才能判定是哪一臺設備導致 coverage 下降。",
+          "reply_len": 80
+        },
+        {
+          "id": "q5_chart",
+          "question": "給我圖表。",
+          "status": "blocked",
+          "elapsed_s": 0.5,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q6_controls",
+          "question": "這會影響哪些控制項？",
+          "status": "success",
+          "elapsed_s": 2.3,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "可能影響資訊資產管理、存取控制、監控與稽核等控制項，具體需依事件性質與影響範圍判斷。",
+          "reply_len": 42
+        },
+        {
+          "id": "q7_next_steps",
+          "question": "下一步要做什麼？",
+          "status": "success",
+          "elapsed_s": 2.2,
+          "issues": [],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "應先確認 monitoring coverage 下降的具體原因，例如是否為設備異常、設定錯誤或通訊中斷，再依結果進行後續處置。",
+          "reply_len": 64
+        }
+      ]
+    },
+    {
+      "model_slug": "qwen3:4b",
+      "model_label": "Qwen3-4B",
+      "passed": 0,
+      "total": 7,
+      "turns": [
+        {
+          "id": "q1_iso_compliant",
+          "question": "我們現在符合 ISO27001 嗎？",
+          "status": "success",
+          "elapsed_s": 6.5,
+          "issues": [
+            "bad_fallback",
+            "off_topic"
+          ],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "剛才這則回覆異常（疑似模型輸出不穩），請再問一次；我會依 RAG 與監控資料重新生成。",
+          "reply_len": 43
+        },
+        {
+          "id": "q2_why_uncertain",
+          "question": "為什麼你不能確定？",
+          "status": "blocked",
+          "elapsed_s": 3.3,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q3_evidence_gap",
+          "question": "哪些 evidence 不足？",
+          "status": "success",
+          "elapsed_s": 7.0,
+          "issues": [
+            "bad_fallback",
+            "off_topic"
+          ],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "剛才這則回覆異常（疑似模型輸出不穩），請再問一次；我會依 RAG 與監控資料重新生成。",
+          "reply_len": 43
+        },
+        {
+          "id": "q4_coverage_device",
+          "question": "哪一台設備造成 monitoring coverage 下降？",
+          "status": "success",
+          "elapsed_s": 7.4,
+          "issues": [
+            "bad_fallback"
+          ],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "剛才這則回覆異常（疑似模型輸出不穩），請再問一次；我會依 RAG 與監控資料重新生成。",
+          "reply_len": 43
+        },
+        {
+          "id": "q5_chart",
+          "question": "給我圖表。",
+          "status": "blocked",
+          "elapsed_s": 3.5,
+          "issues": [
+            "guardrail_blocked",
+            "bad_fallback",
+            "guardrail_blocked"
+          ],
+          "tool_called": false,
+          "tool_name": "guardrail",
+          "rag_citations": 0,
+          "reply_preview": "⚠️ 護欄已攔截此請求。 原因：微調護欄模型判定為不安全（unsafe=1.000） 本系統僅提供 ISO 27001 / OT 工控資安合規諮詢，請改以合法、與資安稽核相關的問題詢問。",
+          "reply_len": 93
+        },
+        {
+          "id": "q6_controls",
+          "question": "這會影響哪些控制項？",
+          "status": "success",
+          "elapsed_s": 8.2,
+          "issues": [
+            "bad_fallback",
+            "off_topic"
+          ],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "剛才這則回覆異常（疑似模型輸出不穩），請再問一次；我會依 RAG 與監控資料重新生成。",
+          "reply_len": 43
+        },
+        {
+          "id": "q7_next_steps",
+          "question": "下一步要做什麼？",
+          "status": "success",
+          "elapsed_s": 8.3,
+          "issues": [
+            "bad_fallback"
+          ],
+          "tool_called": false,
+          "tool_name": null,
+          "rag_citations": 0,
+          "reply_preview": "剛才這則回覆異常（疑似模型輸出不穩），請再問一次；我會依 RAG 與監控資料重新生成。",
+          "reply_len": 43
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "models_tested": 15,
+    "total_turns": 105,
+    "failed_turns": 45
+  }
+}

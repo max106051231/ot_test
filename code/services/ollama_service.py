@@ -5,6 +5,10 @@ Ollama HTTP API 後端：模型列表、切換、chat 推論。
   OLLAMA_BASE_URL   預設 http://127.0.0.1:11434
   OLLAMA_MODEL      預設模型名（覆寫 ollama_models.json default_model）
   OLLAMA_TIMEOUT    秒，預設 300
+  OLLAMA_NUM_GPU    GPU 層數，-1=全層（預設 -1）
+  OLLAMA_NUM_CTX    推論 context，Gemma3/4 預設 4096（較 8192 快）
+  OLLAMA_KEEP_ALIVE 模型常駐 VRAM，預設 30m
+  LLM_MAX_NEW_TOKENS  輸出 token 上限（預設 960）
 """
 from __future__ import annotations
 
@@ -15,7 +19,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-from code.paths import config_dir
+from code.paths import config_dir, project_root
 
 CONFIG_PATH = config_dir() / "ollama_models.json"
 
@@ -60,12 +64,79 @@ def _friendly_names() -> dict[str, str]:
     return {str(k): str(v) for k, v in raw.items()}
 
 
+def _excluded_patterns() -> tuple[str, ...]:
+    cfg = _load_config()
+    raw = cfg.get("excluded_patterns") or ["qwen"]
+    return tuple(str(x).lower() for x in raw if str(x).strip())
+
+
+def _ui_allowed_slugs() -> frozenset[str]:
+    cfg = _load_config()
+    raw = cfg.get("ui_allowed_slugs") or []
+    return frozenset(str(x).strip().lower() for x in raw if str(x).strip())
+
+
+def _slug_stem(slug: str) -> str:
+    s = (slug or "").strip().lower()
+    if s.startswith("base:"):
+        s = s[5:]
+    return s.split(":")[0]
+
+
+def is_ui_allowed_model(name: str) -> bool:
+    """功能選單白名單；ui_allowed_slugs 為空則不限制。"""
+    allowed = _ui_allowed_slugs()
+    if not allowed:
+        return True
+    s = (name or "").strip().lower()
+    if not s:
+        return False
+    stem = _slug_stem(s)
+    aliases = _aliases()
+    resolved = _slug_from_tag(aliases.get(s) or aliases.get(stem) or s).lower()
+    resolved_stem = _slug_stem(resolved)
+    candidates = {s, stem, resolved, resolved_stem}
+    if s.startswith("base:"):
+        candidates.add(s[5:])
+    for a in allowed:
+        al = a.lower()
+        astem = _slug_stem(al)
+        if al in candidates or astem in candidates:
+            return True
+        for c in candidates:
+            if c == al or c == astem:
+                return True
+            if c.endswith(al) or al.endswith(c):
+                return True
+    return False
+
+
+def _is_excluded_model(name: str) -> bool:
+    """UI 與預設解析：隱藏／拒用特定模型（如 Qwen）。"""
+    s = (name or "").lower()
+    if any(p in s for p in _excluded_patterns()):
+        return True
+    if _ui_allowed_slugs() and not is_ui_allowed_model(name):
+        return True
+    return False
+
+
 def default_model_name() -> str:
     env = _env("OLLAMA_MODEL")
-    if env:
+    if env and not _is_excluded_model(env):
         return env
+    if env and _is_excluded_model(env):
+        print(f"⚠️ OLLAMA_MODEL={env} 已停用，改用地端預設")
     cfg = _load_config()
-    return str(cfg.get("default_model") or "qwen2.5:3b")
+    return str(cfg.get("default_model") or "llama3.2:3b")
+
+
+def fallback_model_name() -> str:
+    cfg = _load_config()
+    fb = str(cfg.get("fallback_model") or "gemma2:2b")
+    if _is_excluded_model(fb):
+        return "llama3.2:3b"
+    return resolve_model_name(fb)
 
 
 def _broken_tags() -> set[str]:
@@ -75,11 +146,6 @@ def _broken_tags() -> set[str]:
     else:
         raw = ["gemma_2b_ot"]
     return {str(x).lower() for x in raw}
-
-
-def fallback_model_name() -> str:
-    cfg = _load_config()
-    return resolve_model_name(str(cfg.get("fallback_model") or "qwen2.5:3b"))
 
 
 def _is_broken_tag(name: str) -> bool:
@@ -109,6 +175,10 @@ def resolve_model_name(target: str) -> str:
             resolved = aliases[base.split(":")[0]]
         else:
             resolved = t
+    if _is_excluded_model(resolved):
+        fb = fallback_model_name()
+        print(f"⚠️ 模型「{t}」已停用，改以 {fb}")
+        return fb
     if _is_broken_tag(resolved):
         fb = fallback_model_name()
         print(f"⚠️ 模型「{t}」在 Ollama 匯入異常，改以 {fb} 代替")
@@ -186,11 +256,21 @@ def _slug_from_tag(tag: str) -> str:
     return t
 
 
+# 僅 train_ai/models 權重、未匯入 Ollama 的條目（易與 OT 模型重複）
+_HIDE_LOCAL_ONLY_MODELS = True
+
+# slug 前綴／名稱含下列字樣 → 不顯示於選單
+_UI_LABEL_HIDE_RE = re.compile(r"（本地）|\(本地\)|train_ai/models", re.I)
+
 # UI 不顯示的重複／相容別名（仍可用於 resolve_model_name）
 _UI_HIDDEN_ALIASES = frozenset({
     "gemma2b_ot",
-    "qwen_ot_merged_model",
     "phi4_merged_model",
+    "qwen_ot_merged_model",
+    "qwen25_3b_ot",
+    "qwen25_1p5b_ot",
+    "qwen25_7b_ot",
+    "qwen3_4b_ot",
 })
 
 # 同一 target 只顯示一個別名時的優先 slug
@@ -209,8 +289,30 @@ def _alias_redirect_target(slug: str) -> str:
     return _slug_from_tag(_aliases().get(slug) or slug)
 
 
+def _local_finetuned_slugs() -> set[str]:
+    """train_ai/models 內含權重的本地模型 → 功能選單「微調後」區。"""
+    slugs: set[str] = set()
+    cfg = _load_config()
+    for s in cfg.get("local_finetuned_slugs") or []:
+        name = str(s or "").strip()
+        if name and not _is_excluded_model(name):
+            slugs.add(name)
+    models_dir = project_root() / "train_ai" / "models"
+    if models_dir.is_dir():
+        for p in models_dir.iterdir():
+            if (
+                p.is_dir()
+                and _has_train_ai_weights(p)
+                and not _is_excluded_model(p.name)
+            ):
+                slugs.add(p.name)
+    return slugs
+
+
 def _classify_stage(slug: str) -> tuple[str, str]:
     s = (slug or "").lower()
+    if slug in _local_finetuned_slugs():
+        return "finetuned", "微調後"
     aliases = _aliases()
     if slug in aliases:
         tgt = _slug_from_tag(aliases[slug])
@@ -324,7 +426,7 @@ def _installed_model_meta(tag: str, m: dict) -> dict:
     stage, stage_label = _classify_stage(slug)
     size_gb = round((m.get("size") or 0) / (1024**3), 2)
     param = (m.get("details") or {}).get("parameter_size") or ""
-    kind = "本地微調權重" if stage == "finetuned" and "merged" not in slug else (
+    kind = "Semi-Shield OT" if stage == "finetuned" and "merged" not in slug else (
         "Semi-Shield 別名" if stage == "finetuned" else "官方基底"
     )
     return {
@@ -349,6 +451,8 @@ def _installed_slug_set(tags: list[str]) -> set[str]:
 
 
 def _should_show_installed_tag(slug: str, installed_slugs: set[str]) -> bool:
+    if _is_excluded_model(slug):
+        return False
     if _is_broken_tag(slug):
         return False
     if slug in _UI_HIDDEN_ALIASES or "merged_model" in slug:
@@ -363,6 +467,8 @@ def _should_show_installed_tag(slug: str, installed_slugs: set[str]) -> bool:
 
 
 def _should_show_alias_in_ui(alias_slug: str, target: str, seen_slugs: set[str]) -> bool:
+    if _is_excluded_model(alias_slug) or _is_excluded_model(target):
+        return False
     if alias_slug in _UI_HIDDEN_ALIASES:
         return False
     if _is_hub_path_alias(alias_slug) or _is_base_mirror_alias(alias_slug):
@@ -425,6 +531,62 @@ def _alias_redirect_items(seen_tags: list[str], cur: str, cur_slug: str) -> list
     return out
 
 
+def _has_train_ai_weights(path: Path) -> bool:
+    if not path.is_dir() or not (path / "config.json").is_file():
+        return False
+    if any(path.glob("*.safetensors")) or (path / "model.safetensors.index.json").is_file():
+        return True
+    return False
+
+
+def _append_train_ai_local_models(
+    items: list[dict],
+    installed_tags: list[str],
+    cur: str,
+    cur_slug: str,
+) -> None:
+    """train_ai/models 已下載權重但尚未出現在 Ollama 列表者，補進功能選單。"""
+    models_dir = project_root() / "train_ai" / "models"
+    if not models_dir.is_dir():
+        return
+    existing_slugs = {str(i.get("slug") or "") for i in items}
+    for p in sorted(models_dir.iterdir()):
+        if not p.is_dir() or _is_excluded_model(p.name):
+            continue
+        if not _has_train_ai_weights(p):
+            continue
+        slug = p.name
+        if slug in existing_slugs:
+            continue
+        ollama_name = _aliases().get(slug, slug)
+        in_ollama = _model_name_matches(ollama_name, installed_tags)
+        stage, stage_label = _classify_stage(slug)
+        gb = sum(f.stat().st_size for f in p.glob("**/*") if f.is_file()) / (1024**3)
+        items.append({
+            "slug": slug,
+            "label": friendly_label(slug),
+            "path": ollama_name if in_ollama else str(p.resolve()),
+            "load_path": ollama_name if in_ollama else str(p.resolve()),
+            "stage": stage,
+            "stage_label": stage_label,
+            "base_model_id": None,
+            "desc": f"train_ai/models · {gb:.1f} GB",
+            "source": "local" if not in_ollama else "ollama",
+            "available": in_ollama,
+            "unavailable_reason": (
+                ""
+                if in_ollama
+                else "權重已在 train_ai/models，請執行 import_ollama_models.bat 匯入 Ollama"
+            ),
+            "active": in_ollama and (
+                _model_name_matches(ollama_name, [cur]) or slug == cur_slug
+            ),
+            "ollama": in_ollama,
+            "backend": "ollama" if in_ollama else "local",
+        })
+        existing_slugs.add(slug)
+
+
 def list_models_for_ui() -> list[dict]:
     """供 /api/llm/models 使用。"""
     health = ping()
@@ -461,36 +623,10 @@ def list_models_for_ui() -> list[dict]:
                 continue
             items.append(alias_item)
 
-    for alias_slug, ollama_name in _aliases().items():
-        if (
-            alias_slug.startswith("base:")
-            or _is_hub_path_alias(alias_slug)
-            or _is_base_mirror_alias(alias_slug)
-            or alias_slug in _UI_HIDDEN_ALIASES
-            or alias_slug in seen
-        ):
-            continue
-        if _model_name_matches(ollama_name, list(seen)):
-            continue
-        if alias_slug in {i["slug"] for i in items}:
-            continue
-        stage, stage_label = _classify_stage(alias_slug)
-        items.append({
-            "slug": alias_slug,
-            "label": friendly_label(alias_slug),
-            "path": ollama_name,
-            "load_path": ollama_name,
-            "stage": stage,
-            "stage_label": stage_label + "（未安裝）",
-            "base_model_id": None,
-            "desc": f"請執行 import_ollama_models.bat 或 ollama pull {ollama_name}",
-            "source": "ollama",
-            "available": False,
-            "unavailable_reason": f"尚未在 Ollama 安裝 {ollama_name}",
-            "active": False,
-            "ollama": True,
-            "backend": "ollama",
-        })
+    if not _HIDE_LOCAL_ONLY_MODELS:
+        _append_train_ai_local_models(items, installed_tags, cur, cur_slug)
+
+    items = [i for i in items if not _should_hide_ui_model(i)]
 
     items.sort(
         key=lambda x: (
@@ -531,6 +667,79 @@ def current_info() -> dict:
 
 def _is_gemma_model(name: str) -> bool:
     return "gemma" in (name or "").lower()
+
+
+def _is_gemma34_model(name: str) -> bool:
+    n = (name or "").lower()
+    return "gemma3" in n or "gemma4" in n
+
+
+def _max_new_tokens_cap() -> int:
+    raw = _env("LLM_MAX_NEW_TOKENS", "960")
+    try:
+        return max(64, int(raw))
+    except ValueError:
+        return 960
+
+
+def is_gemma34_model(name: str | None = None) -> bool:
+    return _is_gemma34_model(name or current_model_name())
+
+
+def _ollama_infer_options(
+    model: str,
+    *,
+    token_budget: int,
+    temperature: float,
+    num_ctx_override: int | None = None,
+) -> tuple[dict, str]:
+    """Ollama /api/chat options + keep_alive（Gemma3/4 縮 ctx 加速）。"""
+    opts: dict = {
+        "num_predict": min(int(token_budget), _max_new_tokens_cap()),
+        "temperature": float(temperature),
+    }
+    num_gpu_raw = _env("OLLAMA_NUM_GPU", "-1")
+    try:
+        opts["num_gpu"] = int(num_gpu_raw)
+    except ValueError:
+        pass
+    if num_ctx_override and int(num_ctx_override) > 0:
+        opts["num_ctx"] = int(num_ctx_override)
+    else:
+        ctx_raw = _env("OLLAMA_NUM_CTX", "")
+        if ctx_raw.isdigit() and int(ctx_raw) > 0:
+            opts["num_ctx"] = int(ctx_raw)
+        elif _is_gemma34_model(model):
+            opts["num_ctx"] = 4096
+    predict_cap = _max_new_tokens_cap()
+    if num_ctx_override and int(num_ctx_override) >= 8192:
+        syslog_cap = _env("LLM_SYSLOG_MAX_TOKENS", "1280")
+        if syslog_cap.isdigit():
+            predict_cap = max(predict_cap, min(int(syslog_cap), 1536))
+    opts["num_predict"] = min(int(token_budget), predict_cap)
+    return opts, _env("OLLAMA_KEEP_ALIVE", "30m")
+
+
+def _should_hide_ui_model(item: dict) -> bool:
+    """隱藏（本地）基底與未匯入 Ollama 的 train_ai 權重條目。"""
+    slug = str(item.get("slug") or "")
+    label = str(item.get("label") or "")
+    desc = str(item.get("desc") or "")
+    if _UI_LABEL_HIDE_RE.search(label) or _UI_LABEL_HIDE_RE.search(desc):
+        return True
+    if _HIDE_LOCAL_ONLY_MODELS and item.get("backend") == "local":
+        return True
+    if _HIDE_LOCAL_ONLY_MODELS and item.get("source") == "local":
+        return True
+    if _ui_allowed_slugs() and not is_ui_allowed_model(slug):
+        return True
+    # 未安裝的 config 別名（佔位條目）
+    if item.get("available") is False and item.get("stage_label", "").endswith("（未安裝）"):
+        return True
+    # 純 HF 基底 slug（非 _ot），已由 Ollama tag 代表
+    if slug in ("gemma4_e2b", "llama32_3b"):
+        return True
+    return False
 
 
 def _normalize_messages(messages: list[dict], *, model: str) -> list[dict]:
@@ -641,38 +850,124 @@ def _looks_like_broken_output(text: str) -> bool:
     return False
 
 
+def _supports_native_think(model: str) -> bool:
+    """Ollama 原生 thinking 模式（Qwen3 等）。"""
+    return _is_qwen3_model(model)
+
+
 def _chat_once(
     model: str,
     messages: list[dict],
     *,
     max_new_tokens: int,
     temperature: float,
-) -> tuple[str, str | None]:
-    """單次 chat；回傳 (content, error)。"""
-    token_budget = max(64, int(max_new_tokens or 512))
+    think: bool = False,
+    num_ctx: int | None = None,
+) -> tuple[str, str | None, str]:
+    """單次 chat；回傳 (content, error, thinking)。"""
+    token_budget = max(64, min(int(max_new_tokens or 512), _max_new_tokens_cap()))
+    use_think = bool(think and _supports_native_think(model))
     if _is_qwen3_model(model):
-        token_budget = max(token_budget, 384)
+        token_budget = min(max(token_budget, 384 if not use_think else 512), _max_new_tokens_cap())
+    infer_opts, keep_alive = _ollama_infer_options(
+        model,
+        token_budget=token_budget,
+        temperature=temperature,
+        num_ctx_override=num_ctx,
+    )
     body = {
         "model": model,
         "messages": _normalize_messages(messages, model=model),
         "stream": False,
-        "think": False,
-        "options": {
-            "num_predict": token_budget,
-            "temperature": float(temperature),
-        },
+        "think": use_think,
+        "options": infer_opts,
     }
+    if keep_alive:
+        body["keep_alive"] = keep_alive
     try:
         data = _request("POST", "/api/chat", body)
+        msg = data.get("message") or {}
+        thinking = (msg.get("thinking") or "").strip()
         content = _extract_chat_content(data)
         if _is_qwen3_model(model):
             content = _polish_qwen3_reply(content)
         if _looks_like_broken_output(content):
-            reason = data.get("done_reason") or "broken_output"
-            return "", f"模型輸出異常（{reason}）"
-        return (content or "").strip(), None
+            if thinking and not use_think:
+                content = _polish_qwen3_reply(thinking)
+                thinking = ""
+            elif use_think and thinking:
+                content = _polish_qwen3_reply(thinking)
+                thinking = ""
+            else:
+                reason = data.get("done_reason") or "broken_output"
+                return "", f"模型輸出異常（{reason}）", thinking
+        return (content or "").strip(), None, thinking
     except Exception as e:
-        return "", str(e)
+        return "", str(e), ""
+
+
+def chat_with_meta(
+    messages: list[dict],
+    *,
+    max_new_tokens: int = 512,
+    temperature: float = 0.0,
+    think: bool = False,
+    num_ctx: int | None = None,
+    allow_fallback: bool = True,
+) -> dict:
+    """chat 並回傳 content / thinking / model。"""
+    global _current_model, _last_error
+    if not is_ready():
+        msg = _last_error or "Ollama 未連線，請先執行 ollama serve"
+        return {"content": f"⚠️ {msg}", "thinking": "", "error": msg}
+
+    model = resolve_model_name(current_model_name())
+    if model != current_model_name():
+        switch_model(model)
+
+    tried: list[str] = []
+    candidates = [model]
+    if allow_fallback:
+        fb = fallback_model_name()
+        if fb not in candidates and not _is_gemma_model(model):
+            candidates.append(fb)
+    if _is_gemma_model(model):
+        base = resolve_model_name("gemma4:e2b-it-qat")
+        if base not in candidates:
+            candidates.append(base)
+        fb = resolve_model_name("llama3.2:3b")
+        if fb not in candidates:
+            candidates.append(fb)
+
+    last_err = ""
+    for m in candidates:
+        if m in tried:
+            continue
+        tried.append(m)
+        ctx = num_ctx if m == model else None
+        content, err, thinking = _chat_once(
+            m,
+            messages,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            think=think,
+            num_ctx=ctx,
+        )
+        if content:
+            if m != current_model_name():
+                print(f"🦙 Ollama 已自動改以 {m} 回覆（原模型異常）")
+                switch_model(m)
+            _last_error = ""
+            return {"content": content, "thinking": thinking, "model": m}
+        last_err = err or "empty"
+        print(f"❌ Ollama chat 失敗（{m}）：{last_err[:200]}")
+
+    _last_error = last_err
+    err_msg = (
+        f"Ollama 推論失敗：{last_err[:240]}。"
+        f"請在模型選單改選 {friendly_label(fallback_model_name())}。"
+    )
+    return {"content": err_msg, "thinking": "", "error": last_err}
 
 
 def chat(
@@ -680,6 +975,8 @@ def chat(
     *,
     max_new_tokens: int = 512,
     temperature: float = 0.0,
+    num_ctx: int | None = None,
+    allow_fallback: bool = True,
 ) -> str:
     """POST /api/chat 非串流；失敗時自動改以 fallback 模型重試。"""
     global _current_model, _last_error
@@ -693,21 +990,30 @@ def chat(
 
     tried: list[str] = []
     candidates = [model]
-    fb = fallback_model_name()
-    if fb not in candidates and not _is_gemma_model(model):
-        candidates.append(fb)
+    if allow_fallback:
+        fb = fallback_model_name()
+        if fb not in candidates and not _is_gemma_model(model):
+            candidates.append(fb)
     if _is_gemma_model(model):
-        base = resolve_model_name("gemma2:2b")
+        base = resolve_model_name("gemma4:e2b-it-qat")
         if base not in candidates:
             candidates.append(base)
+        fb = resolve_model_name("llama3.2:3b")
+        if fb not in candidates:
+            candidates.append(fb)
 
     last_err = ""
     for m in candidates:
         if m in tried:
             continue
         tried.append(m)
-        content, err = _chat_once(
-            m, messages, max_new_tokens=max_new_tokens, temperature=temperature
+        ctx = num_ctx if m == model else None
+        content, err, _thinking = _chat_once(
+            m,
+            messages,
+            max_new_tokens=max_new_tokens,
+            temperature=temperature,
+            num_ctx=ctx,
         )
         if content:
             if m != current_model_name():

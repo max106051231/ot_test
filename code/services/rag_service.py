@@ -1,7 +1,7 @@
 """
 RAG 檢索服務：向量 embedding（優先）或關鍵字檢索（後備）。
 索引若不存在，啟動時會嘗試自動建立。
-Embedding 預設放 CPU，避免與主 LLM 搶 GPU 顯存。
+Embedding 預設 GPU（RAG_DEVICE=cuda）；無 GPU 時改 CPU。
 """
 from __future__ import annotations
 
@@ -81,9 +81,16 @@ class RagService:
             return
 
         model_path = str(EMBEDDER_DIR) if EMBEDDER_DIR.exists() else FALLBACK_EMBEDDER
+        rag_dev = (os.environ.get("RAG_DEVICE") or "cuda").strip().lower()
         try:
-            print(f"📚 RAG：載入 Embedding（CPU）: {model_path}")
-            self.embedder = SentenceTransformer(model_path, device="cpu")
+            import torch
+            if rag_dev in ("cuda", "gpu") and not torch.cuda.is_available():
+                rag_dev = "cpu"
+        except Exception:
+            rag_dev = "cpu"
+        try:
+            print(f"📚 RAG：載入 Embedding（{rag_dev}）: {model_path}")
+            self.embedder = SentenceTransformer(model_path, device=rag_dev)
         except Exception as e:
             print(f"⚠️ RAG Embedding 載入失敗，改用關鍵字檢索：{e}")
             self._init_keyword_mode()
@@ -273,6 +280,16 @@ class RagService:
             r"重放攻擊|REPLAY ATTACK", blob_upper
         ):
             boost -= 0.35
+        if re.search(r"\[SDA\]|EXT2|SDA DEVICE|FLASH", blob_upper) and re.search(
+            r"不是.*SD|並非.*SD|禁止.*SD|NOT.*SD CARD|BLOCK DEVICE|內部 FLASH",
+            blob_upper,
+        ):
+            boost += 0.22
+        if re.search(r"\[SDA\]|EXT2|SDA DEVICE", blob_upper) and re.search(
+            r"SD\s*卡|SDCARD|記憶卡|MICROSD",
+            blob_upper,
+        ):
+            boost -= 0.45
         return boost
 
     def _finalize_hit(self, item: dict, adj: float, base: float) -> dict:

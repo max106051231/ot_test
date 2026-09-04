@@ -476,6 +476,39 @@
             color: #f8fcff;
             border-radius: 16px 16px 4px 16px;
             box-shadow: 0 8px 18px rgba(2, 88, 140, 0.22);
+            max-width: 100%;
+            overflow: hidden;
+        }
+
+        .user .msg-content-col {
+            min-width: 0;
+            max-width: 100%;
+        }
+
+        .user .bubble-text {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }
+
+        .user .syslog-attach-head {
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .user .syslog-attach-preview {
+            margin: 0;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.18);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            font-size: 12px;
+            line-height: 1.55;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            max-height: 160px;
+            overflow-y: auto;
         }
 
         .agent .bubble {
@@ -829,59 +862,285 @@
             width: fit-content;
         }
 
-        .chat-input-area {
-            padding: 14px 18px 16px;
-            background: linear-gradient(180deg, rgba(8, 18, 32, 0.4), var(--header-bg));
+        .chat-footer {
+            background: linear-gradient(180deg, transparent, rgba(8, 18, 32, 0.65) 28%, var(--header-bg));
             border-top: 1px solid var(--border-color);
-            display: flex;
-            gap: 10px;
-            align-items: stretch;
+            padding: 0 16px 16px;
         }
 
-        .chat-input {
-            flex: 1;
-            background: rgba(7, 17, 31, 0.9);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 13px 16px;
+        .prompt-suggestions {
+            padding: 12px 4px 10px;
+        }
+
+        .prompt-suggestions-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text-muted);
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            padding-left: 2px;
+        }
+
+        .prompt-chips-wrap {
+            position: relative;
+            margin: 0 -2px;
+        }
+
+        .prompt-chips-wrap::before,
+        .prompt-chips-wrap::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 6px;
+            width: 28px;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .prompt-chips-wrap::before {
+            left: 0;
+            background: linear-gradient(90deg, rgba(8, 18, 32, 0.95), transparent);
+        }
+
+        .prompt-chips-wrap::after {
+            right: 0;
+            background: linear-gradient(270deg, rgba(8, 18, 32, 0.95), transparent);
+        }
+
+        .prompt-chips {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 8px;
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding: 2px 2px 8px;
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+
+        .prompt-chips::-webkit-scrollbar { display: none; }
+
+        .prompt-chip {
+            appearance: none;
+            flex-shrink: 0;
+            border: 1px solid rgba(56, 189, 248, 0.18);
+            background: rgba(12, 28, 48, 0.85);
+            color: #cbd5e1;
+            font-size: 12px;
+            font-family: inherit;
+            font-weight: 600;
+            line-height: 1.3;
+            padding: 7px 14px;
+            border-radius: 999px;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.15s var(--ease), box-shadow 0.2s;
+            white-space: nowrap;
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+        }
+
+        .prompt-chip:hover {
+            background: rgba(14, 165, 233, 0.16);
+            border-color: rgba(56, 189, 248, 0.42);
+            color: #e0f2fe;
+            box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.08), 0 4px 14px rgba(14, 165, 233, 0.12);
+        }
+
+        .prompt-chip:active { transform: scale(0.98); }
+        .prompt-chip:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        /* 輸入區 composer */
+        .chat-composer {
+            position: relative;
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(56, 189, 248, 0.22);
+            background:
+                linear-gradient(165deg, rgba(14, 165, 233, 0.06) 0%, transparent 42%),
+                rgba(6, 14, 26, 0.92);
+            box-shadow:
+                0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+                0 12px 32px -16px rgba(0, 0, 0, 0.55);
+            transition: border-color 0.25s, box-shadow 0.25s;
+        }
+
+        .chat-composer:focus-within {
+            border-color: rgba(56, 189, 248, 0.48);
+            box-shadow:
+                0 0 0 1px rgba(56, 189, 248, 0.12) inset,
+                0 0 0 3px rgba(56, 189, 248, 0.1),
+                0 16px 40px -18px rgba(14, 165, 233, 0.22);
+        }
+
+        .composer-input {
+            display: block;
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 14px 16px 8px;
             color: var(--text-main);
             font-size: 14px;
             font-family: inherit;
             outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            resize: none;
+            min-height: 52px;
+            max-height: 200px;
+            line-height: 1.55;
         }
 
-        .chat-input::placeholder { color: #64748b; }
-        .chat-input:focus {
-            border-color: var(--border-strong);
-            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+        .composer-input::placeholder {
+            color: #64748b;
+            font-size: 13px;
         }
 
-        .send-btn {
-            background: linear-gradient(145deg, #22d3ee, #0284c7 55%, #0369a1);
-            color: #fff;
+        .composer-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 8px 10px 10px;
+            border-top: 1px solid rgba(100, 140, 180, 0.12);
+        }
+
+        .composer-toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .composer-tool-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(100, 140, 180, 0.22);
+            background: rgba(15, 30, 50, 0.75);
+            color: #94a3b8;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s, color 0.2s;
+            white-space: nowrap;
+        }
+
+        .composer-tool-btn:hover {
+            background: rgba(14, 165, 233, 0.14);
+            border-color: rgba(56, 189, 248, 0.35);
+            color: #bae6fd;
+        }
+
+        .composer-tool-btn svg {
+            width: 14px;
+            height: 14px;
+            opacity: 0.85;
+        }
+
+        .composer-hint {
+            font-size: 11px;
+            color: #64748b;
+            line-height: 1.4;
+            max-width: 280px;
+        }
+
+        .syslog-attach-badge {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            max-width: min(360px, 42vw);
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: rgba(56, 189, 248, 0.12);
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            font-size: 11px;
+            color: #bae6fd;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .syslog-attach-badge.visible {
+            display: inline-flex;
+        }
+
+        .syslog-attach-badge button {
+            flex-shrink: 0;
             border: none;
-            padding: 0 22px;
+            background: transparent;
+            color: #94a3b8;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1;
+            padding: 0 2px;
+        }
+
+        .syslog-attach-badge button:hover {
+            color: #fca5a5;
+        }
+
+        .composer-send {
+            flex-shrink: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            min-width: 84px;
+            height: 40px;
+            padding: 0 18px;
+            border: none;
             border-radius: 12px;
+            background: linear-gradient(145deg, #38bdf8 0%, #0284c7 52%, #0369a1 100%);
+            color: #fff;
             font-weight: 700;
             font-size: 13px;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.06em;
             cursor: pointer;
             transition: filter 0.2s, transform 0.15s var(--ease), box-shadow 0.2s;
-            box-shadow: 0 8px 18px rgba(14, 165, 233, 0.28);
-            min-width: 72px;
+            box-shadow: 0 6px 16px rgba(14, 165, 233, 0.32);
         }
 
-        .send-btn:hover {
-            filter: brightness(1.08);
-            box-shadow: 0 10px 22px rgba(14, 165, 233, 0.38);
+        .composer-send:hover {
+            filter: brightness(1.07);
+            box-shadow: 0 8px 22px rgba(14, 165, 233, 0.4);
         }
-        .send-btn:active { transform: translateY(1px); }
-        .send-btn:disabled {
-            opacity: 0.5;
+
+        .composer-send:active { transform: translateY(1px); }
+
+        .composer-send:disabled {
+            opacity: 0.45;
             cursor: not-allowed;
             filter: none;
             box-shadow: none;
+        }
+
+        .composer-send svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        @media (max-width: 640px) {
+            .composer-hint { display: none; }
+            .composer-toolbar {
+                flex-wrap: wrap;
+            }
+            .composer-send {
+                width: 100%;
+                margin-top: 4px;
+            }
+        }
+
+        .quality-fail-notice {
+            color: #fbbf24;
+            font-size: 14px;
+            line-height: 1.65;
+            padding: 4px 0;
         }
 
         .typing-indicator {
@@ -1120,7 +1379,7 @@
                     <button class="clear-btn" onclick="clearChat()">重設對話</button>
                     <div class="feature-menu" id="featureMenu" role="menu" aria-label="功能選單" onclick="event.stopPropagation()">
                         <h3>回覆模型</h3>
-                        <p class="menu-hint" id="modelMenuHint">Ollama 後端：建議 qwen2.5:3b 或 qwen3_4b_ot。Gemma 2B OT 若對話異常請執行 rebuild_gemma_ot.bat。</p>
+                        <p class="menu-hint" id="modelMenuHint">Ollama 地端模型：Gemma 4 E2B QAT（微調前）／Gemma 4 E2B OT（微調後）、Llama 3.2 3B（微調前）／Llama 3.2 3B OT（微調後）。</p>
                         <div class="model-menu-status" id="modelMenuStatus">尚未載入清單</div>
                         <div class="model-list" id="modelList">
                             <div class="menu-hint">載入模型清單中…</div>
@@ -1131,9 +1390,36 @@
 
             <div class="chat-messages" id="chatBox"></div>
 
-            <div class="chat-input-area">
-                <input type="text" class="chat-input" id="userInput" placeholder="例如：畫出各種圖形（長條、圓餅、折線、雷達）..." onkeydown="if(event.key === 'Enter') sendMessage()">
-                <button class="send-btn" id="sendBtn" onclick="sendMessage()">發送</button>
+            <div class="chat-footer">
+                <div class="prompt-suggestions" id="promptSuggestions" aria-label="建議提問">
+                    <div class="prompt-suggestions-label">試試這樣問</div>
+                    <div class="prompt-chips-wrap">
+                        <div class="prompt-chips" id="promptChips"></div>
+                    </div>
+                </div>
+                <div class="chat-composer">
+                    <textarea class="composer-input" id="userInput" rows="2"
+                        placeholder="輸入問題，或直接貼上 Cisco syslog… 也可點「上傳 SYSLOG」選擇 .txt / .log / .jsonl"
+                        onkeydown="handleInputKeydown(event)"></textarea>
+                    <div class="composer-toolbar">
+                        <div class="composer-toolbar-left">
+                            <label class="composer-tool-btn" title="選擇 .txt / .log / .jsonl 檔案">
+                                <input type="file" id="syslogFileInput" accept=".txt,.log,.jsonl,.json" hidden onchange="handleSyslogFileSelect(event)">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                                上傳 SYSLOG
+                            </label>
+                            <span class="syslog-attach-badge" id="syslogAttachBadge" title="此檔案會隨每次提問一併送出，直到您清除或上傳新檔">
+                                <span id="syslogAttachBadgeText"></span>
+                                <button type="button" title="清除附加 SYSLOG" onclick="clearAttachedSyslog()">×</button>
+                            </span>
+                            <span class="composer-hint">上傳後會觸發完整長文分析（目標 2000–5000+ 字）</span>
+                        </div>
+                        <button type="button" class="composer-send" id="sendBtn" onclick="sendMessage()">
+                            發送
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -1154,15 +1440,160 @@
         const sendBtn = document.getElementById('sendBtn');
         const chartInstances = [];
         const LLM_MODEL_KEY = 'ot_agent_llm_model';
-        let selectedLlmModel = localStorage.getItem(LLM_MODEL_KEY) || '';
+        const _savedModel = localStorage.getItem(LLM_MODEL_KEY) || '';
+        let selectedLlmModel = /qwen/i.test(_savedModel) ? '' : _savedModel;
+        if (_savedModel && !selectedLlmModel) {
+            localStorage.removeItem(LLM_MODEL_KEY);
+        }
         let llmModelsCache = [];
         let llmCachedSlugs = [];
         let modelSwitching = false;
+        let attachedSyslog = { name: '', content: '' };
+        const SYSLOG_CLIENT_MAX = 500000;
+        const SYSLOG_REPLY_CHAR_LIMIT = 12000;
+        const DEFAULT_REPLY_CHAR_LIMIT = 3200;
 
+        function handleInputKeydown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function clearAttachedSyslog() {
+            attachedSyslog = { name: '', content: '' };
+            const fi = document.getElementById('syslogFileInput');
+            if (fi) fi.value = '';
+            updateSyslogAttachBadge();
+        }
+
+        function updateSyslogAttachBadge() {
+            const badge = document.getElementById('syslogAttachBadge');
+            const textEl = document.getElementById('syslogAttachBadgeText');
+            if (!badge || !textEl) return;
+            const name = (attachedSyslog.name || '').trim();
+            const lines = attachedSyslog.content
+                ? attachedSyslog.content.split('\n').filter((l) => l.trim()).length
+                : 0;
+            if (name && attachedSyslog.content) {
+                textEl.textContent = `已附加 ${name}${lines ? `（${lines} 行）` : ''}`;
+                badge.classList.add('visible');
+            } else {
+                textEl.textContent = '';
+                badge.classList.remove('visible');
+            }
+        }
+
+        async function handleSyslogFileSelect(event) {
+            const file = event.target && event.target.files && event.target.files[0];
+            if (!file) return;
+            if (file.size > 8 * 1024 * 1024) {
+                appendBubble('agent', '🤖', '❌ SYSLOG 檔案過大（上限 8 MB），請截取片段或壓縮後再試。');
+                event.target.value = '';
+                return;
+            }
+            try {
+                const text = await file.text();
+                if (!text || !text.trim()) {
+                    appendBubble('agent', '🤖', '❌ 檔案為空，請選擇有效的 syslog 檔案。');
+                    return;
+                }
+                attachedSyslog = {
+                    name: file.name,
+                    content: text.slice(0, SYSLOG_CLIENT_MAX),
+                };
+                updateSyslogAttachBadge();
+                if (!userInput.value.trim()) {
+                    userInput.value = '請對附件 SYSLOG 做完整、詳細的 OT 資安與 ISO 27001 分析';
+                }
+            } catch (err) {
+                appendBubble('agent', '🤖', '❌ 無法讀取檔案：' + (err.message || String(err)));
+            }
+        }
+
+        function formatSyslogPreview(payload, fileName) {
+            const raw = String(payload || '');
+            const lines = raw.split('\n').map((l) => l.trim()).filter(Boolean);
+            const total = lines.length;
+            const name = (fileName || 'syslog').trim();
+            const head = `📎 SYSLOG：${name}${total ? `（${total} 行）` : ''}`;
+            const samples = [];
+            for (const line of lines.slice(0, 3)) {
+                let item = line;
+                try {
+                    const o = JSON.parse(line);
+                    const dev = o.canonical_device_id || o.source_device_id || o.parsed_hostname_raw || '設備';
+                    const sev = o.severity ? `[${o.severity}] ` : '';
+                    const msg = String(o.message || line).replace(/\s+/g, ' ').trim();
+                    item = `${dev} ${sev}${msg.slice(0, 96)}${msg.length > 96 ? '…' : ''}`;
+                } catch (_) {
+                    item = line.replace(/\s+/g, ' ').slice(0, 100) + (line.length > 100 ? '…' : '');
+                }
+                samples.push(`• ${item}`);
+            }
+            const tail = total > 3
+                ? `\n… 另有 ${total - 3} 行（已隨請求送出）`
+                : (total ? '\n（已隨請求送出）' : '');
+            return `${head}\n${samples.join('\n')}${tail}`;
+        }
+
+        function buildUserDisplayText(question, syslogPayload, fileName) {
+            const q = String(question || '').trim();
+            if (!syslogPayload) return q;
+            const preview = formatSyslogPreview(syslogPayload, fileName);
+            return q ? `${q}\n\n${preview}` : preview.replace(/^📎 SYSLOG：/, '📎 SYSLOG 分析：');
+        }
+
+        function buildUserBubbleHtml(text) {
+            const raw = String(text || '');
+            const withQuestion = raw.match(/^([\s\S]*?\n\n)(📎[\s\S]*)$/);
+            let head = '';
+            let question = '';
+            let body = '';
+            if (withQuestion) {
+                question = withQuestion[1].replace(/\n\n$/, '');
+                const attachLines = withQuestion[2].split('\n');
+                head = attachLines.shift() || '';
+                body = attachLines.join('\n');
+            } else if (/^📎/.test(raw)) {
+                const attachLines = raw.split('\n');
+                head = attachLines.shift() || '';
+                body = attachLines.join('\n');
+            } else {
+                return `<div class="bubble-text">${escapeHtml(raw)}</div>`;
+            }
+            const qHtml = question
+                ? `<div class="bubble-text">${escapeHtml(question)}</div>`
+                : '';
+            return (
+                qHtml +
+                `<div class="syslog-attach-head">${escapeHtml(head)}</div>` +
+                `<pre class="syslog-attach-preview">${escapeHtml(body)}</pre>`
+            );
+        }
 
         // ===== 對話紀錄（右側欄，localStorage）=====
         const CHAT_HISTORY_KEY = 'ot_agent_chat_sessions_v1';
-        const WELCOME_TEXT = '您好！我是您的 ISO 27001 專家 Agent。可請我「畫出各種圖形」、「圓餅圖看事件占比」、「折線圖比較控制項」或「用流程圖說明修補步驟」；支援長條/圓餅/折線/雷達/環圈/極區圖與 Mermaid 流程圖。';
+        const WELCOME_TEXT = '您好！我是 Semi-Shield ISO 27001 專家 Agent，可分析 ot/ 日誌、解讀合規 KPI，並產出圖表與修補建議。可直接輸入問題、貼上 Cisco syslog，或點「📎 上傳 SYSLOG」進行完整長文分析。';
+
+        /** 建議提問：label 顯示在按鈕，text 為實際送出內容 */
+        const SUGGESTED_PROMPTS = [
+            { label: '合規現況', text: '目前合規現況如何？' },
+            { label: '修補步驟', text: '依目前 OT 日誌給我修補步驟' },
+            { label: '下一步建議', text: '依監控戰情室資料，我下一步該做什麼？' },
+            { label: '事件占比圖', text: '用圓餅圖看各控制項事件占比' },
+            { label: '存取控制 A.5.15', text: '分析 A.5.15 存取控制相關日誌與風險' },
+            { label: '組態變更 A.8.19', text: 'A.8.19 組態變更事件需要關注什麼？' },
+            { label: '弱點修補 A.8.8', text: 'A.8.8 修補管理相關 syslog 代表什麼？' },
+            { label: '日誌統計', text: 'ot 目錄目前有多少筆日誌事件？各檔案各幾筆？' },
+            { label: 'Evidence 摘要', text: '各控制項的 evidence 與計數摘要' },
+            { label: '修補流程圖', text: '用流程圖說明修補與驗證步驟' },
+            { label: 'ISO 27001 重點', text: 'ISO/IEC 27001 對 OT 半導體環境的重點控制項有哪些？' },
+            { label: '停用 Telnet', text: '如何停用 Telnet 並改用 SSH？' },
+            { label: '硬體設備異常', text: '是否有哪個硬體設備異常？' },
+            { label: '分析 syslog', text: '%SEC_LOGIN-4-LOGIN_FAILED: Login failed from 10.0.0.5 — 這代表什麼風險？' },
+            { label: '折線趨勢', text: '用折線圖比較六個控制項的事件量' },
+        ];
         let chatSessions = [];
         let activeChatId = '';
         let historyHydrating = false;
@@ -1310,6 +1741,7 @@
         }
 
         async function createNewChat() {
+            clearAttachedSyslog();
             const s = makeEmptySession('新對話');
             chatSessions.unshift(s);
             activeChatId = s.id;
@@ -1375,7 +1807,33 @@
             side.classList.toggle('open');
         }
 
+        function setPromptChipsDisabled(disabled) {
+            document.querySelectorAll('.prompt-chip').forEach((btn) => {
+                btn.disabled = !!disabled;
+            });
+        }
+
+        function renderPromptSuggestions() {
+            const el = document.getElementById('promptChips');
+            if (!el) return;
+            el.innerHTML = SUGGESTED_PROMPTS.map((p) => (
+                `<button type="button" class="prompt-chip" data-prompt="${escapeHtml(p.text)}" title="${escapeHtml(p.text)}">${escapeHtml(p.label)}</button>`
+            )).join('');
+            el.querySelectorAll('.prompt-chip').forEach((btn) => {
+                btn.addEventListener('click', () => useSuggestedPrompt(btn.getAttribute('data-prompt')));
+            });
+            setPromptChipsDisabled(sendBtn.disabled);
+        }
+
+        function useSuggestedPrompt(text) {
+            const q = String(text || '').trim();
+            if (!q || sendBtn.disabled) return;
+            userInput.value = q;
+            sendMessage();
+        }
+
         async function initChatHistory() {
+            renderPromptSuggestions();
             const store = loadChatStore();
             chatSessions = store.sessions || [];
             activeChatId = store.activeId || '';
@@ -1519,7 +1977,7 @@
             }
             let html = '';
             if (finetuned.length) {
-                html += '<div class="model-group-title">微調後（Semi-Shield / 本地 OT）</div>';
+                html += '<div class="model-group-title">微調後（Semi-Shield OT）</div>';
                 html += finetuned.map((m) => renderModelOption(m, current)).join('');
             }
             if (base.length) {
@@ -1539,6 +1997,14 @@
                 llmModelsCache = data.models || [];
                 llmCachedSlugs = (data.cached_models || []).map((c) => c.slug).filter(Boolean);
                 const current = data.current || {};
+                const validSlugs = new Set(
+                    llmModelsCache.filter((m) => m.available !== false).map((m) => m.slug || m.path)
+                );
+                if (selectedLlmModel && !validSlugs.has(selectedLlmModel)) {
+                    selectedLlmModel = current.slug || current.path || '';
+                    if (selectedLlmModel) localStorage.setItem(LLM_MODEL_KEY, selectedLlmModel);
+                    else localStorage.removeItem(LLM_MODEL_KEY);
+                }
                 if (current.slug) {
                     selectedLlmModel = current.slug;
                     localStorage.setItem(LLM_MODEL_KEY, selectedLlmModel);
@@ -1719,21 +2185,29 @@
 
         async function sendMessage() {
             const text = userInput.value.trim();
-            if (!text) return;
+            const syslogPayload = (attachedSyslog.content || '').trim();
+            if (!text && !syslogPayload) return;
             if (modelSwitching) {
                 appendBubble('agent', '🤖', '模型切換中，請稍候再傳送訊息。');
                 return;
             }
 
             const history = buildChatHistoryForApi(6);
-            appendBubble('user', 'U', text);
+            const displayText = buildUserDisplayText(text, syslogPayload, attachedSyslog.name);
+            appendBubble('user', 'U', displayText);
             userInput.value = '';
+            const sentSyslog = syslogPayload;
+            const sentSyslogName = attachedSyslog.name || '';
             setSending(true);
 
             const typingId = showTypingIndicator();
 
             try {
                 const payload = { message: text, history };
+                if (sentSyslog) {
+                    payload.syslog = sentSyslog;
+                    if (sentSyslogName) payload.syslog_name = sentSyslogName;
+                }
                 if (selectedLlmModel) payload.model = selectedLlmModel;
                 const response = await fetch('/api/agent/chat', {
                     method: 'POST',
@@ -1758,21 +2232,17 @@
                     return;
                 }
 
-                // --- 暫時註解：不顯示 Agent Tool Call／參數指標提示 ---
-                // if (data.tool_called) {
-                //     appendToolCallNotify(data.tool_name, data.tool_query);
-                // }
-                // --- /暫時註解 ---
                 if (data.guardrail && data.guardrail.output_redacted) {
                     appendGuardNotify({ reason: '輸出已進行敏感資訊脫敏遮蔽', blocked: false });
                 }
 
-                // 先顯示診斷報告，RAG 引用改放報告後方（可摺疊、不含 Log）
                 await appendAgentReply(data.reply || '（沒有收到回覆內容）', {
                     llmModel: data.llm_model || getSelectedLlmInfo(),
+                    syslogMode: Boolean(data.syslog_analysis),
+                    qualityFailed: Boolean(data.reply_quality_failed),
                 });
                 if (data.rag_citations && data.rag_citations.length) {
-                    appendRagCitations(data.rag_citations);
+                    appendRagCitations(data.rag_citations, data.llm_model || getSelectedLlmInfo());
                 }
             } catch (error) {
                 removeTypingIndicator(typingId);
@@ -1785,6 +2255,9 @@
         function setSending(busy) {
             sendBtn.disabled = busy;
             userInput.disabled = busy;
+            const fi = document.getElementById('syslogFileInput');
+            if (fi) fi.disabled = busy;
+            setPromptChipsDisabled(busy);
         }
 
         function normalizeLlmModelInfo(info) {
@@ -1880,9 +2353,12 @@
                     </div>
                 `;
             } else {
+                const bubbleHtml = buildUserBubbleHtml(text);
                 msgDiv.innerHTML = `
                     <div class="msg-avatar">${avatarTag}</div>
-                    <div class="bubble"><div class="bubble-text">${escapeHtml(text)}</div></div>
+                    <div class="msg-content-col">
+                        <div class="bubble">${bubbleHtml}</div>
+                    </div>
                 `;
             }
             chatBox.appendChild(msgDiv);
@@ -1895,10 +2371,24 @@
             }
         }
 
-        function sanitizeZhTwClient(text) {
-            // 前端雙保險：去日文、去照抄的 RAG/Log 前綴、整理標題
+        function repairMojibakeClient(text) {
             let t = String(text || '');
+            t = t.replace(/\uFFFD查/g, '檢查');
+            t = t.replace(/\uFFFD驗/g, '檢驗');
+            t = t.replace(/\uFFFD視/g, '檢視');
+            t = t.replace(/\uFFFD核/g, '檢核');
+            t = t.replace(/^(\s*\d+[\.、]\s*)查(?=設|日|硬|軟|組|憑|漏|視|核|查|修)/gm, '$1檢查');
+            t = t.replace(/^(\s*[-*•]\s*)查(?=設|日|硬|軟|組|憑|漏|視|核|查|修)/gm, '$1檢查');
             t = t.replace(/\uFFFD/g, '');
+            return t;
+        }
+
+        function sanitizeZhTwClient(text, opts) {
+            const options = opts || {};
+            const maxChars = options.maxChars
+                || (options.syslogMode ? SYSLOG_REPLY_CHAR_LIMIT : DEFAULT_REPLY_CHAR_LIMIT);
+            // 前端雙保險：去日文、去照抄的 RAG/Log 前綴、整理標題
+            let t = repairMojibakeClient(text);
             t = t.replace(/^(?:system|assistant|user)\s*[:：]?\s*\n+/i, '');
             t = t.replace(/<\|(?:system|assistant|user|end|im_start|im_end)\|>\s*/gi, '');
             t = t.replace(/^請(?:用|只用)?(?:繁體)?中文回答[^\n]*$/gmi, '');
@@ -1943,13 +2433,13 @@
             t = t.replace(/([^\n])\s*(##\s+)/g, '$1\n\n$2');
             t = t.replace(/([。！？；])\s*[-•]\s+/g, '$1\n- ');
             t = t.replace(/\n{3,}/g, '\n\n').trim();
-            if (t.length > 1260) {
+            if (t.length > maxChars) {
                 const fences = [];
                 t = t.replace(/```(?:chart|mermaid)[\s\S]*?```/gi, (m) => {
                     fences.push(m);
                     return `\n%%FENCE${fences.length - 1}%%\n`;
                 });
-                t = t.slice(0, 1260);
+                t = t.slice(0, maxChars);
                 fences.forEach((f, i) => {
                     t = t.replace(`%%FENCE${i}%%`, f);
                 });
@@ -1960,7 +2450,9 @@
         async function appendAgentReply(rawText, opts) {
             const options = typeof opts === 'boolean' ? { skipPersist: opts } : (opts || {});
             const llmModel = options.llmModel || getSelectedLlmInfo();
-            rawText = sanitizeZhTwClient(rawText);
+            rawText = sanitizeZhTwClient(rawText, {
+                syslogMode: Boolean(options.syslogMode),
+            });
             const parsed = parseVisualBlocks(rawText);
             const report = parseStructuredReport(parsed.text || rawText || '');
             const hasReport = report.items.length > 0 || report.actions.length > 0;
@@ -1972,6 +2464,18 @@
             bubble.className = 'bubble';
             shell.col.appendChild(bubble);
             chatBox.appendChild(msgDiv);
+
+            if (options.qualityFailed) {
+                const notice = document.createElement('div');
+                notice.className = 'quality-fail-notice';
+                notice.textContent = (rawText || '').trim();
+                bubble.appendChild(notice);
+                chatBox.scrollTop = chatBox.scrollHeight;
+                if (!options.skipPersist) {
+                    pushMessageToActive('agent', rawText, { llmModel });
+                }
+                return;
+            }
 
             // 結構化合規報告（卡片 + 圖表 + 改善方案）
             if (hasReport) {
@@ -2328,7 +2832,7 @@
                     .replace(/知巧合綜評|晴智合規狀況簡報/g, '')
                     .replace(/[一二三]、\s*(?:不合規／風險分析|具體修補建議|事件經過摘要)\s*$/g, '');
                 const kw = [...CODE_KEYWORDS].sort((a, b) => b.length - a.length).join('|');
-                s = s.replace(new RegExp(`(?:^|[\\s，,、;；。])(?:${kw})(?=$|[\\s，,、;；。])`, 'gi'), ' ');
+                s = s.replace(new RegExp(`(?<![A-Za-z_])(?:${kw})(?![A-Za-z_])`, 'gi'), ' ');
                 return s.replace(/\s{2,}/g, ' ').replace(/^[，,、;；\s]+|[，,、;；\s]+$/g, '').trim();
             };
 
@@ -2954,7 +3458,14 @@
         }
         // --- /暫時註解 ---
 
-        function appendRagCitations(citations) {
+        function llmAllowsKnowledgeGraph(info) {
+            const m = info || getSelectedLlmInfo();
+            // 僅微調前（base）模型顯示 RAG 引用；微調後模型不使用 RAG
+            return m && m.stage === 'base';
+        }
+
+        function appendRagCitations(citations, llmInfo) {
+            if (!llmAllowsKnowledgeGraph(llmInfo)) return;
             const div = document.createElement('div');
             div.className = 'message agent';
             const items = (citations || []).map((c, i) =>
@@ -2963,7 +3474,7 @@
             div.innerHTML = `
                 <div class="rag-cite">
                     <details>
-                        <summary>📚 RAG 知識庫引用 ${citations.length} 筆（僅標題，不含 Log）</summary>
+                        <summary>📚 RAG 知識圖譜引用 ${citations.length} 筆（僅標題，不含 Log）</summary>
                         <ol>${items}</ol>
                     </details>
                 </div>
@@ -3014,7 +3525,7 @@
             if (!confirm('清除目前對話的訊息？（右側紀錄仍會保留此對話，可用「刪除」移除）')) return;
             destroyCharts();
             const now = Date.now();
-            const msg = '對話紀錄已清除。可再請我「畫出合規狀態圖」或「用流程圖說明建議步驟」。';
+            const msg = '對話紀錄已清除。可點輸入框上方的提示問題，或輸入「合規現況」「修補步驟」「圓餅圖看事件占比」等繼續。';
             s.messages = [{ role: 'agent', text: msg, ts: now }];
             s.updatedAt = now;
             saveChatStore();

@@ -31,7 +31,7 @@ AGENT_ROLES = [
         "role": "Reporter",
         "agent_id": "agent-reporter",
         "duty": "彙整 metrics / evidence / AI 分析 → 合規報告",
-        "tools": ["build_control_log_bundle", "export_pdf_txt"],
+        "tools": ["build_control_log_bundle", "export_pdf"],
     },
 ]
 
@@ -49,9 +49,10 @@ def workflow_spec() -> dict:
         "agents": AGENT_ROLES,
         "pipeline": [
             "1. Collector: scan_ot → evidence_id per control_key",
-            "2. Auditor: RAG + LLM diagnosis per control",
-            "3. Reviewer: guardrail + enqueue if review/fail/borderline",
-            "4. Reporter: bundle PDF/TXT with evidence appendix",
+            "2. Reviewer: enqueue review/fail 控制項至 Human Review Queue",
+            "3. Reporter: 彙整 metrics / evidence（PDF 至監控戰情室匯出）",
+            "— 另按鈕：AI 自動審核（POST /api/review/auto）處理 pending queue",
+            "— 可選：LLM 診斷（POST /api/compliance/pipeline {\"include_llm_audit\":true} 或 /api/audit/analyze_all）",
         ],
         "design_principle": "No Evidence, No Compliance Claim",
     }
@@ -60,12 +61,16 @@ def workflow_spec() -> dict:
 def run_compliance_pipeline(
     *,
     scan_fn: Callable[[], dict | None],
-    audit_fn: Callable[[str, dict], dict],
+    audit_fn: Callable[[str, dict], dict] | None = None,
     enqueue_fn: Callable[..., dict],
     evidence_fn: Callable[[str, dict], dict],
+    include_llm_audit: bool = False,
 ) -> dict[str, Any]:
     """
-    執行四階段合規管線。由 app.py 注入實際函式避免循環 import。
+    執行地端合規管線（預設不含 LLM 診斷／AI 自動審核）。
+    - 預設：Collector → Reviewer（入列）→ Reporter
+    - include_llm_audit=True：額外執行 Auditor（RAG + ask_llm）
+    AI Reviewer（/api/review/auto）須由前端另按「AI 自動審核」觸發。
     """
     stages: list[dict] = []
     scan_data = scan_fn() or {}
@@ -78,6 +83,7 @@ def run_compliance_pipeline(
     metrics = scan_data.get("metrics") or {}
     evidence_map: dict[str, str] = {}
     audit_results: dict[str, Any] = {}
+    enqueued = 0
 
     for key, bundle in bundles.items():
         ev = evidence_fn(key, bundle)
@@ -93,18 +99,30 @@ def run_compliance_pipeline(
                 evidence_id=ev.get("evidence_id", ""),
                 priority="high" if status == "fail" else "normal",
             )
-        if status != "pass" or int(bundle.get("event_count") or 0) > 0:
+            enqueued += 1
+        if include_llm_audit and audit_fn and (
+            status != "pass" or int(bundle.get("event_count") or 0) > 0
+        ):
             audit_results[key] = audit_fn(key, bundle)
 
-    stages.append({
-        "stage": "Auditor",
-        "status": "ok",
-        "diagnosed": list(audit_results.keys()),
-    })
+    if include_llm_audit and audit_fn:
+        stages.append({
+            "stage": "Auditor",
+            "status": "ok",
+            "diagnosed": list(audit_results.keys()),
+        })
+    else:
+        stages.append({
+            "stage": "Auditor",
+            "status": "skipped",
+            "hint": "未執行 LLM 診斷；請至監控戰情室或 POST /api/audit/analyze_all",
+        })
+
     stages.append({
         "stage": "Reviewer",
         "status": "ok",
         "evidence_ids": evidence_map,
+        "enqueued": enqueued,
     })
     stages.append({
         "stage": "Reporter",
@@ -112,8 +130,12 @@ def run_compliance_pipeline(
         "control_count": len(bundles),
         "evidence_map": evidence_map,
         "report_export": "/monitor",
-        "report_hint": "請至監控戰情室匯出 PDF／TXT（含 evidence 附錄）",
-        "audit_results": {k: v.get("ai_analysis", "")[:200] for k, v in audit_results.items()},
+        "report_hint": "請至監控戰情室匯出稽核報告 PDF（含 evidence 附錄）",
+        "audit_results": (
+            {k: v.get("ai_analysis", "")[:200] for k, v in audit_results.items()}
+            if audit_results
+            else {}
+        ),
     })
 
     return {
@@ -121,4 +143,6 @@ def run_compliance_pipeline(
         "stages": stages,
         "evidence_map": evidence_map,
         "metrics": metrics,
+        "include_llm_audit": include_llm_audit,
+        "llm_audit_count": len(audit_results),
     }
