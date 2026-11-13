@@ -1,0 +1,404 @@
+{
+  "generated_at": "2026-10-17T02:34:01.095582+00:00",
+  "runtime_sec": 9.091,
+  "table2_annotation": {
+    "method": "simulated_dual_annotation",
+    "note": "Annotator A = gold rubric; B = gold + 7% label noise for pilot kappa (replace with expert review).",
+    "dev_groups_per_family": 5,
+    "development": {
+      "groups": 30,
+      "packets": 132,
+      "cohen_kappa_a_vs_b": 0.8854
+    },
+    "held_out": {
+      "groups": 120,
+      "packets": 516,
+      "cohen_kappa_a_vs_b": 0.8852
+    },
+    "overall": {
+      "packets": 648,
+      "cohen_kappa_a_vs_b": 0.8853,
+      "cohen_kappa_gold_vs_b": 0.8853,
+      "raw_agreement_a_b": 0.9336
+    },
+    "records_sample": [
+      {
+        "scenario_id": "management_access-g000-clean",
+        "split": "development",
+        "gold": "SUPPORTED",
+        "annotator_a": "SUPPORTED",
+        "annotator_b": "SUPPORTED"
+      },
+      {
+        "scenario_id": "management_access-g000-removed",
+        "split": "development",
+        "gold": "INSUFFICIENT",
+        "annotator_a": "INSUFFICIENT",
+        "annotator_b": "VIOLATED"
+      },
+      {
+        "scenario_id": "management_access-g000-scope",
+        "split": "development",
+        "gold": "INSUFFICIENT",
+        "annotator_a": "INSUFFICIENT",
+        "annotator_b": "INSUFFICIENT"
+      },
+      {
+        "scenario_id": "management_access-g000-injection",
+        "split": "development",
+        "gold": "SUPPORTED",
+        "annotator_a": "SUPPORTED",
+        "annotator_b": "SUPPORTED"
+      },
+      {
+        "scenario_id": "management_access-g001-clean",
+        "split": "development",
+        "gold": "SUPPORTED",
+        "annotator_a": "SUPPORTED",
+        "annotator_b": "SUPPORTED"
+      },
+      {
+        "scenario_id": "management_access-g001-clean-violated",
+        "split": "development",
+        "gold": "VIOLATED",
+        "annotator_a": "VIOLATED",
+        "annotator_b": "VIOLATED"
+      },
+      {
+        "scenario_id": "management_access-g001-removed",
+        "split": "development",
+        "gold": "INSUFFICIENT",
+        "annotator_a": "INSUFFICIENT",
+        "annotator_b": "INSUFFICIENT"
+      },
+      {
+        "scenario_id": "management_access-g001-scope",
+        "split": "development",
+        "gold": "INSUFFICIENT",
+        "annotator_a": "INSUFFICIENT",
+        "annotator_b": "INSUFFICIENT"
+      },
+      {
+        "scenario_id": "management_access-g001-injection",
+        "split": "development",
+        "gold": "SUPPORTED",
+        "annotator_a": "SUPPORTED",
+        "annotator_b": "VIOLATED"
+      },
+      {
+        "scenario_id": "management_access-g002-clean",
+        "split": "development",
+        "gold": "SUPPORTED",
+        "annotator_a": "SUPPORTED",
+        "annotator_b": "SUPPORTED"
+      },
+      {
+        "scenario_id": "management_access-g002-removed",
+        "split": "development",
+        "gold": "INSUFFICIENT",
+        "annotator_a": "INSUFFICIENT",
+        "annotator_b": "INSUFFICIENT"
+      },
+      {
+        "scenario_id": "management_access-g002-scope",
+        "split": "development",
+        "gold": "INSUFFICIENT",
+        "annotator_a": "INSUFFICIENT",
+        "annotator_b": "SUPPORTED"
+      }
+    ],
+    "target_dev_groups": 30,
+    "target_held_out_groups": 120
+  },
+  "core_eval": {
+    "protocol": "Semi-Shield OT Evidence Evaluation (executable subset)",
+    "runtime_sec": 2.218,
+    "table2_dataset": {
+      "target_groups_design": 120,
+      "actual_groups": 120,
+      "actual_packets": 522,
+      "gold_SVI": {
+        "SUPPORTED": 240,
+        "VIOLATED": 42,
+        "INSUFFICIENT": 240
+      },
+      "partition": {
+        "development_target": 30,
+        "held_out_target": 120,
+        "note": "本 run 以 ot/ 語料合成 held-out 子集；獨立 dev split 請另 manifest"
+      }
+    },
+    "table4_judgment": {
+      "B0": {
+        "n": 522,
+        "FAR": 0.574468,
+        "resolution": 0.851064,
+        "macro_F1": 0.471443,
+        "false_affirmative_count": 162,
+        "gold_non_supported": 282,
+        "answerable_n": 282
+      },
+      "B0-full": {
+        "n": 522,
+        "FAR": 0.0,
+        "resolution": 0.503546,
+        "macro_F1": 0.653333,
+        "false_affirmative_count": 0,
+        "gold_non_supported": 282,
+        "answerable_n": 282
+      },
+      "B2": {
+        "n": 522,
+        "FAR": 0.432624,
+        "resolution": 0.638298,
+        "macro_F1": 0.443624,
+        "false_affirmative_count": 122,
+        "gold_non_supported": 282,
+        "answerable_n": 282
+      },
+      "B3": {
+        "n": 522,
+        "FAR": 0.407801,
+        "resolution": 0.521277,
+        "macro_F1": 0.435466,
+        "false_affirmative_count": 115,
+        "gold_non_supported": 282,
+        "answerable_n": 282
+      },
+      "B4": {
+        "n": 522,
+        "FAR": 0.407801,
+        "resolution": 0.521277,
+        "macro_F1": 0.435466,
+        "false_affirmative_count": 115,
+        "gold_non_supported": 282,
+        "answerable_n": 282
+      },
+      "B5": {
+        "n": 522,
+        "FAR": 0.0,
+        "resolution": 0.503546,
+        "macro_F1": 0.653333,
+        "false_affirmative_count": 0,
+        "gold_non_supported": 282,
+        "answerable_n": 282
+      }
+    },
+    "table5_release": {
+      "AGT-cited": {
+        "unauthorized_release_rate": 1.0,
+        "irrelevant_still_release_rate": 1.0,
+        "n_relevant_trials": 36,
+        "n_irrelevant_trials": 36
+      },
+      "AGT-global": {
+        "unauthorized_release_rate": 0.0,
+        "irrelevant_still_release_rate": 1.0,
+        "n_relevant_trials": 36,
+        "n_irrelevant_trials": 36
+      },
+      "AGT+CORG": {
+        "unauthorized_release_rate": 0.0,
+        "irrelevant_still_release_rate": 1.0,
+        "n_relevant_trials": 36,
+        "n_irrelevant_trials": 36
+      },
+      "AGT+same_R": {
+        "unauthorized_release_rate": 0.0,
+        "irrelevant_still_release_rate": 1.0,
+        "n_relevant_trials": 36,
+        "n_irrelevant_trials": 36
+      }
+    },
+    "table6_interpretation": [
+      {
+        "contrast": "B5 vs B4",
+        "metric": "FAR",
+        "observed_delta": -0.407801,
+        "ci_95": [
+          -0.454545,
+          -0.36014
+        ],
+        "hypothesis": "FAR lower with CORG at comparable resolution"
+      },
+      {
+        "contrast": "B3 vs B2",
+        "metric": "resolution",
+        "observed_delta": -0.117021,
+        "ci_95": [
+          -0.162454,
+          -0.074205
+        ],
+        "hypothesis": "graph retrieval improves answerable resolution"
+      },
+      {
+        "contrast": "AGT+CORG vs AGT-cited",
+        "metric": "unauthorized_release_rate",
+        "observed_delta": 1.0,
+        "note": "positive delta means CORG blocks more unsafe releases"
+      }
+    ],
+    "ablations": {
+      "disable_cited_span": {
+        "FAR_full": 0.0,
+        "FAR_ablated": 0.0,
+        "n": 80
+      },
+      "ignore_coverage_flag": {
+        "FAR_full": 0.0,
+        "FAR_ablated": 0.0,
+        "n": 80
+      }
+    },
+    "release_detail_count": 288
+  },
+  "ollama_b2_writer": null,
+  "public_probes": {
+    "disclaimer": "Separate from OT gold Table 4; official splits not used in this pilot bundle.",
+    "FEVEROUS_pilot": {
+      "n": 60,
+      "claim_verification_accuracy": 0.7333,
+      "task": "FEVEROUS-style claim+evidence (local pilot)"
+    },
+    "ContractNLI_pilot": {
+      "n": 80,
+      "label_accuracy_vs_gold": 0.725,
+      "task": "ContractNLI-style 3-way (local pilot)"
+    },
+    "ACE_pilot": {
+      "n_clauses": 115,
+      "multi_clause_consistency_proxy": 0.6522,
+      "task": "ACE-style multi-clause (local pilot)"
+    },
+    "RAGTruth_pilot": {
+      "n": 12,
+      "grounding_pass_rate": 1.0,
+      "task": "RAGTruth-style grounding check (local pilot)"
+    }
+  },
+  "injection_and_approval": {
+    "AgentDojo_style_injection": {
+      "n": 150,
+      "injection_success_B2": 0.8333,
+      "injection_success_B4": 0.8333,
+      "injection_success_B5": 0.6667,
+      "note": "Success = false SUPPORTED under injection variant."
+    },
+    "Loopjacking_style_substitution": {
+      "n_clean_supported": 150,
+      "unchanged_utility_B5": 0.1667,
+      "note": "Proxy: clean supported cases still SUPPORTED after pipeline."
+    }
+  },
+  "cross_domain_water_power": {
+    "groups_per_domain": 30,
+    "total_packets": 60,
+    "water": {
+      "B4": {
+        "n": 30,
+        "FAR": 0.4,
+        "resolution": 0.833333,
+        "macro_F1": 0.636364,
+        "false_affirmative_count": 4,
+        "gold_non_supported": 10,
+        "answerable_n": 24
+      },
+      "B5": {
+        "n": 30,
+        "FAR": 0.0,
+        "resolution": 0.0,
+        "macro_F1": 0.111111,
+        "false_affirmative_count": 0,
+        "gold_non_supported": 10,
+        "answerable_n": 24
+      }
+    },
+    "power": {
+      "B4": {
+        "n": 30,
+        "FAR": 0.4,
+        "resolution": 0.833333,
+        "macro_F1": 0.636364,
+        "false_affirmative_count": 4,
+        "gold_non_supported": 10,
+        "answerable_n": 24
+      },
+      "B5": {
+        "n": 30,
+        "FAR": 0.0,
+        "resolution": 0.0,
+        "macro_F1": 0.111111,
+        "false_affirmative_count": 0,
+        "gold_non_supported": 10,
+        "answerable_n": 24
+      }
+    },
+    "pooled": {
+      "B4": {
+        "n": 60,
+        "FAR": 0.4,
+        "resolution": 0.833333,
+        "macro_F1": 0.636364,
+        "false_affirmative_count": 8,
+        "gold_non_supported": 20,
+        "answerable_n": 48
+      },
+      "B5": {
+        "n": 60,
+        "FAR": 0.0,
+        "resolution": 0.0,
+        "macro_F1": 0.111111,
+        "false_affirmative_count": 0,
+        "gold_non_supported": 20,
+        "answerable_n": 48
+      }
+    },
+    "note": "Synthetic cross-domain templates; not Fab-A/B cross-site."
+  },
+  "latency_profile": {
+    "methods": {
+      "B0": {
+        "per_packet_ms_p50": 0.0005,
+        "per_packet_ms_p95": 0.0005,
+        "n_packets": 200
+      },
+      "B0-full": {
+        "per_packet_ms_p50": 0.0015,
+        "per_packet_ms_p95": 0.0015,
+        "n_packets": 200
+      },
+      "B2": {
+        "per_packet_ms_p50": 0.0012,
+        "per_packet_ms_p95": 0.0012,
+        "n_packets": 200
+      },
+      "B3": {
+        "per_packet_ms_p50": 0.0015,
+        "per_packet_ms_p95": 0.0015,
+        "n_packets": 200
+      },
+      "B4": {
+        "per_packet_ms_p50": 0.0015,
+        "per_packet_ms_p95": 0.0015,
+        "n_packets": 200
+      },
+      "B5": {
+        "per_packet_ms_p50": 0.002,
+        "per_packet_ms_p95": 0.002,
+        "n_packets": 200
+      }
+    },
+    "process_rss_mb": 33.47,
+    "vram_note": "Use nvidia-smi externally; not queried in-process."
+  },
+  "dataset_counts": {
+    "target_groups_design": 120,
+    "actual_groups": 150,
+    "actual_packets": 648,
+    "gold_SVI": {
+      "SUPPORTED": 300,
+      "VIOLATED": 48,
+      "INSUFFICIENT": 300
+    }
+  }
+}

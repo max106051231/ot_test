@@ -653,6 +653,23 @@
             gap: 12px;
             width: 100%;
         }
+        .md-block.is-streaming {
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.55;
+            font-size: 14px;
+            color: #e2e8f0;
+        }
+        .md-block.is-streaming::after {
+            content: '▍';
+            display: inline;
+            margin-left: 2px;
+            color: var(--accent, #38bdf8);
+            animation: chat-cursor-blink 0.85s step-end infinite;
+        }
+        @keyframes chat-cursor-blink {
+            50% { opacity: 0; }
+        }
         .md-block .report-hero {
             margin: 0;
             padding: 12px 14px;
@@ -1488,14 +1505,14 @@
             const file = event.target && event.target.files && event.target.files[0];
             if (!file) return;
             if (file.size > 8 * 1024 * 1024) {
-                appendBubble('agent', '🤖', '❌ SYSLOG 檔案過大（上限 8 MB），請截取片段或壓縮後再試。');
+                appendBubble('agent', AGENT_AVATAR, 'SYSLOG 檔案過大（上限 8 MB），請截取片段或壓縮後再試。');
                 event.target.value = '';
                 return;
             }
             try {
                 const text = await file.text();
                 if (!text || !text.trim()) {
-                    appendBubble('agent', '🤖', '❌ 檔案為空，請選擇有效的 syslog 檔案。');
+                    appendBubble('agent', AGENT_AVATAR, '檔案為空，請選擇有效的 syslog 檔案。');
                     return;
                 }
                 attachedSyslog = {
@@ -1507,7 +1524,7 @@
                     userInput.value = '請對附件 SYSLOG 做完整、詳細的 OT 資安與 ISO 27001 分析';
                 }
             } catch (err) {
-                appendBubble('agent', '🤖', '❌ 無法讀取檔案：' + (err.message || String(err)));
+                appendBubble('agent', AGENT_AVATAR, '無法讀取檔案：' + (err.message || String(err)));
             }
         }
 
@@ -1516,7 +1533,7 @@
             const lines = raw.split('\n').map((l) => l.trim()).filter(Boolean);
             const total = lines.length;
             const name = (fileName || 'syslog').trim();
-            const head = `📎 SYSLOG：${name}${total ? `（${total} 行）` : ''}`;
+            const head = `${SYSLOG_ATTACH_MARK}：${name}${total ? `（${total} 行）` : ''}`;
             const samples = [];
             for (const line of lines.slice(0, 3)) {
                 let item = line;
@@ -1541,12 +1558,12 @@
             const q = String(question || '').trim();
             if (!syslogPayload) return q;
             const preview = formatSyslogPreview(syslogPayload, fileName);
-            return q ? `${q}\n\n${preview}` : preview.replace(/^📎 SYSLOG：/, '📎 SYSLOG 分析：');
+            return q ? `${q}\n\n${preview}` : preview.replace(/^\[SYSLOG\]：/, '[SYSLOG] 分析：');
         }
 
         function buildUserBubbleHtml(text) {
             const raw = String(text || '');
-            const withQuestion = raw.match(/^([\s\S]*?\n\n)(📎[\s\S]*)$/);
+            const withQuestion = raw.match(/^([\s\S]*?\n\n)(\[SYSLOG\][\s\S]*)$/);
             let head = '';
             let question = '';
             let body = '';
@@ -1555,7 +1572,7 @@
                 const attachLines = withQuestion[2].split('\n');
                 head = attachLines.shift() || '';
                 body = attachLines.join('\n');
-            } else if (/^📎/.test(raw)) {
+            } else if (/^\[SYSLOG\]/.test(raw)) {
                 const attachLines = raw.split('\n');
                 head = attachLines.shift() || '';
                 body = attachLines.join('\n');
@@ -1574,7 +1591,9 @@
 
         // ===== 對話紀錄（右側欄，localStorage）=====
         const CHAT_HISTORY_KEY = 'ot_agent_chat_sessions_v1';
-        const WELCOME_TEXT = '您好！我是 Semi-Shield ISO 27001 專家 Agent，可分析 ot/ 日誌、解讀合規 KPI，並產出圖表與修補建議。可直接輸入問題、貼上 Cisco syslog，或點「📎 上傳 SYSLOG」進行完整長文分析。';
+        const AGENT_AVATAR = 'AI';
+        const SYSLOG_ATTACH_MARK = '[SYSLOG]';
+        const WELCOME_TEXT = '您好！我是 Semi-Shield ISO 27001 專家 Agent，可分析 ot/ 日誌、解讀合規 KPI，並產出圖表與修補建議。可直接輸入問題、貼上 Cisco syslog，或點「上傳 SYSLOG」進行完整長文分析。';
 
         /** 建議提問：label 顯示在按鈕，text 為實際送出內容 */
         const SUGGESTED_PROMPTS = [
@@ -1704,12 +1723,13 @@
                 } else {
                     await appendAgentReply(m.text || '', {
                         skipPersist: true,
+                        skipTypewriter: true,
                         llmModel: m.llmModel || getSelectedLlmInfo(),
                     });
                 }
             }
             if (!msgs.length) {
-                appendBubble('agent', '🤖', WELCOME_TEXT, true);
+                appendBubble('agent', AGENT_AVATAR, WELCOME_TEXT, true);
             }
             historyHydrating = false;
             chatBox.scrollTop = chatBox.scrollHeight;
@@ -2183,12 +2203,163 @@
             return out.slice(-(Math.max(1, maxTurns) * 2));
         }
 
+        const CHAT_STREAM_ENABLED = true;
+        const TYPEWRITER_MS = 22;
+
+        function scrollChatToBottom() {
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        /** 後端 token 佇列 → 畫面逐字（1～2 字）顯示 */
+        function createLiveTypewriter(mdEl) {
+            let target = '';
+            let shown = '';
+            let timer = null;
+            const tick = () => {
+                if (shown.length >= target.length) {
+                    timer = null;
+                    return;
+                }
+                const remain = target.length - shown.length;
+                const step = remain > 2400 ? 2 : 1;
+                shown = target.slice(0, shown.length + step);
+                mdEl.textContent = shown;
+                scrollChatToBottom();
+                timer = setTimeout(tick, TYPEWRITER_MS);
+            };
+            return {
+                push(chunk) {
+                    if (!chunk) return;
+                    target += String(chunk);
+                    if (!timer) tick();
+                },
+                async drain() {
+                    while (shown.length < target.length) {
+                        await new Promise((r) => setTimeout(r, TYPEWRITER_MS));
+                    }
+                    if (timer) {
+                        clearTimeout(timer);
+                        timer = null;
+                    }
+                    shown = target;
+                    mdEl.textContent = shown;
+                },
+                getText() { return target; },
+            };
+        }
+
+        async function typewriterPlainThenMarkdown(mdEl, fullText, delayMs) {
+            const text = String(fullText || '');
+            if (!text) return;
+            mdEl.classList.add('is-streaming');
+            const tw = createLiveTypewriter(mdEl);
+            for (let i = 0; i < text.length; i += 1) {
+                tw.push(text[i]);
+            }
+            await tw.drain();
+            mdEl.classList.remove('is-streaming');
+            mdEl.innerHTML = renderMarkdownLite(text);
+            scrollChatToBottom();
+        }
+
+        function beginStreamingAgentBubble(llmModel) {
+            const shell = buildAgentMessageShell(llmModel || getSelectedLlmInfo());
+            const bubble = document.createElement('div');
+            bubble.className = 'bubble';
+            const md = document.createElement('div');
+            md.className = 'md-block is-streaming';
+            md.setAttribute('aria-live', 'polite');
+            bubble.appendChild(md);
+            shell.col.appendChild(bubble);
+            chatBox.appendChild(shell.msgDiv);
+            scrollChatToBottom();
+            const typewriter = createLiveTypewriter(md);
+            return { msgDiv: shell.msgDiv, bubble, col: shell.col, md, typewriter };
+        }
+
+        async function consumeAgentChatNdjson(response, streamUi) {
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let lineBuf = '';
+            let donePayload = null;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                lineBuf += decoder.decode(value, { stream: true });
+                const lines = lineBuf.split('\n');
+                lineBuf = lines.pop() || '';
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    let ev;
+                    try { ev = JSON.parse(line); } catch (_) { continue; }
+                    if (ev.event === 'token') {
+                        const delta = ev.delta || '';
+                        if (!delta) continue;
+                        if (!streamUi.ui) {
+                            streamUi.ui = beginStreamingAgentBubble(streamUi.llmModel);
+                            streamUi.started = true;
+                        }
+                        streamUi.ui.typewriter.push(delta);
+                    } else if (ev.event === 'error') {
+                        throw new Error(ev.message || '串流推論失敗');
+                    } else if (ev.event === 'done') {
+                        donePayload = ev;
+                    }
+                }
+            }
+            if (streamUi.ui && streamUi.ui.typewriter) {
+                await streamUi.ui.typewriter.drain();
+            }
+            return donePayload;
+        }
+
+        async function finalizeAgentChatData(data, streamUi) {
+            if (data.status === 'blocked' || (data.guardrail && data.guardrail.blocked)) {
+                if (streamUi && streamUi.ui && streamUi.ui.msgDiv) streamUi.ui.msgDiv.remove();
+                appendGuardNotify(data.guardrail);
+                await appendAgentReply(data.reply || '請求已被護欄攔截。', {
+                    llmModel: data.llm_model || getSelectedLlmInfo(),
+                    variant: 'guardrail',
+                    skipTypewriter: true,
+                });
+                return;
+            }
+            if (data.guardrail && data.guardrail.output_redacted) {
+                appendGuardNotify({ reason: '輸出已進行敏感資訊脫敏遮蔽', blocked: false });
+            }
+
+            const llmModel = data.llm_model || getSelectedLlmInfo();
+            const replyText = data.reply || '（沒有收到回覆內容）';
+
+            if (streamUi && streamUi.started && streamUi.ui) {
+                await appendAgentReply(replyText, {
+                    llmModel,
+                    syslogMode: Boolean(data.syslog_analysis),
+                    qualityFailed: Boolean(data.reply_quality_failed),
+                    skipTypewriter: true,
+                    streamHost: streamUi.ui,
+                });
+            } else {
+                await appendAgentReply(replyText, {
+                    llmModel,
+                    syslogMode: Boolean(data.syslog_analysis),
+                    qualityFailed: Boolean(data.reply_quality_failed),
+                    skipTypewriter: false,
+                });
+            }
+
+            if (data.rag_citations && data.rag_citations.length) {
+                appendRagCitations(data.rag_citations, llmModel);
+            }
+        }
+
         async function sendMessage() {
             const text = userInput.value.trim();
             const syslogPayload = (attachedSyslog.content || '').trim();
             if (!text && !syslogPayload) return;
             if (modelSwitching) {
-                appendBubble('agent', '🤖', '模型切換中，請稍候再傳送訊息。');
+                appendBubble('agent', AGENT_AVATAR, '模型切換中，請稍候再傳送訊息。');
                 return;
             }
 
@@ -2203,7 +2374,7 @@
             const typingId = showTypingIndicator();
 
             try {
-                const payload = { message: text, history };
+                const payload = { message: text, history, stream: CHAT_STREAM_ENABLED };
                 if (sentSyslog) {
                     payload.syslog = sentSyslog;
                     if (sentSyslogName) payload.syslog_name = sentSyslogName;
@@ -2215,38 +2386,39 @@
                     body: JSON.stringify(payload)
                 });
 
+                const contentType = (response.headers.get('content-type') || '').toLowerCase();
+                const isNdjson = contentType.includes('ndjson') || contentType.includes('x-ndjson');
+
+                const canStreamBody = response.ok && response.body && CHAT_STREAM_ENABLED;
+                if (canStreamBody && isNdjson) {
+                    removeTypingIndicator(typingId);
+                    const streamUi = {
+                        started: true,
+                        llmModel: getSelectedLlmInfo(),
+                        ui: beginStreamingAgentBubble(getSelectedLlmInfo()),
+                    };
+                    const donePayload = await consumeAgentChatNdjson(response, streamUi);
+                    if (!donePayload) {
+                        if (streamUi.ui && streamUi.ui.msgDiv) streamUi.ui.msgDiv.remove();
+                        appendBubble('agent', AGENT_AVATAR, '（串流結束但未收到完整回覆）');
+                        return;
+                    }
+                    await finalizeAgentChatData(donePayload, streamUi);
+                    return;
+                }
+
                 const data = await response.json();
                 removeTypingIndicator(typingId);
 
                 if (!response.ok) {
-                    appendBubble('agent', '🤖', `❌ ${data.error || '伺服器回傳錯誤'}`, false, { llmModel: data.llm_model || getSelectedLlmInfo() });
+                    appendBubble('agent', AGENT_AVATAR, `${data.error || '伺服器回傳錯誤'}`, false, { llmModel: data.llm_model || getSelectedLlmInfo() });
                     return;
                 }
 
-                if (data.status === 'blocked' || (data.guardrail && data.guardrail.blocked)) {
-                    appendGuardNotify(data.guardrail);
-                    await appendAgentReply(data.reply || '請求已被護欄攔截。', {
-                        llmModel: data.llm_model || getSelectedLlmInfo(),
-                        variant: 'guardrail',
-                    });
-                    return;
-                }
-
-                if (data.guardrail && data.guardrail.output_redacted) {
-                    appendGuardNotify({ reason: '輸出已進行敏感資訊脫敏遮蔽', blocked: false });
-                }
-
-                await appendAgentReply(data.reply || '（沒有收到回覆內容）', {
-                    llmModel: data.llm_model || getSelectedLlmInfo(),
-                    syslogMode: Boolean(data.syslog_analysis),
-                    qualityFailed: Boolean(data.reply_quality_failed),
-                });
-                if (data.rag_citations && data.rag_citations.length) {
-                    appendRagCitations(data.rag_citations, data.llm_model || getSelectedLlmInfo());
-                }
+                await finalizeAgentChatData(data);
             } catch (error) {
                 removeTypingIndicator(typingId);
-                appendBubble('agent', '🤖', '❌ 錯誤：無法連線至後端 Agent 伺服器，請確認已執行 python app.py 且 2000 埠口正常運作。');
+                appendBubble('agent', AGENT_AVATAR, '錯誤：無法連線至後端 Agent 伺服器，請確認已執行 python app.py 且 2000 埠口正常運作。');
             } finally {
                 setSending(false);
             }
@@ -2317,7 +2489,7 @@
             col.innerHTML = tagHtml
                 ? `<div class="reply-model-bar">${tagHtml}</div>`
                 : '<div class="reply-model-bar"></div>';
-            msgDiv.innerHTML = '<div class="msg-avatar">🤖</div>';
+            msgDiv.innerHTML = '<div class="msg-avatar">AI</div>';
             msgDiv.appendChild(col);
             return { msgDiv, col, bubbleHost: col };
         }
@@ -2456,14 +2628,25 @@
             const parsed = parseVisualBlocks(rawText);
             const report = parseStructuredReport(parsed.text || rawText || '');
             const hasReport = report.items.length > 0 || report.actions.length > 0;
-            const shell = buildAgentMessageShell(llmModel, options.variant);
-            const msgDiv = shell.msgDiv;
-            msgDiv.className = `message agent${(parsed.visuals.length || hasReport) ? ' has-visual' : ''}`;
+            const streamHost = options.streamHost;
+            let msgDiv;
+            let bubble;
 
-            const bubble = document.createElement('div');
-            bubble.className = 'bubble';
-            shell.col.appendChild(bubble);
-            chatBox.appendChild(msgDiv);
+            if (streamHost && streamHost.msgDiv && streamHost.bubble) {
+                msgDiv = streamHost.msgDiv;
+                bubble = streamHost.bubble;
+                if (streamHost.md) streamHost.md.classList.remove('is-streaming');
+                bubble.querySelectorAll('.viz-block, .rich-report').forEach((el) => el.remove());
+            } else {
+                const shell = buildAgentMessageShell(llmModel, options.variant);
+                msgDiv = shell.msgDiv;
+                bubble = document.createElement('div');
+                bubble.className = 'bubble';
+                shell.col.appendChild(bubble);
+                chatBox.appendChild(msgDiv);
+            }
+
+            msgDiv.className = `message agent${(parsed.visuals.length || hasReport) ? ' has-visual' : ''}`;
 
             if (options.qualityFailed) {
                 const notice = document.createElement('div');
@@ -2491,11 +2674,18 @@
                     await renderChartBlock(chartBlock, buildStatusChartFromItems(report.items));
                 }
             } else if ((parsed.text || '').trim()) {
-                // 一般 Markdown 美化
-                const md = document.createElement('div');
-                md.className = 'md-block';
-                md.innerHTML = renderMarkdownLite(parsed.text.trim());
-                bubble.appendChild(md);
+                const bodyText = parsed.text.trim();
+                let md = streamHost && streamHost.md ? streamHost.md : null;
+                if (!md) {
+                    md = document.createElement('div');
+                    md.className = 'md-block';
+                    bubble.appendChild(md);
+                }
+                if (!options.skipTypewriter && !options.fromStreamFinal) {
+                    await typewriterPlainThenMarkdown(md, bodyText, TYPEWRITER_MS);
+                } else {
+                    md.innerHTML = renderMarkdownLite(bodyText);
+                }
             }
 
             for (const visual of parsed.visuals) {
@@ -3245,7 +3435,7 @@
         async function renderChartBlock(container, spec) {
             const title = document.createElement('p');
             title.className = 'viz-title';
-            title.textContent = `📊 ${spec.title}`;
+            title.textContent = spec.title;
             container.appendChild(title);
 
             const wrap = document.createElement('div');
@@ -3438,7 +3628,7 @@
 
                 const title = document.createElement('p');
                 title.className = 'viz-title';
-                title.textContent = '🧭 流程 / 架構圖';
+                title.textContent = '流程 / 架構圖';
                 container.appendChild(title);
 
                 const wrap = document.createElement('div');
@@ -3474,7 +3664,7 @@
             div.innerHTML = `
                 <div class="rag-cite">
                     <details>
-                        <summary>📚 RAG 知識圖譜引用 ${citations.length} 筆（僅標題，不含 Log）</summary>
+                        <summary>RAG 知識圖譜引用 ${citations.length} 筆（僅標題，不含 Log）</summary>
                         <ol>${items}</ol>
                     </details>
                 </div>
@@ -3489,7 +3679,7 @@
             const blocked = guard && guard.blocked;
             const reason = (guard && (guard.reason || guard.mode)) || 'safety';
             div.innerHTML = `
-                <div class="guard-banner">${blocked ? '🛡️ 護欄攔截' : '🛡️ 護欄提示'}：${escapeHtml(String(reason))}</div>
+                <div class="guard-banner">${blocked ? '護欄攔截' : '護欄提示'}：${escapeHtml(String(reason))}</div>
             `;
             chatBox.appendChild(div);
             chatBox.scrollTop = chatBox.scrollHeight;
@@ -3501,7 +3691,7 @@
             typingDiv.className = 'message agent';
             typingDiv.id = id;
             typingDiv.innerHTML = `
-                <div class="msg-avatar">🤖</div>
+                <div class="msg-avatar">AI</div>
                 <div class="bubble" style="padding: 8px 12px;">
                     <div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>
                 </div>
@@ -3532,7 +3722,7 @@
             renderHistoryList();
             historyHydrating = true;
             chatBox.innerHTML = '';
-            appendBubble('agent', '🤖', msg, true);
+            appendBubble('agent', AGENT_AVATAR, msg, true);
             historyHydrating = false;
         }
 

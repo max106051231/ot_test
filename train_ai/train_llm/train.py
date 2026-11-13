@@ -25,6 +25,7 @@ import gc
 import json
 import os
 import re
+import sys
 from pathlib import Path
 
 import torch
@@ -898,7 +899,18 @@ def merge_only_one(
     print(f"✅ merge-only 完成：{merged_dir}")
 
 
+def _configure_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        reconf = getattr(stream, "reconfigure", None)
+        if callable(reconf):
+            try:
+                reconf(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+
+
 def main():
+    _configure_stdio()
     args = parse_args()
     if args.list:
         list_status()

@@ -7,7 +7,12 @@ Ollama HTTP API 後端：模型列表、切換、chat 推論。
   OLLAMA_TIMEOUT    秒，預設 300
   OLLAMA_NUM_GPU    GPU 層數，-1=全層（預設 -1）
   OLLAMA_NUM_CTX    推論 context，Gemma3/4 預設 4096（較 8192 快）
-  OLLAMA_KEEP_ALIVE 模型常駐 VRAM，預設 30m
+  OLLAMA_GEMMA4_NUM_CTX  Gemma4 E2B 思考模式 context（預設 8192）
+  OLLAMA_GEMMA4_THINK   Gemma4 E2B 是否啟用 Ollama think（預設 0）
+  OLLAMA_GEMMA4_THINK_TOKENS  E2B 思考模式 num_predict 下限（預設 1400）
+  OLLAMA_KEEP_ALIVE 模型常駐 VRAM；熱切換預設 -1（JSON 整數，永久常駐）
+  LLM_HOT_SWITCH      1=切換時不釋放舊模型、Ollama pin 常駐（預設 1）
+  OLLAMA_PRELOAD_ALL  1=啟動時預載所有已安裝模型（預設 0，需足夠 VRAM）
   LLM_MAX_NEW_TOKENS  輸出 token 上限（預設 960）
 """
 from __future__ import annotations
@@ -25,10 +30,88 @@ CONFIG_PATH = config_dir() / "ollama_models.json"
 
 _current_model: str = ""
 _last_error: str = ""
+_pinned_models: set[str] = set()
 
 
 def _env(name: str, default: str = "") -> str:
     return (os.environ.get(name) or default).strip()
+
+
+def hot_switch_enabled() -> bool:
+    """切換模型時保留已載入權重（Ollama keep_alive + 本地快取不釋放）。"""
+    return _env("LLM_HOT_SWITCH", "1").lower() not in ("0", "false", "no", "off")
+
+
+def _keep_alive_value() -> str | int | None:
+    """Ollama keep_alive：時長字串（30m）或整數 -1（永久）；勿送字串 \"-1\"。"""
+    raw = _env("OLLAMA_KEEP_ALIVE", "")
+    if not raw:
+        return -1 if hot_switch_enabled() else "30m"
+    r = raw.strip().lower()
+    if not r:
+        return None
+    if r in ("-1", "forever", "infinite", "inf", "永久"):
+        return -1
+    if r in ("0", "off", "false", "no"):
+        return 0
+    try:
+        if re.fullmatch(r"-?\d+", r):
+            return int(r)
+    except ValueError:
+        pass
+    return raw
+
+
+def pinned_models() -> frozenset[str]:
+    return frozenset(_pinned_models)
+
+
+def _pin_model(model: str) -> bool:
+    """最小推論 + keep_alive，將模型載入 VRAM 並常駐。"""
+    if not model:
+        return False
+    slug = _slug_from_tag(model).lower()
+    if slug in _pinned_models:
+        return True
+    keep_alive = _keep_alive_value()
+    body: dict = {
+        "model": model,
+        "prompt": ".",
+        "stream": False,
+        "options": {"num_predict": 1, "num_ctx": 512},
+    }
+    if keep_alive is not None:
+        body["keep_alive"] = keep_alive  # int -1 = 永久常駐
+    try:
+        _request("POST", "/api/generate", body)
+        _pinned_models.add(slug)
+        print(f"📌 Ollama 常駐：{model}（keep_alive={keep_alive or 'default'}）")
+        return True
+    except Exception as e:
+        print(f"⚠️ Ollama 常駐略過 {model}：{e}")
+        return False
+
+
+def preload_installed_models(*, only_ui: bool = True) -> int:
+    """啟動或手動預載已安裝模型（需足夠 VRAM）。"""
+    if not hot_switch_enabled():
+        return 0
+    health = ping()
+    if not health.get("ok"):
+        return 0
+    ok = 0
+    for m in health.get("models") or []:
+        tag = str(m.get("name") or "").strip()
+        if not tag or _is_excluded_model(tag):
+            continue
+        slug = _slug_from_tag(tag)
+        if only_ui and _ui_allowed_slugs() and not is_ui_allowed_model(slug):
+            continue
+        if _pin_model(tag):
+            ok += 1
+    if ok:
+        print(f"🔥 Ollama 預載完成：{ok} 個模型常駐 VRAM")
+    return ok
 
 
 def _load_config() -> dict:
@@ -205,7 +288,12 @@ def init(*, model: str | None = None) -> dict:
             )
             print(f"⚠️ {_last_error}")
         else:
-            print(f"🦙 Ollama 就緒 | 模型={_current_model} | {_base_url()}")
+            mode = "熱切換" if hot_switch_enabled() else "懶載入"
+            print(f"🦙 Ollama 就緒 | 模型={_current_model} | {mode} | {_base_url()}")
+            if hot_switch_enabled():
+                _pin_model(_current_model)
+                if _env("OLLAMA_PRELOAD_ALL", "0").lower() in ("1", "true", "yes", "on"):
+                    preload_installed_models(only_ui=True)
     else:
         _last_error = health.get("error") or "Ollama 無法連線"
         print(f"⚠️ Ollama：{_last_error}")
@@ -331,6 +419,44 @@ def _is_qwen3_model(name: str) -> bool:
     return "qwen3" in (name or "").lower()
 
 
+def _is_gemma4_e2b_model(name: str) -> bool:
+    """Gemma 4 E2B（含 gemma4_e2b_ot、gemma4:e2b-it-qat 等）。"""
+    n = (name or "").lower()
+    return "gemma" in n and "e2b" in n
+
+
+def is_gemma4_e2b_model(name: str | None = None) -> bool:
+    return _is_gemma4_e2b_model(name or current_model_name())
+
+
+def gemma4_e2b_think_enabled() -> bool:
+    return _env("OLLAMA_GEMMA4_THINK", "0").lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+def _gemma4_e2b_think_enabled() -> bool:
+    return gemma4_e2b_think_enabled()
+
+
+def _gemma4_e2b_think_token_floor() -> int:
+    raw = _env("OLLAMA_GEMMA4_THINK_TOKENS", "1400")
+    try:
+        return max(512, int(raw))
+    except ValueError:
+        return 1400
+
+
+def _resolve_ollama_think(model: str, think: bool | None) -> bool:
+    """是否對 Ollama 送 think=true（E2B 預設關閉，設 OLLAMA_GEMMA4_THINK=1 開啟）。"""
+    if think is not None:
+        return bool(think)
+    return _is_gemma4_e2b_model(model) and _gemma4_e2b_think_enabled()
+
+
 def _request(method: str, path: str, body: dict | None) -> dict:
     url = f"{_base_url()}{path}"
     data = None
@@ -390,18 +516,25 @@ def switch_model(target: str) -> dict:
     _last_error = ""
     switched = prev != name
     slug = _slug_from_tag(name)
+    if switched and hot_switch_enabled():
+        if prev:
+            _pin_model(prev)
+        _pin_model(name)
+    hot_note = "（熱切換）" if hot_switch_enabled() else ""
     if switched:
         if req_slug != slug and req_slug != name:
-            message = f"已切換為 {friendly_label(req_slug)}"
+            message = f"已切換為 {friendly_label(req_slug)}{hot_note}"
         else:
-            message = f"已切換為 {friendly_label(slug)}"
+            message = f"已切換為 {friendly_label(slug)}{hot_note}"
     else:
         message = "已是目前使用的模型"
     print(f"🦙 Ollama 切換：{prev} → {name}")
     return {
         "ok": True,
         "switched": switched,
-        "from_cache": True,
+        "from_cache": bool(hot_switch_enabled() and _slug_from_tag(name).lower() in _pinned_models),
+        "hot_switch": hot_switch_enabled(),
+        "pinned_models": sorted(_pinned_models),
         "message": message,
         "model": name,
         "slug": req_slug or slug,
@@ -692,10 +825,12 @@ def _ollama_infer_options(
     token_budget: int,
     temperature: float,
     num_ctx_override: int | None = None,
-) -> tuple[dict, str]:
+    predict_cap_override: int | None = None,
+) -> tuple[dict, str | int | None]:
     """Ollama /api/chat options + keep_alive（Gemma3/4 縮 ctx 加速）。"""
+    predict_cap = predict_cap_override or _max_new_tokens_cap()
     opts: dict = {
-        "num_predict": min(int(token_budget), _max_new_tokens_cap()),
+        "num_predict": min(int(token_budget), predict_cap),
         "temperature": float(temperature),
     }
     num_gpu_raw = _env("OLLAMA_NUM_GPU", "-1")
@@ -709,15 +844,20 @@ def _ollama_infer_options(
         ctx_raw = _env("OLLAMA_NUM_CTX", "")
         if ctx_raw.isdigit() and int(ctx_raw) > 0:
             opts["num_ctx"] = int(ctx_raw)
+        elif _is_gemma4_e2b_model(model):
+            ctx_raw = _env("OLLAMA_GEMMA4_NUM_CTX", "8192")
+            if ctx_raw.isdigit() and int(ctx_raw) > 0:
+                opts["num_ctx"] = int(ctx_raw)
+            else:
+                opts["num_ctx"] = 8192
         elif _is_gemma34_model(model):
             opts["num_ctx"] = 4096
-    predict_cap = _max_new_tokens_cap()
     if num_ctx_override and int(num_ctx_override) >= 8192:
         syslog_cap = _env("LLM_SYSLOG_MAX_TOKENS", "1280")
         if syslog_cap.isdigit():
             predict_cap = max(predict_cap, min(int(syslog_cap), 1536))
     opts["num_predict"] = min(int(token_budget), predict_cap)
-    return opts, _env("OLLAMA_KEEP_ALIVE", "30m")
+    return opts, _keep_alive_value()
 
 
 def _should_hide_ui_model(item: dict) -> bool:
@@ -851,8 +991,8 @@ def _looks_like_broken_output(text: str) -> bool:
 
 
 def _supports_native_think(model: str) -> bool:
-    """Ollama 原生 thinking 模式（Qwen3 等）。"""
-    return _is_qwen3_model(model)
+    """Ollama 原生 thinking 模式（Qwen3、Gemma4 E2B 等）。"""
+    return _is_qwen3_model(model) or _is_gemma4_e2b_model(model)
 
 
 def _chat_once(
@@ -866,14 +1006,22 @@ def _chat_once(
 ) -> tuple[str, str | None, str]:
     """單次 chat；回傳 (content, error, thinking)。"""
     token_budget = max(64, min(int(max_new_tokens or 512), _max_new_tokens_cap()))
-    use_think = bool(think and _supports_native_think(model))
+    use_think = _resolve_ollama_think(model, think)
+    if not _supports_native_think(model):
+        use_think = False
+    predict_cap = _max_new_tokens_cap()
+    if _is_gemma4_e2b_model(model) and use_think:
+        think_floor = _gemma4_e2b_think_token_floor()
+        token_budget = max(token_budget, think_floor)
+        predict_cap = max(predict_cap, think_floor)
     if _is_qwen3_model(model):
-        token_budget = min(max(token_budget, 384 if not use_think else 512), _max_new_tokens_cap())
+        token_budget = min(max(token_budget, 384 if not use_think else 512), predict_cap)
     infer_opts, keep_alive = _ollama_infer_options(
         model,
         token_budget=token_budget,
         temperature=temperature,
         num_ctx_override=num_ctx,
+        predict_cap_override=predict_cap,
     )
     body = {
         "model": model,
@@ -882,20 +1030,22 @@ def _chat_once(
         "think": use_think,
         "options": infer_opts,
     }
-    if keep_alive:
+    if keep_alive is not None:
         body["keep_alive"] = keep_alive
     try:
         data = _request("POST", "/api/chat", body)
         msg = data.get("message") or {}
         thinking = (msg.get("thinking") or "").strip()
-        content = _extract_chat_content(data)
+        content = (msg.get("content") or "").strip()
+        if not content:
+            content = _extract_chat_content(data)
         if _is_qwen3_model(model):
             content = _polish_qwen3_reply(content)
         if _looks_like_broken_output(content):
             if thinking and not use_think:
                 content = _polish_qwen3_reply(thinking)
                 thinking = ""
-            elif use_think and thinking:
+            elif use_think and thinking and _is_qwen3_model(model):
                 content = _polish_qwen3_reply(thinking)
                 thinking = ""
             else:
@@ -904,6 +1054,82 @@ def _chat_once(
         return (content or "").strip(), None, thinking
     except Exception as e:
         return "", str(e), ""
+
+
+def iter_chat_content(
+    messages: list[dict],
+    *,
+    max_new_tokens: int = 512,
+    temperature: float = 0.0,
+    think: bool = False,
+    num_ctx: int | None = None,
+    model: str | None = None,
+) -> "Iterator[str]":
+    """POST /api/chat stream=True，逐段 yield message.content。"""
+    if not is_ready():
+        yield f"⚠️ {_last_error or 'Ollama 未連線，請先執行 ollama serve'}"
+        return
+
+    m = resolve_model_name(model or current_model_name())
+    token_budget = max(64, min(int(max_new_tokens or 512), _max_new_tokens_cap()))
+    use_think = _resolve_ollama_think(m, think)
+    if not _supports_native_think(m):
+        use_think = False
+    infer_opts, keep_alive = _ollama_infer_options(
+        m,
+        token_budget=token_budget,
+        temperature=temperature,
+        num_ctx_override=num_ctx,
+    )
+    body = {
+        "model": m,
+        "messages": _normalize_messages(messages, model=m),
+        "stream": True,
+        "think": use_think,
+        "options": infer_opts,
+    }
+    if keep_alive is not None:
+        body["keep_alive"] = keep_alive
+
+    url = f"{_base_url()}/api/chat"
+    data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        accumulated = ""
+        with urllib.request.urlopen(req, timeout=_timeout()) as resp:
+            for raw_line in resp:
+                line = raw_line.decode("utf-8", errors="replace").strip()
+                if not line:
+                    continue
+                try:
+                    chunk = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                msg = chunk.get("message") or {}
+                piece = msg.get("content") or ""
+                if not piece and chunk.get("done"):
+                    piece = _extract_chat_content(chunk) or ""
+                if piece:
+                    if accumulated and piece.startswith(accumulated):
+                        delta = piece[len(accumulated):]
+                        accumulated = piece
+                    else:
+                        delta = piece
+                        accumulated += piece
+                    if delta:
+                        yield delta
+                if chunk.get("done"):
+                    break
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", errors="replace")
+        yield f"⚠️ Ollama HTTP {e.code}: {detail[:200]}"
+    except urllib.error.URLError:
+        yield f"⚠️ 無法連線 Ollama（{_base_url()}）。請確認 ollama serve 已啟動。"
 
 
 def chat_with_meta(
@@ -977,6 +1203,7 @@ def chat(
     temperature: float = 0.0,
     num_ctx: int | None = None,
     allow_fallback: bool = True,
+    think: bool | None = None,
 ) -> str:
     """POST /api/chat 非串流；失敗時自動改以 fallback 模型重試。"""
     global _current_model, _last_error
@@ -1014,12 +1241,15 @@ def chat(
             max_new_tokens=max_new_tokens,
             temperature=temperature,
             num_ctx=ctx,
+            think=think if m == model else False,
         )
         if content:
             if m != current_model_name():
                 print(f"🦙 Ollama 已自動改以 {m} 回覆（原模型異常）")
                 switch_model(m)
             _last_error = ""
+            if _thinking and _resolve_ollama_think(m, think):
+                print(f"💭 Gemma4 E2B 思考 tokens≈{len(_thinking)} 字（已分離，不併入回覆）")
             return content
         last_err = err or "empty"
         print(f"❌ Ollama chat 失敗（{m}）：{last_err[:200]}")
@@ -1029,25 +1259,6 @@ def chat(
         f"Ollama 推論失敗：{last_err[:240]}。"
         f"請在模型選單改選 {friendly_label(fallback_model_name())}。"
     )
-
-
-def prime_chat() -> bool:
-    """暖機：短問答丟棄。"""
-    try:
-        chat(
-            [
-                {
-                    "role": "system",
-                    "content": "你是 Semi-Shield Cyber Agent。一句繁中打招呼即可，勿推理。",
-                },
-                {"role": "user", "content": "你好"},
-            ],
-            max_new_tokens=64,
-        )
-        return True
-    except Exception as e:
-        print(f"⚠️ Ollama 暖機略過：{e}")
-        return False
 
 
 def is_small_model(name: str | None = None) -> bool:

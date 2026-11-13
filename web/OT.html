@@ -987,6 +987,12 @@
             color: var(--text-main);
         }
         .modal-content.large-layout { max-width: 950px; width: 95%; }
+        .modal-content.evidence-layout {
+            width: min(1520px, 98vw);
+            max-width: min(1520px, 98vw);
+            max-height: 94vh;
+            padding: 22px 28px;
+        }
         
         .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; margin-bottom: 15px; }
         .modal-header h2 { margin: 0; font-size: 18px; color: var(--tech-blue); }
@@ -1181,6 +1187,378 @@
             margin: 0 0 12px 0;
             flex-wrap: wrap;
         }
+
+        .war-tabs {
+            display: flex;
+            gap: 6px;
+            margin: 0 0 14px 0;
+            flex-wrap: wrap;
+        }
+        .war-tab {
+            border: 1px solid var(--border-color);
+            background: rgba(10, 21, 36, 0.85);
+            color: var(--text-muted);
+            border-radius: 999px;
+            padding: 8px 18px;
+            font-size: 12px;
+            font-weight: 650;
+            cursor: pointer;
+        }
+        .war-tab.active {
+            color: #f0f9ff;
+            border-color: rgba(56, 189, 248, 0.45);
+            background: rgba(56, 189, 248, 0.12);
+        }
+        .panel-hidden { display: none !important; }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 14px;
+            max-height: 420px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+        .control-card .card-foot {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+        .control-card.tier-auto { border-left: 3px solid #22c55e; }
+        .control-card.tier-assisted { border-left: 3px solid #f59e0b; }
+        .control-card.tier-auto-import { border-left: 3px solid #818cf8; }
+        .control-card.tier-manual { border-left: 3px solid #64748b; opacity: 0.92; }
+        .pill.tier-auto-import { border-color: rgba(129, 140, 248, 0.45); color: #c7d2fe; }
+        .status-dot.manual { background: #64748b; box-shadow: none; }
+
+        .compare-panel { padding: 4px 0 20px; }
+        .compare-summary-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 16px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        .compare-summary-bar .pill {
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            border: 1px solid var(--border-color);
+        }
+        .compare-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+        @media (max-width: 900px) { .compare-columns { grid-template-columns: 1fr; } }
+        .compare-col {
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            padding: 14px;
+            background: var(--card-bg);
+        }
+        .compare-col.semi { border-color: rgba(56, 189, 248, 0.35); }
+        .compare-col.trad { border-color: rgba(148, 163, 184, 0.35); }
+        .compare-col h3 { margin: 0 0 10px; font-size: 14px; }
+        .compare-col ul { margin: 0; padding-left: 18px; font-size: 12px; color: var(--text-muted); line-height: 1.55; }
+        .compare-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .compare-table th, .compare-table td {
+            border: 1px solid var(--border-color);
+            padding: 8px 10px;
+            text-align: left;
+        }
+        .compare-table-title { font-size: 13px; margin: 0 0 8px; color: var(--text-muted); }
+
+        #modalEvidenceFlow {
+            display: none;
+            margin: 12px 0;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background: rgba(6, 14, 24, 0.6);
+        }
+        .ev-section-title { font-size: 12px; margin: 0 0 8px; color: var(--tech-blue); }
+        .src-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+        .src-chip {
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.25);
+        }
+        .src-chip.muted { opacity: 0.7; }
+        .ev-flow-row {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .ev-flow-col {
+            min-width: 0;
+            overflow: visible;
+            padding-bottom: 4px;
+        }
+        .ev-flow-col h4 { margin: 0 0 8px; font-size: 11px; color: var(--text-muted); }
+        .ev-flow-svg.ev-flow-h {
+            display: block;
+            width: 100%;
+            height: auto;
+            max-height: none;
+            min-height: 72px;
+        }
+        .modal-content.evidence-layout .ev-flow-col {
+            overflow: visible;
+        }
+        .modal-content.evidence-layout #modalEvidenceFlow {
+            overflow: visible;
+        }
+        .modal-content.evidence-layout #modalEvidenceFlow {
+            padding: 14px 16px;
+        }
+        .ev-flow-title { fill: #e2e8f0; font-size: 10px; font-weight: 600; }
+        .ev-flow-sub { fill: #94a3b8; font-size: 8px; }
+
+        .manual-import-panel {
+            padding: 0 0 32px;
+            max-width: none;
+            width: 100%;
+        }
+        .manual-import-hero {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px 24px;
+            margin-bottom: 20px;
+            padding: 20px 22px;
+            border-radius: var(--radius);
+            border: 1px solid rgba(129, 140, 248, 0.28);
+            background:
+                linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(56, 189, 248, 0.06)),
+                rgba(8, 16, 28, 0.85);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+        }
+        .manual-import-hero-text { flex: 1; min-width: 240px; }
+        .manual-import-hero h2 {
+            margin: 0 0 8px;
+            font-size: 18px;
+            font-weight: 750;
+            color: #f0f9ff;
+            letter-spacing: 0.02em;
+        }
+        .manual-import-hero .lead {
+            margin: 0;
+            font-size: 13px;
+            color: #94a3b8;
+            line-height: 1.6;
+            max-width: 720px;
+        }
+        .manual-import-hero-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .manual-import-hero-badges span {
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(129, 140, 248, 0.35);
+            color: #c7d2fe;
+            background: rgba(99, 102, 241, 0.12);
+        }
+        .manual-import-actions {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        .btn-sim-import {
+            border: 1px solid rgba(167, 139, 250, 0.55);
+            background: linear-gradient(145deg, rgba(99, 102, 241, 0.35), rgba(139, 92, 246, 0.2));
+            color: #ede9fe;
+            border-radius: 12px;
+            padding: 12px 20px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 18px rgba(99, 102, 241, 0.25);
+            transition: transform 0.12s ease, box-shadow 0.15s ease;
+        }
+        .btn-sim-import:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px rgba(99, 102, 241, 0.35);
+        }
+        .btn-sim-import:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .manual-import-grid {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 18px;
+            align-items: start;
+        }
+        @media (max-width: 1024px) {
+            .manual-import-grid { grid-template-columns: 1fr; }
+            .manual-import-actions { align-items: stretch; width: 100%; }
+            .btn-sim-import { width: 100%; text-align: center; }
+        }
+        .manual-import-form {
+            display: grid;
+            gap: 16px;
+            padding: 22px 24px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border-color);
+            background: linear-gradient(180deg, rgba(12, 24, 40, 0.95), rgba(8, 16, 28, 0.88));
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+        .manual-import-form-title {
+            margin: 0 0 4px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--tech-blue);
+        }
+        .manual-import-form label {
+            display: block;
+            font-size: 11px;
+            font-weight: 650;
+            color: #94a3b8;
+            margin-bottom: 6px;
+            letter-spacing: 0.03em;
+        }
+        .manual-import-form select,
+        .manual-import-form input,
+        .manual-import-form textarea {
+            width: 100%;
+            border: 1px solid rgba(100, 140, 180, 0.25);
+            background: rgba(3, 9, 18, 0.85);
+            color: var(--text-main);
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 13px;
+            font-family: inherit;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .manual-import-form select:focus,
+        .manual-import-form input:focus,
+        .manual-import-form textarea:focus {
+            outline: none;
+            border-color: rgba(56, 189, 248, 0.55);
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.12);
+        }
+        .manual-import-form textarea {
+            min-height: 200px;
+            resize: vertical;
+            font-family: ui-monospace, Consolas, "Cascadia Code", monospace;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .manual-import-form-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+            padding-top: 4px;
+        }
+        .btn-submit-import {
+            border: 1px solid rgba(56, 189, 248, 0.5);
+            background: linear-gradient(145deg, rgba(56, 189, 248, 0.22), rgba(14, 165, 233, 0.15));
+            color: #e0f2fe;
+            border-radius: 11px;
+            padding: 11px 24px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.15s ease, transform 0.1s ease;
+        }
+        .btn-submit-import:hover {
+            background: linear-gradient(145deg, rgba(56, 189, 248, 0.32), rgba(14, 165, 233, 0.22));
+            transform: translateY(-1px);
+        }
+        .manual-import-status {
+            font-size: 12px;
+            color: var(--text-muted);
+            min-height: 1.2em;
+            flex: 1;
+        }
+        .manual-import-status.ok { color: #86efac; }
+        .manual-import-status.err { color: #fca5a5; }
+        .manual-import-side { display: flex; flex-direction: column; gap: 14px; }
+        .manual-import-tips {
+            padding: 14px 16px;
+            border-radius: var(--radius);
+            border: 1px dashed rgba(100, 140, 180, 0.28);
+            background: rgba(6, 14, 24, 0.6);
+            font-size: 11px;
+            color: #94a3b8;
+            line-height: 1.55;
+        }
+        .manual-import-tips strong { color: #cbd5e1; display: block; margin-bottom: 6px; font-size: 12px; }
+        .manual-import-tips ul { margin: 0; padding-left: 16px; }
+        .manual-import-tips code {
+            font-size: 10px;
+            color: #7dd3fc;
+            background: rgba(56, 189, 248, 0.08);
+            padding: 1px 4px;
+            border-radius: 4px;
+        }
+        .manual-import-list {
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius);
+            overflow: hidden;
+            background: rgba(8, 16, 28, 0.75);
+            flex: 1;
+            min-height: 280px;
+            display: flex;
+            flex-direction: column;
+        }
+        .manual-import-list h3 {
+            margin: 0;
+            padding: 12px 16px;
+            font-size: 12px;
+            font-weight: 700;
+            background: rgba(6, 14, 26, 0.95);
+            border-bottom: 1px solid var(--border-color);
+            color: #e2e8f0;
+        }
+        .manual-import-list ul {
+            list-style: none;
+            margin: 0;
+            padding: 8px 0;
+            flex: 1;
+            max-height: 360px;
+            overflow-y: auto;
+        }
+        .manual-import-list li {
+            padding: 12px 16px;
+            border-bottom: 1px solid rgba(100, 140, 180, 0.1);
+            font-size: 11px;
+            color: #cbd5e1;
+            line-height: 1.45;
+        }
+        .manual-import-list li.mi-empty {
+            color: var(--text-muted);
+            text-align: center;
+            padding: 32px 16px;
+            font-size: 12px;
+        }
+        .manual-import-list li:last-child { border-bottom: none; }
+        .manual-import-list .mi-tag {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 4px;
+            margin-right: 6px;
+            background: rgba(129, 140, 248, 0.25);
+            color: #c7d2fe;
+        }
+        .manual-import-list .mi-tag.sim { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
     </style>
 </head>
 <body>
@@ -1191,7 +1569,7 @@
                 <div class="war-brand-mark">SS</div>
                 <div>
                     <h1>安全營運工作台</h1>
-                    <div class="subtitle">Semi-Shield ISMS · ISO/IEC 27001 OT 合規監控戰情室</div>
+                    <div class="subtitle" id="warSubtitle">Semi-Shield ISMS · ISO/IEC 27001 OT 合規監控戰情室</div>
                 </div>
             </div>
             <div class="war-header-meta">
@@ -1200,9 +1578,79 @@
             </div>
         </header>
 
+        <nav class="war-tabs" aria-label="戰情室分頁">
+            <button type="button" class="war-tab active" data-tab="warroom">監控戰情 · 全控制項</button>
+            <button type="button" class="war-tab" data-tab="manual">AI 匯入 · 人工資料</button>
+            <button type="button" class="war-tab" data-tab="compare">證據鏈 vs 傳統稽核</button>
+        </nav>
+
+        <div id="panelCompare" class="compare-panel panel-hidden">
+            <div id="comparePanelBody">載入證據鏈比較…</div>
+        </div>
+
+        <div id="panelManual" class="manual-import-panel panel-hidden">
+            <div class="manual-import-hero">
+                <div class="manual-import-hero-text">
+                    <h2>人工稽核資料匯入</h2>
+                    <p class="lead">
+                        政策、程序書、GRC 匯出、訪談紀錄等可在此匯入並對映 Annex A 控制項；
+                        匯入後會出現在控制項詳情「原始資安日誌內容」區，並可執行 AI 匯入資料診斷。
+                    </p>
+                    <div class="manual-import-hero-badges">
+                        <span>auto_import</span>
+                        <span>Evidence Chain</span>
+                        <span>No Evidence, No Claim</span>
+                    </div>
+                </div>
+                <div class="manual-import-actions">
+                    <button type="button" class="btn-sim-import" id="btnSimManualImport">
+                        模擬匯入人工資料（示範批次）
+                    </button>
+                </div>
+            </div>
+            <div class="manual-import-grid">
+                <form class="manual-import-form" id="manualImportForm" onsubmit="return submitManualImport(event)">
+                    <p class="manual-import-form-title">新增匯入批次</p>
+                    <div>
+                        <label for="manualAnnexSelect">Annex A 控制項</label>
+                        <select id="manualAnnexSelect" required>
+                            <option value="">載入控制項清單…</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="manualImportTitle">文件／批次標題（選填）</label>
+                        <input type="text" id="manualImportTitle" placeholder="例：資訊安全政策 v3.1 簽核版">
+                    </div>
+                    <div>
+                        <label for="manualImportBody">人工證據原文</label>
+                        <textarea id="manualImportBody" required placeholder="貼上政策摘要、GRC 匯出、訪談紀錄或檢核表內容…"></textarea>
+                    </div>
+                    <div class="manual-import-form-actions">
+                        <button type="submit" class="btn-submit-import">提交人工匯入</button>
+                        <p class="manual-import-status" id="manualImportStatus" aria-live="polite"></p>
+                    </div>
+                </form>
+                <div class="manual-import-side">
+                    <div class="manual-import-tips">
+                        <strong>匯入提示</strong>
+                        <ul>
+                            <li>一筆匯入對應一個 Annex A 控制項，原文會寫入 <code>manual_imports.jsonl</code>。</li>
+                            <li>卡片指標會顯示「人工 N」；詳情彈窗可執行 AI 匯入資料診斷。</li>
+                            <li>示範批次會為<strong>所有需 AI 匯入／人工證據</strong>的控制項（93 項中除 6 項 syslog 自動監控外）各寫入一筆模擬內容（標記 SIM）；已有紀錄的控制項會略過。</li>
+                        </ul>
+                    </div>
+                    <div class="manual-import-list">
+                        <h3>最近匯入紀錄</h3>
+                        <ul id="manualImportRecent"><li class="mi-empty">尚無紀錄</li></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="panelWarroom">
         <div class="io-panel war-toolbar">
             <div class="panel-left">
-                <span id="otStatus">🔄 連線中...</span>
+                <span id="otStatus">連線中…</span>
             </div>
             
             <div class="download-controls">
@@ -1213,8 +1661,8 @@
                     </select>
                     <span class="llm-picker-status" id="reportLlmStatus"></span>
                 </div>
-                <button class="btn-pdf" id="downloadPdfBtn" onclick="exportAuditReportPDF()" disabled>📋 匯出稽核報告</button>
-                <button class="btn-plan" id="downloadPlanBtn" onclick="exportAuditPlanPDF()" disabled>📅 生成稽核計畫</button>
+                <button class="btn-pdf" id="downloadPdfBtn" onclick="exportAuditReportPDF()" disabled>匯出稽核報告</button>
+                <button class="btn-plan" id="downloadPlanBtn" onclick="exportAuditPlanPDF()" disabled>生成稽核計畫</button>
             </div>
         </div>
 
@@ -1222,7 +1670,7 @@
             <div class="war-stat-card">
                 <div class="war-stat-label">日誌檔案</div>
                 <div class="war-stat-value" id="ov-files">--</div>
-                <div class="war-stat-meta">ot/ 目錄</div>
+                <div class="war-stat-meta">OT 拓樸匯入源</div>
             </div>
             <div class="war-stat-card">
                 <div class="war-stat-label">事件總筆數</div>
@@ -1241,38 +1689,18 @@
             </div>
         </div>
 
-        <div class="compliance-summary">
-            <div class="summary-card" onclick="showDetails('sec_gem_log')">
-                <div class="card-header"><span class="card-title">A.8.24 傳輸加密</span><div class="status-dot" id="dot-sec_gem_log"></div></div>
-                <div class="big-value" id="val-sec_gem_log">--</div>
-            </div>
-            <div class="summary-card" onclick="showDetails('recipe_audit')">
-                <div class="card-header"><span class="card-title">A.8.19 組態變更</span><div class="status-dot" id="dot-recipe_audit"></div></div>
-                <div class="big-value" id="val-recipe_audit">--</div>
-            </div>
-            <div class="summary-card" onclick="showDetails('access_control')">
-                <div class="card-header"><span class="card-title">A.5.15 存取控制</span><div class="status-dot" id="dot-access_control"></div></div>
-                <div class="big-value" id="val-access_control">--</div>
-            </div>
-            <div class="summary-card" onclick="showDetails('patch_management')">
-                <div class="card-header"><span class="card-title">A.8.8 弱點修補</span><div class="status-dot" id="dot-patch_management"></div></div>
-                <div class="big-value" id="val-patch_management">--</div>
-            </div>
-            <div class="summary-card" onclick="showDetails('supplier_security')">
-                <div class="card-header"><span class="card-title">A.5.19 供應鏈管理</span><div class="status-dot" id="dot-supplier_security"></div></div>
-                <div class="big-value" id="val-supplier_security">--</div>
-            </div>
-            <div class="summary-card" onclick="showDetails('malware_defense')">
-                <div class="card-header"><span class="card-title">A.8.7 端點防禦</span><div class="status-dot" id="dot-malware_defense"></div></div>
-                <div class="big-value" id="val-malware_defense">--</div>
-            </div>
+        <h2 class="log-title-area" style="margin:0 0 8px;font-size:14px;color:var(--text-muted);">
+            ISO 27001 Annex A 控制項（93 項）· 點選卡片檢視證據鏈流程
+        </h2>
+        <div class="compliance-summary control-grid" id="controlGrid">
+            <div class="summary-card"><div class="card-header"><span class="card-title">載入控制項…</span></div></div>
         </div>
 
         <div class="analytics-grid">
             <div class="log-section">
                 <div class="log-title-area">
                     <h2>優先處理事件 · 合規日誌追蹤</h2>
-                    <button class="btn-view-all" id="openFullTableBtn" onclick="openFullLogsModal()" disabled>🔍 展開全量追蹤檔</button>
+                    <button class="btn-view-all" id="openFullTableBtn" onclick="openFullLogsModal()" disabled>展開全量追蹤檔</button>
                 </div>
                 <table>
                     <thead>
@@ -1284,7 +1712,7 @@
                         </tr>
                     </thead>
                     <tbody id="logTableBody">
-                        <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">正在同步後端 OT/ 目錄日誌...</td></tr>
+                        <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">正在自 OT 拓樸匯入 syslog…</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -1305,12 +1733,14 @@
             </div>
             <div class="log-stream" id="historicalLogContainer">系統就緒。等待數據推送...</div>
         </div>
+        </div><!-- /panelWarroom -->
+
     </div>
 
-    <!-- 📋 資訊安全稽核查核表 PDF 模板（FO-2-09-01） -->
+    <!-- 資訊安全稽核查核表 PDF 模板（FO-2-09-01） -->
     <div id="pdfChecklistTemplate" class="pdf-plan-doc"></div>
 
-    <!-- 📋 資安內部稽核報告 PDF 模板（FO-2-09-03） -->
+    <!-- 資安內部稽核報告 PDF 模板（FO-2-09-03） -->
     <div id="pdfReportTemplate" class="pdf-plan-doc">
         <div class="pdf-block pdf-plan-cover">
             <div class="pdf-plan-cover-title">資訊安全內部稽核報告</div>
@@ -1393,7 +1823,7 @@
     <!-- legacy（保留 id 供舊邏輯相容，不再用於匯出） -->
     <div id="pdfRenderTemplate" style="display:none"></div>
 
-    <!-- 📅 資安內部稽核計畫 PDF 模板（正式文件版型，不含公司名稱） -->
+    <!-- 資安內部稽核計畫 PDF 模板（正式文件版型，不含公司名稱） -->
     <div id="pdfPlanRenderTemplate" class="pdf-plan-doc">
         <div class="pdf-block pdf-plan-cover">
             <div class="pdf-plan-cover-title">資安內部稽核計畫</div>
@@ -1486,9 +1916,10 @@
 
     <!-- Modal 彈窗區塊 -->
     <div class="modal-overlay" id="modalOverlay" onclick="closeModal()">
-        <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-content evidence-layout" id="complianceModalContent" onclick="event.stopPropagation()">
             <div class="modal-header"><h2 id="modalTitle">合規詳情</h2><button class="close-btn" onclick="closeModal()">&times;</button></div>
             <div class="meta-grid" id="modalMeta"></div>
+            <div id="modalEvidenceFlow"></div>
             <h3 style="font-size: 13px; margin: 0 0 8px 0; color: var(--text-muted);">原始資安日誌內容 (Raw Audit Log)</h3>
             <div class="log-box" id="modalLog"></div>
             <div class="modal-llm-row">
@@ -1502,7 +1933,7 @@
             <button class="ai-btn" id="aiBtn" onclick="analyzeComplianceWithLocalLLM()">
                 <div class="spinner" id="aiSpinner"></div><span id="aiBtnText">執行地端診斷分析</span>
             </button>
-            <div class="guardrail-box" id="modalGuardrail">⚠️ 護欄警示：偵測到敏感資安設備明細，輸出已進行遮蔽遮罩與事件混淆處理。</div>
+            <div class="guardrail-box" id="modalGuardrail">護欄警示：偵測到敏感資安設備明細，輸出已進行遮蔽遮罩與事件混淆處理。</div>
             <div class="ai-result" id="aiResultBox">
                 <div class="ai-hero">地端 LLM 智慧合規診斷報告</div>
                 <div id="aiResponseText"></div>
@@ -1533,6 +1964,7 @@
         </div>
     </div>
 
+    <script src="/web/ot_evidence.js"></script>
     <script>
 
         const LLM_MODEL_KEY = 'ot_agent_llm_model';
@@ -1879,7 +2311,7 @@
                 const showKg = reportLlmAllowsKnowledgeGraph();
                 if (showKg && citations && citations.length) {
                     ragBox.style.display = 'block';
-                    ragBox.innerHTML = `<details><summary>📚 RAG 知識圖譜引用（${citations.length} 筆，僅標題）</summary><ol>` +
+                    ragBox.innerHTML = `<details><summary>RAG 知識圖譜引用（${citations.length} 筆，僅標題）</summary><ol>` +
                         citations.map((c, i) =>
                             `<li>#${i + 1} score=${escapeHtml(String(c.score ?? ''))}｜${escapeHtml(c.title || c.id || '')}</li>`
                         ).join('') +
@@ -1946,6 +2378,7 @@
 
             restoreAiAnalyses();
             loadReportLlmMenu();
+            if (typeof initEvidenceWarroom === 'function') initEvidenceWarroom();
             fetchBackendData();
             // 15 秒輪詢；分頁隱藏／彈窗開啟時暫停，避免畫面一直重載
             setInterval(() => {
@@ -1993,16 +2426,27 @@
 
         function formatImportStatus(stats, sampleCount) {
             const total = stats.total_event_lines || 0;
+            const cap = stats.display_sample_cap || 180;
             const files = stats.files || [];
+            if (stats.source === 'ot_topology') {
+                const site = stats.site_name || stats.site_id || 'fab-a';
+                const machines = stats.topology_machines || 0;
+                const topoEv = stats.topology_event_lines || 0;
+                const otEv = stats.ot_event_lines || 0;
+                const topoFiles = files.filter((f) => f.format === 'topology_syslog').length;
+                const otFiles = files.filter((f) => f.format !== 'topology_syslog').length;
+                return `OT 拓樸匯入 · ${site} · 機台 ${machines} · 事件 ${total}（拓樸 ${topoEv} + ot/ ${otEv}）`
+                    + ` · 匯入源 ${topoFiles + otFiles}（拓樸 ${topoFiles} / ot ${otFiles}）`
+                    + ` · 介面樣本 ${sampleCount}/${cap}`;
+            }
             const jsonlPart = files.filter((f) => f.format === 'jsonl')
                 .map((f) => `${f.file} ${f.event_lines || 0}筆`).join('；');
-            const txtPart = files.filter((f) => f.format !== 'jsonl')
+            const txtPart = files.filter((f) => f.format !== 'jsonl' && f.format !== 'topology_syslog')
                 .map((f) => `${f.file} ${f.event_lines || 0}筆`).join('；');
             let detail = '';
             if (jsonlPart) detail += ` JSONL：${jsonlPart}.`;
             if (txtPart) detail += ` TXT：${txtPart}.`;
-            const cap = stats.display_sample_cap || 180;
-            return `🔄 連線成功：共 ${total} 筆事件（${stats.num_files || files.length} 檔；`
+            return `連線成功：共 ${total} 筆事件（${stats.num_files || files.length} 檔；`
                 + `介面樣本 ${sampleCount}/${cap}）${detail}`;
         }
 
@@ -2059,16 +2503,17 @@
             el.innerText = formatImportStatus(stats, (globalParsedLogs || []).length);
             el.style.color = totalEvents > 0 ? "#86efac" : "#fcd34d";
             if (totalEvents === 0 && (stats.files || []).length > 0) {
-                el.innerText += ' ⚠️ 檔案已讀取但未解析出事件，請確認 message 欄位或 JSON 格式。';
+                el.innerText += ' 注意：檔案已讀取但未解析出事件，請確認 message 欄位或 JSON 格式。';
             }
         }
 
         async function fetchBackendData() {
             try {
-                const response = await fetch('/api/monitor/data');
+                const topoSite = sessionStorage.getItem('ot_topo_site') || 'fab-a';
+                const response = await fetch('/api/monitor/data?site=' + encodeURIComponent(topoSite));
                 if (!response.ok) {
                     const errData = await response.json().catch(() => ({}));
-                    document.getElementById("otStatus").innerText = `❌ ${errData.error || '無法取得監控資料'}`;
+                    document.getElementById("otStatus").innerText = `錯誤：${errData.error || '無法取得監控資料'}`;
                     document.getElementById("otStatus").style.color = "#ef4444";
                     return;
                 }
@@ -2096,15 +2541,20 @@
                     refreshOtStatusLine();
                     return;
                 }
-                el.innerText = "❌ 狀態：無法連線至本地後端服務，請確認 Flask 是否啟動。";
+                el.innerText = "錯誤：無法連線至本地後端服務，請確認 Flask 是否啟動。";
                 el.style.color = "#fca5a5";
             }
         }
 
         function matchLogsForControl(key, parsedLogsList) {
             // 優先使用後端組裝好的 bundle（含 SNMP→A.8.24 等正確對應）
-            if (globalControlBundles[key] && globalControlBundles[key].log) {
-                return globalControlBundles[key].log;
+            const bundleLog = globalControlBundles[key] && globalControlBundles[key].log;
+            if (bundleLog && !/無可用原文樣本|禁止虛構/.test(bundleLog)) {
+                return bundleLog;
+            }
+            const annexEntry = complianceDb[key];
+            if (annexEntry && annexEntry.log && !/無可用原文樣本|禁止虛構|等待匯入批次/.test(annexEntry.log)) {
+                return annexEntry.log;
             }
 
             const controlHints = {
@@ -2144,7 +2594,12 @@
             const elReview = document.getElementById('ov-review');
             const elChip = document.getElementById('ovSourceChip');
 
-            if (elFiles) elFiles.textContent = fileSet.size || stats.file_count || 0;
+            if (elFiles) {
+                const topoMachines = stats.topology_machines;
+                elFiles.textContent = topoMachines != null
+                    ? topoMachines
+                    : (fileSet.size || stats.file_count || 0);
+            }
             if (elEvents) elEvents.textContent = totalEvents.toLocaleString();
             if (elFail) elFail.textContent = failCount;
             if (elReview) elReview.textContent = reviewCount;
@@ -2152,8 +2607,10 @@
             if (elChip) {
                 const ok = (parsedLogsList || []).length > 0;
                 elChip.innerHTML = ok
-                    ? '<span class="war-dot ok"></span> 資料源正常'
-                    : '<span class="war-dot"></span> 等待資料';
+                    ? (stats.source === 'ot_topology'
+                        ? '<span class="war-dot ok"></span> OT 拓樸匯入中'
+                        : '<span class="war-dot ok"></span> 資料源正常')
+                    : '<span class="war-dot"></span> 等待 OT 拓樸匯入';
             }
         }
 
@@ -2193,13 +2650,13 @@
             // 呈現最新 5 筆日誌
             let tableBody = document.getElementById("logTableBody");
             if (parsedLogsList.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">OT/ 資料夾內為空或無符合 ISO 27001 之事件特徵。</td></tr>`;
+                tableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-muted);">尚無 OT 拓樸或 ot/ 匯入事件，請確認拓樸場域或日誌目錄。</td></tr>`;
             } else {
                 let tableHtml = "";
                 parsedLogsList.slice(0, 5).forEach(item => {
-                    let keyMapping = getMappingKey(item.control, item.key);
-                    tableHtml += `<tr class="clickable-row" onclick="showDetails('${keyMapping}')">
-                        <td>${item.time}</td><td>${fileSnippet(item.file)}</td><td>${item.control}</td><td><span class="badge ${item.type}">${item.statusText}</span></td>
+                    const row = normalizeLogTableRow(item);
+                    tableHtml += `<tr class="clickable-row" onclick="showDetails('${row.keyMapping}')">
+                        <td>${row.time}</td><td>${row.file}</td><td>${row.control}</td><td><span class="badge ${row.badgeType}">${row.statusText}</span></td>
                     </tr>`;
                 });
                 tableBody.innerHTML = tableHtml;
@@ -2221,7 +2678,7 @@
             document.getElementById("otStatus").innerText = formatImportStatus(stats, parsedLogsList.length);
             document.getElementById("otStatus").style.color = totalEvents > 0 ? "#86efac" : "#fcd34d";
             if (totalEvents === 0 && (stats.files || []).length > 0) {
-                document.getElementById("otStatus").innerText += ' ⚠️ 檔案已讀取但未解析出事件，請確認 message 欄位或 JSON 格式。';
+                document.getElementById("otStatus").innerText += ' 注意：檔案已讀取但未解析出事件，請確認 message 欄位或 JSON 格式。';
             }
         }
 
@@ -2240,15 +2697,55 @@
             return name.length > 25 ? name.substring(0, 22) + "..." : name;
         }
 
+        /** 拓樸虛擬 syslog 與 ot/ 真實日誌混表時，統一 badge／狀態／來源欄格式 */
+        function normalizeLogTableRow(item) {
+            const typeMap = { pass: 'pass-bg', review: 'review-bg', fail: 'fail-bg' };
+            let badgeType = item.type || 'pass-bg';
+            if (typeMap[badgeType]) badgeType = typeMap[badgeType];
+            if (!/^(pass-bg|review-bg|fail-bg)$/.test(badgeType)) badgeType = 'pass-bg';
+
+            const statusMap = {
+                Compliant: '符合', Attention: '待改善', Critical: '不符合',
+                pass: '符合', review: '待改善', fail: '不符合',
+            };
+            let statusText = item.statusText || '—';
+            if (statusMap[statusText]) statusText = statusMap[statusText];
+
+            let time = item.time || '—';
+            if (/^\d{2}:\d{2}:\d{2}$/.test(String(time))) {
+                const now = new Date();
+                const mon = now.toLocaleString('en-US', { month: 'short' });
+                const day = String(now.getDate()).padStart(2, '0');
+                time = `${mon} ${day} ${time} UTC`;
+            }
+
+            let file = item.file || '';
+            if (file.startsWith('topology://')) {
+                const m = file.match(/^topology:\/\/[^/]+\/(.+)$/);
+                file = fileSnippet('拓樸·' + (m ? m[1].replace(/_/g, ' ') : file));
+            } else {
+                file = fileSnippet(file);
+            }
+
+            return {
+                time,
+                file,
+                control: item.control || item.label || '—',
+                badgeType,
+                statusText,
+                keyMapping: getMappingKey(item.control, item.key),
+            };
+        }
+
         function openFullLogsModal() {
             if (globalParsedLogs.length === 0) return;
             let modalTableBody = document.getElementById("fullLogTableBodyModal");
             let tableHtml = "";
             
             globalParsedLogs.forEach(item => {
-                let keyMapping = getMappingKey(item.control, item.key);
-                tableHtml += `<tr class="clickable-row" onclick="closeFullLogsModal(); showDetails('${keyMapping}');">
-                    <td>${item.time}</td><td>${item.file}</td><td>${item.control}</td><td><span class="badge ${item.type}">${item.statusText}</span></td>
+                const row = normalizeLogTableRow(item);
+                tableHtml += `<tr class="clickable-row" onclick="closeFullLogsModal(); showDetails('${row.keyMapping}');">
+                    <td>${row.time}</td><td>${row.file}</td><td>${row.control}</td><td><span class="badge ${row.badgeType}">${row.statusText}</span></td>
                 </tr>`;
             });
             modalTableBody.innerHTML = tableHtml;
@@ -2278,7 +2775,7 @@
             }
             const filteredLines = rawArchiveLines.filter(line => line.toLowerCase().includes(query));
             const shown = filteredLines.slice(0, ARCHIVE_DISPLAY_LIMIT);
-            container.innerText = shown.length > 0 ? shown.join('\n') : "⚠️ 未檢索到任何符合該搜尋關鍵字的歷史日誌。";
+            container.innerText = shown.length > 0 ? shown.join('\n') : "未檢索到任何符合該搜尋關鍵字的歷史日誌。";
             if (filteredLines.length > shown.length) {
                 container.innerText += `\n...另有 ${filteredLines.length - shown.length} 筆符合但未展開...`;
             }
@@ -2318,6 +2815,9 @@
             document.getElementById('aiSpinner').style.display = 'none';
             document.getElementById('aiBtnText').innerText = '執行地端診斷分析';
             
+            if (typeof renderModalEvidenceChainForKey === 'function') {
+                renderModalEvidenceChainForKey(key);
+            }
             document.getElementById('modalOverlay').classList.add('active');
         }
 
@@ -2377,12 +2877,12 @@
                 const hr = result.human_review || {};
                 const guard = result.guardrail || {};
                 if (hr.recommended) {
-                    guardrailBox.innerText = `🛡️ AI Reviewer：${hr.reason || 'LLM 診斷已由地端 AI Reviewer 或管線自動審核'}${result.evidence_id ? ' · ' + result.evidence_id : ''}`;
+                    guardrailBox.innerText = `AI Reviewer：${hr.reason || 'LLM 診斷已由地端 AI Reviewer 或管線自動審核'}${result.evidence_id ? ' · ' + result.evidence_id : ''}`;
                     guardrailBox.style.display = 'block';
                 } else if (result.status === 'blocked' || guard.blocked || guard.output_redacted ||
                     (/wlc|radius|tacacs/i.test(rawLogToAnalyze) && currentKey === 'access_control')) {
                     const reason = guard.reason || (guard.output_redacted ? '輸出已脫敏' : '偵測到敏感資安設備明細');
-                    guardrailBox.innerText = `⚠️ 護欄警示：${reason}（mode=${guard.mode || 'rules'}）`;
+                    guardrailBox.innerText = `護欄警示：${reason}（mode=${guard.mode || 'rules'}）`;
                     guardrailBox.style.display = 'block';
                 }
 
@@ -2392,7 +2892,7 @@
 
             } catch (err) {
                 console.error("LLM 呼叫失敗:", err);
-                responseText.innerText = `❌ 地端 LLM 診斷失敗：${err.message}\n請確認 Flask 後端已啟動、模型載入成功，並重新整理後再試。`;
+                responseText.innerText = `地端 LLM 診斷失敗：${err.message}\n請確認 Flask 後端已啟動、模型載入成功，並重新整理後再試。`;
                 aiResultBox.style.display = 'block';
             } finally {
                 btn.disabled = false;
@@ -2503,7 +3003,7 @@
                     await ensureReportLlmSelected();
                 }
             } catch (e) {
-                alert(`⚠️ ${e.message || e}`);
+                alert(`${e.message || e}`);
                 setReportLlmStatus(e.message || '模型未就緒', 'err');
                 return false;
             }
@@ -2549,14 +3049,14 @@
                 window._lastReportLlmLabel = used;
                 persistAiAnalyses();
 
-                otStatus.innerText = `✅ 已用「${used}」完成診斷，正在導出報表...`;
+                otStatus.innerText = `已用「${used}」完成診斷，正在導出報表…`;
                 otStatus.style.color = "#10b981";
                 return true;
 
             } catch (err) {
                 console.error("批次診斷失敗:", err);
-                alert(`⚠️ 執行全量診斷時發生錯誤：${err.message}`);
-                otStatus.innerText = `❌ 全量診斷失敗`;
+                alert(`執行全量診斷時發生錯誤：${err.message}`);
+                otStatus.innerText = `全量診斷失敗`;
                 otStatus.style.color = "#ef4444";
                 return false;
             } finally {
@@ -3957,7 +4457,7 @@
             try {
                 ensurePdfLibraries();
             } catch (e) {
-                alert(`⚠️ ${e.message || e}`);
+                alert(`${e.message || e}`);
                 return;
             }
 
@@ -4006,7 +4506,7 @@
                     `資安內部稽核計畫_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}.pdf`,
                     { onePagePerBlock: true }
                 );
-                document.getElementById('otStatus').innerText = '✅ 稽核計畫 PDF 已匯出';
+                document.getElementById('otStatus').innerText = '稽核計畫 PDF 已匯出';
             } catch (err) {
                 console.error('稽核計畫 PDF 匯出失敗:', err);
                 alert(`稽核計畫 PDF 匯出失敗：${err.message || err}`);
@@ -4019,7 +4519,7 @@
             try {
                 ensurePdfLibraries();
             } catch (e) {
-                alert(`⚠️ ${e.message || e}`);
+                alert(`${e.message || e}`);
                 return;
             }
 
@@ -4032,7 +4532,7 @@
             window._checklistNotesById = buildChecklistNotesFromEvidence();
             const noteMeta = window._lastChecklistNotesMeta || {};
             const fbN = (noteMeta.fallback_used || []).length;
-            otStatus.innerText = `✅ 已產生 ${fbN} 項稽核說明（依 KPI 對應各要點），匯出中…`;
+            otStatus.innerText = `已產生 ${fbN} 項稽核說明（依 KPI 對應各要點），匯出中…`;
             otStatus.style.color = '#10b981';
 
             const checklistTpl = document.getElementById('pdfChecklistTemplate');
@@ -4070,7 +4570,7 @@
                     { onePagePerBlock: true }
                 );
                 document.getElementById('otStatus').innerText =
-                    '✅ 已匯出：資訊安全稽核查核表、資訊安全內部稽核報告';
+                    '已匯出：資訊安全稽核查核表、資訊安全內部稽核報告';
             } catch (err) {
                 console.error('稽核報告 PDF 匯出失敗:', err);
                 alert(`稽核報告 PDF 匯出失敗：${err.message || err}`);

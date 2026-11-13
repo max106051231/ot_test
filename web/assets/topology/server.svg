@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Server">
+  <defs>
+    <linearGradient id="sv-r" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#312e81"/><stop offset="100%" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="10" width="32" height="44" rx="3" fill="url(#sv-r)" stroke="#818cf8" stroke-width="1.2"/>
+  <rect x="20" y="14" width="24" height="10" rx="1.5" fill="#0f172a" stroke="#475569"/>
+  <rect x="20" y="27" width="24" height="10" rx="1.5" fill="#0f172a" stroke="#475569"/>
+  <rect x="20" y="40" width="24" height="10" rx="1.5" fill="#0f172a" stroke="#475569"/>
+  <circle cx="24" cy="19" r="1.5" fill="#4ade80"/><circle cx="29" cy="19" r="1.5" fill="#38bdf8"/>
+  <circle cx="24" cy="32" r="1.5" fill="#4ade80"/><circle cx="29" cy="32" r="1.5" fill="#4ade80"/>
+  <circle cx="24" cy="45" r="1.5" fill="#fbbf24"/><circle cx="29" cy="45" r="1.5" fill="#4ade80"/>
+  <rect x="34" y="17" width="8" height="2" rx="0.5" fill="#64748b"/><rect x="34" y="30" width="8" height="2" rx="0.5" fill="#64748b"/>
+</svg>

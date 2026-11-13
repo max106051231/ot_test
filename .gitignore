@@ -74,3 +74,8 @@ train_ai/train_rag/knowledge_base.backup_*.json
 # 合規 evidence / review 執行期資料
 data/evidence_registry.jsonl
 data/review_queue.jsonl
+
+# 本機大型打包（勿上傳 GitHub）
+minidev.zip
+minidev_data/
+train_ai/train_gur/fine_gur.zip

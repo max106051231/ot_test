@@ -1,0 +1,142 @@
+{
+  "protocol": "Semi-Shield OT Evidence Evaluation (executable subset)",
+  "runtime_sec": 2.218,
+  "table2_dataset": {
+    "target_groups_design": 120,
+    "actual_groups": 120,
+    "actual_packets": 522,
+    "gold_SVI": {
+      "SUPPORTED": 240,
+      "VIOLATED": 42,
+      "INSUFFICIENT": 240
+    },
+    "partition": {
+      "development_target": 30,
+      "held_out_target": 120,
+      "note": "本 run 以 ot/ 語料合成 held-out 子集；獨立 dev split 請另 manifest"
+    }
+  },
+  "table4_judgment": {
+    "B0": {
+      "n": 522,
+      "FAR": 0.574468,
+      "resolution": 0.851064,
+      "macro_F1": 0.471443,
+      "false_affirmative_count": 162,
+      "gold_non_supported": 282,
+      "answerable_n": 282
+    },
+    "B0-full": {
+      "n": 522,
+      "FAR": 0.0,
+      "resolution": 0.503546,
+      "macro_F1": 0.653333,
+      "false_affirmative_count": 0,
+      "gold_non_supported": 282,
+      "answerable_n": 282
+    },
+    "B2": {
+      "n": 522,
+      "FAR": 0.432624,
+      "resolution": 0.638298,
+      "macro_F1": 0.443624,
+      "false_affirmative_count": 122,
+      "gold_non_supported": 282,
+      "answerable_n": 282
+    },
+    "B3": {
+      "n": 522,
+      "FAR": 0.407801,
+      "resolution": 0.521277,
+      "macro_F1": 0.435466,
+      "false_affirmative_count": 115,
+      "gold_non_supported": 282,
+      "answerable_n": 282
+    },
+    "B4": {
+      "n": 522,
+      "FAR": 0.407801,
+      "resolution": 0.521277,
+      "macro_F1": 0.435466,
+      "false_affirmative_count": 115,
+      "gold_non_supported": 282,
+      "answerable_n": 282
+    },
+    "B5": {
+      "n": 522,
+      "FAR": 0.0,
+      "resolution": 0.503546,
+      "macro_F1": 0.653333,
+      "false_affirmative_count": 0,
+      "gold_non_supported": 282,
+      "answerable_n": 282
+    }
+  },
+  "table5_release": {
+    "AGT-cited": {
+      "unauthorized_release_rate": 1.0,
+      "irrelevant_still_release_rate": 1.0,
+      "n_relevant_trials": 36,
+      "n_irrelevant_trials": 36
+    },
+    "AGT-global": {
+      "unauthorized_release_rate": 0.0,
+      "irrelevant_still_release_rate": 1.0,
+      "n_relevant_trials": 36,
+      "n_irrelevant_trials": 36
+    },
+    "AGT+CORG": {
+      "unauthorized_release_rate": 0.0,
+      "irrelevant_still_release_rate": 1.0,
+      "n_relevant_trials": 36,
+      "n_irrelevant_trials": 36
+    },
+    "AGT+same_R": {
+      "unauthorized_release_rate": 0.0,
+      "irrelevant_still_release_rate": 1.0,
+      "n_relevant_trials": 36,
+      "n_irrelevant_trials": 36
+    }
+  },
+  "table6_interpretation": [
+    {
+      "contrast": "B5 vs B4",
+      "metric": "FAR",
+      "observed_delta": -0.407801,
+      "ci_95": [
+        -0.454545,
+        -0.36014
+      ],
+      "hypothesis": "FAR lower with CORG at comparable resolution"
+    },
+    {
+      "contrast": "B3 vs B2",
+      "metric": "resolution",
+      "observed_delta": -0.117021,
+      "ci_95": [
+        -0.162454,
+        -0.074205
+      ],
+      "hypothesis": "graph retrieval improves answerable resolution"
+    },
+    {
+      "contrast": "AGT+CORG vs AGT-cited",
+      "metric": "unauthorized_release_rate",
+      "observed_delta": 1.0,
+      "note": "positive delta means CORG blocks more unsafe releases"
+    }
+  ],
+  "ablations": {
+    "disable_cited_span": {
+      "FAR_full": 0.0,
+      "FAR_ablated": 0.0,
+      "n": 80
+    },
+    "ignore_coverage_flag": {
+      "FAR_full": 0.0,
+      "FAR_ablated": 0.0,
+      "n": 80
+    }
+  },
+  "release_detail_count": 288
+}

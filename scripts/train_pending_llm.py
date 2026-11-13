@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -175,7 +176,9 @@ def run_job(job: dict, *, data: Path, force: bool, skip_merge: bool) -> int:
     print("\n" + "=" * 72)
     print(f"▶ 開始微調：{slug}")
     print("=" * 72)
-    proc = subprocess.run(cmd, cwd=str(TRAIN_PY.parent))
+    env = os.environ.copy()
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    proc = subprocess.run(cmd, cwd=str(TRAIN_PY.parent), env=env)
     return int(proc.returncode or 0)
 
 

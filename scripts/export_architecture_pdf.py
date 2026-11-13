@@ -385,8 +385,8 @@ def main() -> int:
     except Exception as e:
         print(f"匯出失敗：{e}", file=sys.stderr)
         return 1
-    print(f"✅ 已匯出 PDF：{out}")
-    print(f"   大小：{out.stat().st_size:,} bytes")
+    print(f"OK PDF: {out}")
+    print(f"   bytes: {out.stat().st_size:,}")
     return 0
 
 

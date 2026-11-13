@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="HMI">
+  <rect x="14" y="38" width="36" height="8" rx="2" fill="#334155"/>
+  <rect x="16" y="14" width="32" height="24" rx="3" fill="#0f172a" stroke="#34d399" stroke-width="1.5"/>
+  <rect x="19" y="17" width="26" height="18" rx="1" fill="#064e3b"/>
+  <path d="M22 28 L28 22 L34 26 L40 20" stroke="#6ee7b7" stroke-width="1.5" fill="none"/>
+  <rect x="22" y="30" width="20" height="2" rx="0.5" fill="#10b981" opacity="0.6"/>
+  <circle cx="42" cy="42" r="2" fill="#64748b"/>
+</svg>

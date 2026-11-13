@@ -1,0 +1,1880 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OT 場域網路拓樸 · Semi-Shield ISMS</title>
+    <style>
+        :root {
+            --bg: #050b14;
+            --panel: #0a1524;
+            --card: rgba(10, 21, 36, 0.72);
+            --text: #e8eef7;
+            --muted: #8aa0b8;
+            --border: rgba(100, 140, 180, 0.18);
+            --border-strong: rgba(78, 200, 240, 0.28);
+            --accent: #4ec8f0;
+            --teal: #2dd4bf;
+            --ok: #22c55e;
+            --warn: #f59e0b;
+            --fail: #ef4444;
+            --radius: 14px;
+            --shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+            --ease: cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            height: 100%;
+            font-family: "Noto Sans TC", "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+            background:
+                radial-gradient(1000px 520px at 8% -8%, rgba(14, 165, 233, 0.12), transparent 55%),
+                radial-gradient(800px 480px at 100% 100%, rgba(45, 212, 191, 0.06), transparent 50%),
+                linear-gradient(165deg, #050b14, #07111f 50%, #0a1628);
+            color: var(--text);
+            overflow: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
+        html.embedded, html.embedded body { height: 100%; overflow: auto; }
+        html.embedded body { background: var(--panel); }
+
+        .app {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding: 12px 14px 14px;
+            gap: 12px;
+        }
+        html.embedded .app { padding: 10px; gap: 10px; }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+            padding: 12px 16px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            background: linear-gradient(135deg, rgba(78, 200, 240, 0.08), rgba(45, 212, 191, 0.04)), var(--panel);
+            box-shadow: var(--shadow);
+        }
+        .topbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+        .brand-mark {
+            width: 40px;
+            height: 40px;
+            border-radius: 11px;
+            display: grid;
+            place-items: center;
+            font-weight: 800;
+            font-size: 13px;
+            color: #fff;
+            background: linear-gradient(145deg, var(--accent), #0369a1 55%, var(--teal));
+            box-shadow: 0 8px 22px rgba(14, 165, 233, 0.3);
+            flex-shrink: 0;
+        }
+        .topbar h1 {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            color: #f0f7ff;
+        }
+        .topbar .tagline {
+            margin: 3px 0 0;
+            font-size: 11px;
+            color: var(--muted);
+        }
+        .topbar-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+        .kpi {
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(5, 12, 22, 0.55);
+            font-size: 11px;
+            color: var(--muted);
+        }
+        .kpi strong {
+            color: #e2e8f0;
+            font-weight: 700;
+            margin-right: 4px;
+        }
+        .kpi.status-ok { border-color: rgba(34, 197, 94, 0.35); }
+        .kpi.status-warn { border-color: rgba(245, 158, 11, 0.4); }
+        .kpi.status-fail { border-color: rgba(239, 68, 68, 0.45); }
+
+        .hub-open-btn {
+            margin-left: auto;
+            flex-shrink: 0;
+            border: 1px solid var(--border-strong);
+            background: linear-gradient(135deg, rgba(78, 200, 240, 0.14), rgba(45, 212, 191, 0.08));
+            color: #e0f2fe;
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            letter-spacing: 0.02em;
+            transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease), transform 0.12s var(--ease);
+            box-shadow: 0 4px 18px rgba(14, 165, 233, 0.15);
+        }
+        .hub-open-btn:hover {
+            border-color: rgba(45, 212, 191, 0.55);
+            box-shadow: 0 6px 22px rgba(14, 165, 233, 0.22);
+            transform: translateY(-1px);
+        }
+
+        .stage {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .map-panel {
+            position: relative;
+            flex: 1;
+            min-height: 0;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            background: rgba(3, 9, 18, 0.85);
+            box-shadow: inset 0 0 0 1px rgba(78, 200, 240, 0.04), var(--shadow);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .map-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(8, 16, 28, 0.92);
+            backdrop-filter: blur(8px);
+            z-index: 4;
+        }
+        .map-toolbar-title {
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+        .tool-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .tool-group button {
+            border: 1px solid var(--border);
+            background: rgba(12, 24, 40, 0.9);
+            color: #cbd5e1;
+            border-radius: 8px;
+            padding: 6px 11px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: border-color 0.15s var(--ease), color 0.15s var(--ease), background 0.15s var(--ease);
+        }
+        .tool-group button:hover {
+            border-color: var(--border-strong);
+            color: var(--accent);
+        }
+        .tool-group button.active,
+        .tool-group button.on {
+            border-color: rgba(45, 212, 191, 0.55);
+            color: var(--teal);
+            background: rgba(45, 212, 191, 0.08);
+        }
+
+        .canvas-wrap {
+            position: relative;
+            flex: 1;
+            min-height: 0;
+            background:
+                radial-gradient(900px 420px at 40% 30%, rgba(14, 165, 233, 0.07), transparent),
+                linear-gradient(rgba(78, 200, 240, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(78, 200, 240, 0.03) 1px, transparent 1px),
+                #030912;
+            background-size: auto, 32px 32px, 32px 32px, auto;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+        }
+        .canvas-wrap.is-panning,
+        .canvas-wrap.is-panning * {
+            user-select: none !important;
+            -webkit-user-select: none !important;
+            cursor: grabbing;
+        }
+        #topoSvg {
+            width: 100%;
+            height: 100%;
+            cursor: grab;
+            touch-action: none;
+            display: block;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        #topoSvg text,
+        #topoSvg tspan {
+            user-select: none;
+            -webkit-user-select: none;
+            pointer-events: none;
+        }
+        #topoSvg:active { cursor: grabbing; }
+        #topoSvg.edit-mode { cursor: default; }
+        #topoSvg.edit-mode [data-id] { cursor: move; }
+
+        .sim-badge {
+            position: absolute;
+            bottom: 14px;
+            left: 14px;
+            right: 14px;
+            max-width: 520px;
+            font-size: 10px;
+            color: var(--muted);
+            padding: 8px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: rgba(7, 17, 31, 0.88);
+            backdrop-filter: blur(6px);
+            line-height: 1.4;
+        }
+
+        .node-tip {
+            position: absolute;
+            pointer-events: none;
+            z-index: 10;
+            min-width: 220px;
+            max-width: 300px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border-strong);
+            background: rgba(8, 18, 32, 0.96);
+            font-size: 11px;
+            display: none;
+            box-shadow: var(--shadow);
+        }
+        .node-tip.visible { display: block; }
+        .node-tip h4 { margin: 0 0 8px; font-size: 13px; color: #f0f9ff; }
+        .node-tip dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; }
+        .node-tip dt { color: var(--muted); }
+        .node-tip dd { margin: 0; color: #e2e8f0; }
+
+        .hub-site-bar {
+            flex-shrink: 0;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(6, 14, 26, 0.92);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 10px 14px;
+        }
+        .hub-site-bar .site-field {
+            flex: 1;
+            min-width: 200px;
+            max-width: 320px;
+        }
+        .hub-site-bar label {
+            display: block;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 4px;
+        }
+        .site-select {
+            width: 100%;
+            background: rgba(5, 12, 22, 0.8);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .site-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            font-weight: 650;
+            color: #e2e8f0;
+            min-width: 140px;
+            padding-bottom: 2px;
+        }
+        #siteMeta {
+            flex: 1 1 100%;
+            margin: 0;
+            font-size: 10px;
+            color: var(--muted);
+            line-height: 1.45;
+        }
+        .hub-tabs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            flex: 1 1 100%;
+            padding-top: 4px;
+        }
+        .hub-tabs button {
+            border: 1px solid var(--border);
+            background: rgba(12, 24, 40, 0.95);
+            color: #cbd5e1;
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: border-color 0.15s var(--ease), color 0.15s var(--ease), background 0.15s var(--ease);
+        }
+        .hub-tabs button:hover {
+            border-color: var(--border-strong);
+            color: var(--accent);
+        }
+        .hub-tabs button.active {
+            border-color: rgba(45, 212, 191, 0.55);
+            color: var(--teal);
+            background: rgba(45, 212, 191, 0.1);
+        }
+
+        .topo-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+        }
+        .topo-modal.open { display: flex; }
+        .topo-modal-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(2, 6, 14, 0.72);
+            backdrop-filter: blur(4px);
+        }
+        .topo-modal-dialog {
+            position: relative;
+            z-index: 1;
+            width: min(960px, 97vw);
+            max-height: min(88vh, 780px);
+            display: flex;
+            flex-direction: column;
+            border-radius: var(--radius);
+            border: 1px solid var(--border-strong);
+            background: var(--panel);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .topo-modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(8, 16, 28, 0.9);
+        }
+        .topo-modal-header h2 {
+            margin: 0;
+            font-size: 14px;
+            font-weight: 700;
+            color: #f0f7ff;
+        }
+        .topo-modal-close {
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--muted);
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            font-size: 18px;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .topo-modal-close:hover { color: var(--accent); border-color: var(--border-strong); }
+        .topo-modal-body {
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .side-panel {
+            display: none;
+            flex: 1;
+            min-height: 0;
+            flex-direction: column;
+            padding: 14px 16px;
+            overflow: hidden;
+        }
+        .side-panel.active { display: flex; }
+
+        .legend-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 11px;
+            color: var(--muted);
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--card);
+        }
+        .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .dot.ok { background: var(--ok); box-shadow: 0 0 8px rgba(34, 197, 94, 0.5); }
+        .dot.warn { background: var(--warn); }
+        .dot.fail { background: var(--fail); animation: pulse 1.2s infinite; }
+        @keyframes pulse { 50% { opacity: 0.45; } }
+
+        .port-table {
+            flex: 1;
+            min-height: 0;
+            font-size: 10px;
+            font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+            overflow: auto;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: rgba(5, 12, 22, 0.5);
+        }
+        .port-table table { width: 100%; border-collapse: collapse; }
+        .port-table th {
+            text-align: left;
+            color: var(--muted);
+            font-weight: 600;
+            padding: 8px 8px;
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            background: #0a1524;
+            z-index: 1;
+        }
+        .port-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            color: #cbd5e1;
+        }
+        .port-table tr:hover td { background: rgba(78, 200, 240, 0.06); }
+
+        .feed-wrap {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        #feedMeta { margin: 0; font-size: 10px; color: var(--muted); }
+        .feed {
+            flex: 1;
+            min-height: 240px;
+            max-height: 52vh;
+            font-size: 10px;
+            font-family: ui-monospace, Consolas, monospace;
+            overflow-y: auto;
+            line-height: 1.4;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: rgba(5, 12, 22, 0.55);
+            padding: 4px 8px;
+        }
+        .feed-item {
+            padding: 7px 4px;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            color: var(--muted);
+        }
+        .feed-item.sev-warn { border-left: 3px solid var(--warn); padding-left: 8px; }
+        .feed-item.sev-fail { border-left: 3px solid var(--fail); padding-left: 8px; }
+        .feed-item.sev-ok { border-left: 3px solid rgba(34, 197, 94, 0.4); padding-left: 8px; }
+        .feed-item strong { color: var(--accent); font-weight: 600; }
+        .feed-item .dev { color: #cbd5e1; }
+        .feed-item .sim-tag {
+            color: #a5b4fc;
+            font-size: 9px;
+            padding: 1px 5px;
+            border-radius: 4px;
+            background: rgba(129, 140, 248, 0.15);
+            margin-right: 4px;
+        }
+
+        .layer-band { fill: rgba(56, 189, 248, 0.035); stroke: rgba(56, 189, 248, 0.1); }
+        .layer-label { fill: #64748b; font-size: 11px; font-weight: 600; }
+        .layer-sub { fill: #475569; font-size: 9px; }
+        .link { stroke: rgba(100, 140, 180, 0.4); stroke-width: 1.6; fill: none; }
+        .link.active {
+            stroke: rgba(78, 200, 240, 0.75);
+            stroke-width: 2;
+            stroke-dasharray: 6 4;
+            animation: dash 0.9s linear infinite;
+        }
+        @keyframes dash { to { stroke-dashoffset: -20; } }
+        .node-ring.ok { stroke: var(--ok); filter: url(#nodeGlow); }
+        .node-ring.warn { stroke: var(--warn); }
+        .node-ring.fail { stroke: var(--fail); }
+        .node-plate {
+            fill: rgba(8, 18, 32, 0.96);
+            stroke-width: 1.2;
+        }
+        .node-device-img { pointer-events: none; }
+        .node-label { fill: #f1f5f9; font-size: 9px; font-weight: 600; text-anchor: middle; }
+        .node-sub { fill: #94a3b8; font-size: 7.5px; text-anchor: middle; }
+        .device-legend {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px 10px;
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+        .device-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            color: var(--muted);
+        }
+        .device-legend-item img {
+            width: 28px;
+            height: 28px;
+            border-radius: 6px;
+            background: rgba(8, 18, 32, 0.9);
+            border: 1px solid var(--border);
+            object-fit: contain;
+            padding: 2px;
+        }
+
+        g[data-id].node-selected .node-ring {
+            stroke-width: 3.5;
+            filter: url(#nodeGlow);
+        }
+        g[data-id].node-selected .node-plate {
+            stroke-width: 2;
+        }
+
+        .node-detail-modal { z-index: 110; }
+        .node-detail-modal .topo-modal-dialog {
+            width: min(720px, 96vw);
+            max-height: min(86vh, 720px);
+        }
+        .node-detail-body {
+            padding: 16px 18px 20px;
+            overflow-y: auto;
+            flex: 1;
+            min-height: 0;
+        }
+        .node-detail-head {
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+        .node-detail-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 10px;
+            background: rgba(8, 18, 32, 0.95);
+            border: 1px solid var(--border-strong);
+            padding: 6px;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+        .node-detail-title-block { flex: 1; min-width: 0; }
+        .node-detail-title-block h3 {
+            margin: 0 0 6px;
+            font-size: 16px;
+            font-weight: 700;
+            color: #f0f7ff;
+            line-height: 1.3;
+        }
+        .node-detail-meta-line {
+            font-size: 12px;
+            color: var(--muted);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 14px;
+        }
+        .node-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 650;
+            border: 1px solid var(--border);
+        }
+        .node-status-pill.ok { color: #6ee7b7; border-color: rgba(52, 211, 153, 0.4); background: rgba(16, 185, 129, 0.12); }
+        .node-status-pill.warn { color: #fcd34d; border-color: rgba(251, 191, 36, 0.45); background: rgba(245, 158, 11, 0.1); }
+        .node-status-pill.fail { color: #fca5a5; border-color: rgba(248, 113, 113, 0.45); background: rgba(239, 68, 68, 0.1); }
+        .node-detail-section {
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+        .node-detail-section h4 {
+            margin: 0 0 10px;
+            font-size: 12px;
+            font-weight: 700;
+            color: #94a3b8;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+        .node-kv-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px 16px;
+            font-size: 12px;
+        }
+        .node-kv-grid dt { color: var(--muted); margin: 0; }
+        .node-kv-grid dd { margin: 2px 0 0; color: #e2e8f0; font-weight: 600; word-break: break-all; }
+        .node-ports-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        .node-ports-table th,
+        .node-ports-table td {
+            padding: 7px 8px;
+            border-bottom: 1px solid var(--border);
+            text-align: left;
+        }
+        .node-ports-table th { color: var(--muted); font-weight: 600; }
+        .node-events-list {
+            max-height: 160px;
+            overflow-y: auto;
+            font-size: 11px;
+            line-height: 1.45;
+            color: #cbd5e1;
+        }
+        .node-events-list .feed-item {
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(100, 140, 180, 0.12);
+        }
+        .node-events-empty { color: var(--muted); font-size: 12px; margin: 0; }
+        .link-label { fill: #64748b; font-size: 7px; text-anchor: middle; pointer-events: none; }
+
+        .layout-custom-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px 14px;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(6, 14, 26, 0.88);
+            font-size: 11px;
+        }
+        .layout-custom-head {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-width: 0;
+        }
+        .layout-custom-head strong {
+            color: #bae6fd;
+            font-size: 12px;
+            letter-spacing: 0.03em;
+        }
+        #layoutStatus {
+            color: var(--muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: min(420px, 55vw);
+        }
+        #layoutStatus.ok { color: #6ee7b7; }
+        .layout-custom-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+        }
+        .layout-custom-actions label {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            color: var(--muted);
+            cursor: pointer;
+            user-select: none;
+            padding: 4px 6px;
+        }
+        .layout-custom-actions input[type="checkbox"] { accent-color: var(--teal); }
+        .layout-custom-actions button {
+            border: 1px solid var(--border);
+            background: rgba(12, 24, 40, 0.9);
+            color: #cbd5e1;
+            border-radius: 8px;
+            padding: 6px 11px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: border-color 0.15s var(--ease), color 0.15s var(--ease), background 0.15s var(--ease);
+        }
+        .layout-custom-actions button:hover {
+            border-color: var(--border-strong);
+            color: var(--accent);
+        }
+        .layout-custom-actions button.active,
+        .layout-custom-actions button.btn-accent.active {
+            border-color: rgba(45, 212, 191, 0.55);
+            color: var(--teal);
+            background: rgba(45, 212, 191, 0.08);
+        }
+        .layout-custom-actions button.btn-accent {
+            border-color: rgba(45, 212, 191, 0.45);
+            color: var(--teal);
+        }
+        .layout-custom-actions button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+        #canvasWrap.layout-editing {
+            outline: 2px dashed rgba(45, 212, 191, 0.35);
+            outline-offset: -2px;
+            background-size: auto, 16px 16px, 16px 16px, auto;
+        }
+
+        @media (max-width: 960px) {
+            .topbar-stats { width: 100%; }
+            .topo-modal-dialog { max-height: 85vh; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <header class="topbar">
+            <div class="topbar-brand">
+                <div class="brand-mark">OT</div>
+                <div>
+                    <h1>OT 場域網路拓樸</h1>
+                    <p class="tagline">Purdue 分層 · Port 連線 · 虛擬 syslog 即時回報</p>
+                </div>
+            </div>
+            <div class="topbar-stats">
+                <span class="kpi" id="kpiSite"><strong>—</strong> 廠區</span>
+                <span class="kpi" id="kpiNodes"><strong>0</strong> 節點</span>
+                <span class="kpi" id="kpiLinks"><strong>0</strong> 連線</span>
+                <span class="kpi status-ok" id="kpiStatus"><strong>OK</strong> 場域</span>
+            </div>
+            <button type="button" class="hub-open-btn" id="btnOpenHub" title="廠區切換、Port 表與 Syslog 串流">
+                場域控制台
+            </button>
+        </header>
+
+        <div class="stage">
+            <section class="map-panel">
+                <div class="map-toolbar">
+                    <span class="map-toolbar-title">拓樸 · 點設備看詳情 · 編輯時拖節點 · 空白處拖曳平移</span>
+                    <div class="tool-group">
+                        <button type="button" id="btnFit">適配視窗</button>
+                        <button type="button" id="btnRefresh">重新載入</button>
+                        <button type="button" id="btnSim" class="active">模擬回報</button>
+                    </div>
+                </div>
+                <div class="layout-custom-bar" id="layoutCustomBar">
+                    <div class="layout-custom-head">
+                        <strong>版面自訂</strong>
+                        <span id="layoutStatus">按「開始編輯」拖曳設備，再「儲存版面」（會寫入伺服器）</span>
+                    </div>
+                    <div class="layout-custom-actions">
+                        <button type="button" id="btnLayoutEdit" class="btn-accent">開始編輯</button>
+                        <button type="button" id="btnLayoutSave" class="btn-accent" disabled title="編輯並移動節點後可儲存">儲存版面</button>
+                        <label title="拖曳時對齊 16px 格線"><input type="checkbox" id="layoutSnap" checked>格線對齊</label>
+                        <button type="button" id="btnLayoutExport">匯出</button>
+                        <button type="button" id="btnLayoutImport">匯入</button>
+                        <input type="file" id="layoutImportFile" accept="application/json,.json" hidden>
+                        <button type="button" id="btnLayoutReset">還原預設</button>
+                    </div>
+                </div>
+                <div class="canvas-wrap" id="canvasWrap">
+                    <svg id="topoSvg" viewBox="0 0 1280 760" preserveAspectRatio="xMidYMid meet">
+                        <defs>
+                            <filter id="nodeGlow" x="-50%" y="-50%" width="200%" height="200%">
+                                <feGaussianBlur stdDeviation="2" result="blur"/>
+                                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                            </filter>
+                        </defs>
+                        <g id="viewport">
+                            <g id="layers"></g>
+                            <g id="links"></g>
+                            <g id="linkLabels"></g>
+                            <g id="nodes"></g>
+                        </g>
+                    </svg>
+                    <div class="node-tip" id="nodeTip"></div>
+                    <div class="sim-badge" id="simBadge">等待資料…</div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <div class="topo-modal node-detail-modal" id="nodeDetailModal" aria-hidden="true" role="presentation">
+        <div class="topo-modal-backdrop" id="nodeDetailBackdrop"></div>
+        <div class="topo-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="nodeDetailTitle">
+            <div class="topo-modal-header">
+                <h2 id="nodeDetailTitle">設備詳細資料</h2>
+                <button type="button" class="topo-modal-close" id="nodeDetailClose" aria-label="關閉">×</button>
+            </div>
+            <div class="node-detail-body" id="nodeDetailBody"></div>
+        </div>
+    </div>
+
+    <div class="topo-modal" id="topoModal" aria-hidden="true" role="presentation">
+        <div class="topo-modal-backdrop" id="topoModalBackdrop"></div>
+        <div class="topo-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="topoModalTitle">
+            <div class="topo-modal-header">
+                <h2 id="topoModalTitle">場域控制台</h2>
+                <button type="button" class="topo-modal-close" id="topoModalClose" aria-label="關閉">×</button>
+            </div>
+            <div class="topo-modal-body">
+                <div class="hub-site-bar">
+                    <div class="site-field">
+                        <label for="siteSelect">作用中廠區</label>
+                        <select id="siteSelect" class="site-select" title="切換 Fab-A / Fab-B"></select>
+                    </div>
+                    <div class="site-status" id="siteStatus">
+                        <span class="dot ok"></span> 載入中…
+                    </div>
+                    <p id="siteMeta"></p>
+                    <div class="hub-tabs" role="tablist">
+                        <button type="button" role="tab" data-open-modal="overview" class="active">總覽 · 圖例</button>
+                        <button type="button" role="tab" data-open-modal="ports">Port 連線表</button>
+                        <button type="button" role="tab" data-open-modal="stream">Syslog 串流</button>
+                    </div>
+                </div>
+                <div class="side-panel active" id="panel-overview" data-side-panel="overview">
+                    <div class="legend-grid">
+                        <div class="legend-item"><span class="dot ok"></span> 正常</div>
+                        <div class="legend-item"><span class="dot warn"></span> 注意</div>
+                        <div class="legend-item"><span class="dot fail"></span> 異常</div>
+                        <div class="legend-item"><span style="width:8px;height:8px;border-radius:50%;background:#38bdf8"></span> 日誌設備</div>
+                    </div>
+                    <div class="device-legend" id="deviceLegend" aria-label="設備圖示"></div>
+                </div>
+                <div class="side-panel" id="panel-ports" data-side-panel="ports">
+                    <div class="port-table" id="portTable"><p style="color:var(--muted);margin:8px;">載入中…</p></div>
+                </div>
+                <div class="side-panel" data-side-panel="stream">
+                    <div class="feed-wrap">
+                        <p id="feedMeta"></p>
+                        <div class="feed" id="feed"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const TYPE_ICON = {
+            switch: '#38bdf8', firewall: '#f97316', server: '#a78bfa', scada: '#2dd4bf',
+            hmi: '#34d399', workstation: '#94a3b8', siem: '#818cf8', collector: '#22d3ee',
+            plc: '#4ade80', robot: '#fbbf24', gateway: '#fb7185',
+        };
+        const TOPO_ICON_BASE = '/web/assets/topology/';
+        const DEVICE_LEGEND = [
+            { key: 'switch', label: '交換器' },
+            { key: 'firewall', label: '防火牆' },
+            { key: 'server', label: '伺服器' },
+            { key: 'scada', label: 'SCADA' },
+            { key: 'hmi', label: 'HMI' },
+            { key: 'plc', label: 'PLC' },
+            { key: 'robot', label: '機械手臂' },
+            { key: 'gateway', label: '閘道 / I/O' },
+            { key: 'workstation', label: '工程站' },
+            { key: 'siem', label: 'SIEM' },
+            { key: 'collector', label: 'Log Collector' },
+        ];
+
+        function resolveDeviceIconUrl(n) {
+            const raw = (n && n.image) ? String(n.image).trim() : '';
+            if (raw) {
+                if (/^https?:\/\//i.test(raw) || raw.startsWith('/')) return raw;
+                return TOPO_ICON_BASE + raw.replace(/^\.\//, '');
+            }
+            const key = String((n && (n.icon || n.type)) || 'server').toLowerCase().replace(/[^a-z0-9_-]/g, '');
+            return TOPO_ICON_BASE + (key || 'server') + '.svg';
+        }
+
+        function renderDeviceLegend() {
+            const el = document.getElementById('deviceLegend');
+            if (!el) return;
+            el.innerHTML = DEVICE_LEGEND.map((d) =>
+                `<div class="device-legend-item"><img src="${TOPO_ICON_BASE}${d.key}.svg" alt="" loading="lazy"><span>${escapeHtml(d.label)}</span></div>`
+            ).join('');
+        }
+
+        const TYPE_LABELS = {
+            switch: '網路交換器', firewall: 'OT 防火牆', server: '伺服器', scada: 'SCADA',
+            hmi: 'HMI 操作站', workstation: '工程工作站', siem: 'SIEM', collector: 'Log Collector',
+            plc: 'PLC', robot: '機械手臂 / Robot Cell', gateway: 'I/O 閘道',
+        };
+        const STATUS_LABELS = { ok: '正常', warn: '注意', fail: '異常', offline: '離線' };
+        const TELEMETRY_LABELS = {
+            syslog_events: 'Syslog 事件數', ports_up: 'Port Up 數', cpu_pct: 'CPU 使用率 (%)',
+            mem_pct: '記憶體 (%)', disk_pct: '磁碟 (%)', sessions: '連線數', deny_h: '拒絕 (1h)',
+            tags_live: '即時 Tag 數', comm_ok_pct: '通訊成功率 (%)', alarms_active: '作用中告警',
+            recipe_ver: 'Recipe 版本', config_drift: '組態漂移計數', patch_pending: '待修補',
+            cycle_ms: 'Scan 週期 (ms)', io_ok: 'I/O 狀態', tags: 'Tag 數', takt_s: 'Takt (s)',
+            faults_shifts: '班別故障數', util_pct: '利用率 (%)', devices_online: '線上設備',
+            scan_ms: 'Scan (ms)', mqtt_eps: 'MQTT EPS', eps: 'EPS', alerts_h: '告警 (1h)',
+            ingest_eps: 'Ingest EPS', files_buffered: '緩衝檔案', sim_syslog: '模擬 Syslog',
+            subnet: '子網', file: '日誌檔案',
+        };
+
+        let selectedNodeId = null;
+        let nodeDetailOpen = false;
+        const liveEventsByNode = new Map();
+
+        function layerLabelFor(layerId) {
+            const layers = (topo && topo.layers) || [];
+            const L = layers.find((l) => l.id === layerId);
+            if (!L) return layerId || '—';
+            return L.subtitle ? `${L.label} · ${L.subtitle}` : L.label;
+        }
+
+        function nodePortLinks(nid) {
+            const rows = (topo && (topo.port_links || topo.edges)) || [];
+            return rows.filter((e) => e.from === nid || e.to === nid);
+        }
+
+        function rememberFeedEventForNode(ev) {
+            if (!ev) return;
+            const keys = new Set();
+            if (ev.device) keys.add(String(ev.device));
+            if (ev.ip) keys.add(String(ev.ip));
+            keys.forEach((k) => {
+                const list = liveEventsByNode.get(k) || [];
+                list.unshift(ev);
+                liveEventsByNode.set(k, list.slice(0, 24));
+            });
+        }
+
+        function nodeRelatedEvents(n) {
+            const keys = [n.label, n.ip, n.id].filter(Boolean).map(String);
+            const seen = new Set();
+            const out = [];
+            const push = (ev) => {
+                const sig = (ev.time || '') + '|' + (ev.summary || '').slice(0, 40);
+                if (seen.has(sig)) return;
+                seen.add(sig);
+                out.push(ev);
+            };
+            keys.forEach((k) => {
+                (liveEventsByNode.get(k) || []).forEach(push);
+            });
+            ((topo && topo.recent_reports) || []).forEach((ev) => {
+                if (keys.includes(String(ev.device)) || keys.includes(String(ev.ip))) push(ev);
+            });
+            return out.slice(0, 14);
+        }
+
+        function formatTelemetryEntries(n) {
+            const tel = n.telemetry || {};
+            return Object.entries(tel).map(([k, v]) => {
+                const label = TELEMETRY_LABELS[k] || k;
+                let val = v;
+                if (k === 'sim_syslog') val = v ? '是' : '否';
+                if (k === 'io_ok') val = v ? '正常' : '異常';
+                return `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(val))}</dd>`;
+            }).join('');
+        }
+
+        function renderNodeDetailContent(n) {
+            const st = n.status || 'ok';
+            const stLabel = STATUS_LABELS[st] || st;
+            const iconUrl = resolveDeviceIconUrl(n);
+            const siteName = (topo && topo.site && topo.site.name) || currentSiteId;
+            const links = nodePortLinks(n.id);
+            const events = nodeRelatedEvents(n);
+
+            const portRows = links.length
+                ? links.map((e) => {
+                    const out = e.from === n.id;
+                    const peerId = out ? e.to : e.from;
+                    const peer = nodeMap.get(peerId);
+                    const peerLabel = peer ? peer.label : peerId;
+                    const localPort = out ? (e.from_port || '—') : (e.to_port || '—');
+                    const remotePort = out ? (e.to_port || '—') : (e.from_port || '—');
+                    const dir = out ? '出站 →' : '← 入站';
+                    const vlan = e.vlan != null ? `VLAN ${e.vlan}` : '—';
+                    return `<tr><td>${escapeHtml(dir)}</td><td>${escapeHtml(peerLabel)}</td><td>${escapeHtml(localPort)}</td><td>${escapeHtml(remotePort)}</td><td>${escapeHtml(e.kind || '')}</td><td>${escapeHtml(vlan)}</td></tr>`;
+                }).join('')
+                : '';
+
+            const eventHtml = events.length
+                ? events.map((r) => `<div class="feed-item ${feedSeverityClass(r.severity)}">${formatFeedEvent(r)}</div>`).join('')
+                : '<p class="node-events-empty">尚無此設備的 Syslog 樣本（可開啟模擬回報或綁定 OT 日誌）。</p>';
+
+            return (
+                `<div class="node-detail-head">` +
+                `<img class="node-detail-icon" src="${escapeHtml(iconUrl)}" alt="">` +
+                `<div class="node-detail-title-block">` +
+                `<h3>${escapeHtml(n.label || n.id)}</h3>` +
+                `<div class="node-detail-meta-line">` +
+                `<span class="node-status-pill ${escapeHtml(st)}"><span class="dot ${escapeHtml(st)}"></span>${escapeHtml(stLabel)}</span>` +
+                `<span>${escapeHtml(n.ip || '—')}</span>` +
+                `<span>${escapeHtml(TYPE_LABELS[n.type] || n.type || '—')}</span>` +
+                `</div></div></div>` +
+                `<section class="node-detail-section"><h4>基本資訊</h4>` +
+                `<dl class="node-kv-grid">` +
+                `<dt>節點 ID</dt><dd>${escapeHtml(n.id)}</dd>` +
+                `<dt>Purdue 層級</dt><dd>${escapeHtml(layerLabelFor(n.layer))}</dd>` +
+                `<dt>資料來源</dt><dd>${n.source === 'log' ? 'OT 日誌綁定' : '模擬 / 設定節點'}</dd>` +
+                `<dt>所屬廠區</dt><dd>${escapeHtml(siteName)}</dd>` +
+                `</dl></section>` +
+                `<section class="node-detail-section"><h4>Telemetry / 狀態指標</h4>` +
+                `<dl class="node-kv-grid">${formatTelemetryEntries(n) || '<dt>—</dt><dd>無</dd>'}</dl></section>` +
+                `<section class="node-detail-section"><h4>Port 連線 (${links.length})</h4>` +
+                (links.length
+                    ? `<table class="node-ports-table"><thead><tr><th>方向</th><th>對端</th><th>本端 Port</th><th>對端 Port</th><th>類型</th><th>VLAN</th></tr></thead><tbody>${portRows}</tbody></table>`
+                    : '<p class="node-events-empty">此節點在 port_links 中尚無連線定義。</p>') +
+                `</section>` +
+                `<section class="node-detail-section"><h4>近期 Syslog / 回報</h4>` +
+                `<div class="node-events-list">${eventHtml}</div></section>`
+            );
+        }
+
+        function setNodeSelection(nid) {
+            selectedNodeId = nid || null;
+            nodeElMap.forEach((el, id) => el.classList.toggle('node-selected', id === nid));
+        }
+
+        function openNodeDetailModal(n) {
+            if (!n || editMode) return;
+            hideTip();
+            nodeDetailOpen = true;
+            setNodeSelection(n.id);
+            document.getElementById('nodeDetailTitle').textContent = n.label || n.id || '設備詳細資料';
+            document.getElementById('nodeDetailBody').innerHTML = renderNodeDetailContent(n);
+            const modal = document.getElementById('nodeDetailModal');
+            modal.classList.add('open');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeNodeDetailModal() {
+            nodeDetailOpen = false;
+            setNodeSelection(null);
+            const modal = document.getElementById('nodeDetailModal');
+            modal.classList.remove('open');
+            modal.setAttribute('aria-hidden', 'true');
+            if (!document.getElementById('topoModal').classList.contains('open')) {
+                document.body.style.overflow = '';
+            }
+        }
+
+        function refreshOpenNodeDetail() {
+            if (!nodeDetailOpen || !selectedNodeId) return;
+            const n = nodeMap.get(selectedNodeId);
+            if (!n) return;
+            document.getElementById('nodeDetailBody').innerHTML = renderNodeDetailContent(n);
+        }
+
+        let topo = null;
+        let simOn = true;
+        let simTimer = null;
+        let editMode = false;
+        let dragNode = null;
+        let layoutSnapEnabled = true;
+        const LAYOUT_SNAP_GRID = 16;
+        let layoutDirty = false;
+        let view = { x: 0, y: 0, scale: 1 };
+        const svg = document.getElementById('topoSvg');
+        const canvasWrap = document.getElementById('canvasWrap');
+        const viewport = document.getElementById('viewport');
+
+        function clearTextSelection() {
+            try {
+                const sel = window.getSelection && window.getSelection();
+                if (sel && sel.removeAllRanges) sel.removeAllRanges();
+            } catch (_) { /* ignore */ }
+        }
+
+        function setCanvasPanning(active) {
+            if (canvasWrap) canvasWrap.classList.toggle('is-panning', !!active);
+        }
+        const nodeMap = new Map();
+        const nodeElMap = new Map();
+        let currentSiteId = sessionStorage.getItem('ot_topo_site') || 'fab-a';
+
+        const TOPO_CANVAS = { w: 1280, h: 760, pad: 24, bandW: 1232 };
+
+        function layoutKey(siteId) {
+            return 'ot_topo_layout_v3_' + (siteId || 'fab-a');
+        }
+
+        function applyPositionOverrides(nodes, overrides) {
+            if (!nodes || !overrides || !overrides.length) return 0;
+            const pos = new Map(overrides.map((n) => [n.id, n]));
+            let n = 0;
+            nodes.forEach((node) => {
+                const p = pos.get(node.id);
+                if (p && typeof p.x === 'number' && typeof p.y === 'number') {
+                    node.x = p.x;
+                    node.y = p.y;
+                    n += 1;
+                }
+            });
+            return n;
+        }
+
+        function applySavedLayout(data) {
+            const sid = (data.site && data.site.id) || currentSiteId;
+            if (data.custom_layout && Array.isArray(data.custom_layout.nodes) && data.custom_layout.nodes.length) {
+                applyPositionOverrides(data.nodes, data.custom_layout.nodes);
+                return;
+            }
+            try {
+                const raw = localStorage.getItem(layoutKey(sid));
+                if (!raw) return;
+                const saved = JSON.parse(raw);
+                applyPositionOverrides(data.nodes, saved.nodes || []);
+            } catch (_) { /* ignore */ }
+        }
+
+        function collectLayoutPayload() {
+            if (!topo || !topo.nodes) return null;
+            const sid = (topo.site && topo.site.id) || currentSiteId;
+            return {
+                schema: 'ot-topology-layout-v1',
+                site_id: sid,
+                nodes: topo.nodes.map((n) => ({ id: n.id, x: n.x, y: n.y })),
+                saved_at: new Date().toISOString(),
+            };
+        }
+
+        function saveLayoutLocal() {
+            const payload = collectLayoutPayload();
+            if (!payload) return;
+            localStorage.setItem(layoutKey(payload.site_id), JSON.stringify(payload));
+        }
+
+        function saveLayout() {
+            saveLayoutLocal();
+        }
+
+        function snapCoord(v) {
+            if (!layoutSnapEnabled) return v;
+            return Math.round(v / LAYOUT_SNAP_GRID) * LAYOUT_SNAP_GRID;
+        }
+
+        function setLayoutSaveEnabled(on) {
+            const btn = document.getElementById('btnLayoutSave');
+            if (btn) btn.disabled = !on;
+        }
+
+        function setLayoutStatus(text, ok) {
+            const el = document.getElementById('layoutStatus');
+            if (!el) return;
+            el.textContent = text || '—';
+            el.classList.toggle('ok', !!ok);
+        }
+
+        function syncLayoutSaveButton() {
+            setLayoutSaveEnabled(layoutDirty || editMode);
+        }
+
+        function updateLayoutStatusFromData(data) {
+            const cl = data && data.custom_layout;
+            const sid = (data && data.site && data.site.id) || currentSiteId;
+            if (cl && cl.saved_at) {
+                const n = (cl.nodes || []).length;
+                setLayoutStatus(`已載入伺服器自訂版面（${sid} · ${n} 節點 · ${cl.saved_at}）`, true);
+                layoutDirty = false;
+                syncLayoutSaveButton();
+                return;
+            }
+            try {
+                const raw = localStorage.getItem(layoutKey(sid));
+                if (raw) {
+                    const saved = JSON.parse(raw);
+                    setLayoutStatus(`本機暫存版面（${sid}）— 請按「儲存版面」同步至伺服器`, false);
+                    layoutDirty = true;
+                    syncLayoutSaveButton();
+                    return;
+                }
+            } catch (_) { /* ignore */ }
+            setLayoutStatus('預設版面 — 按「開始編輯」可自訂設備位置', false);
+            layoutDirty = false;
+            syncLayoutSaveButton();
+        }
+
+        function setEditMode(on) {
+            editMode = !!on;
+            svg.classList.toggle('edit-mode', editMode);
+            canvasWrap.classList.toggle('layout-editing', editMode);
+            const btnLayoutEdit = document.getElementById('btnLayoutEdit');
+            if (btnLayoutEdit) {
+                btnLayoutEdit.classList.toggle('active', editMode);
+                btnLayoutEdit.textContent = editMode ? '結束編輯' : '開始編輯';
+            }
+            nodeElMap.forEach((grp) => { grp.style.cursor = editMode ? 'move' : 'pointer'; });
+            if (editMode) {
+                hideTip();
+                setLayoutStatus('編輯中：拖曳設備 →「儲存版面」寫入伺服器（換電腦也會保留）', false);
+            } else if (topo) {
+                updateLayoutStatusFromData(topo);
+            }
+            syncLayoutSaveButton();
+        }
+
+        async function saveLayoutToServer() {
+            const payload = collectLayoutPayload();
+            if (!payload) return;
+            setLayoutStatus('儲存中…', false);
+            const res = await fetch('/api/ot/topology/layout', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    site: payload.site_id,
+                    nodes: payload.nodes,
+                    label: 'customer-layout',
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) {
+                throw new Error(data.error || '儲存失敗');
+            }
+            saveLayoutLocal();
+            layoutDirty = false;
+            if (topo) topo.custom_layout = data.layout;
+            const savedAt = (data.layout && data.layout.saved_at) || payload.saved_at;
+            setLayoutStatus(`已儲存自訂版面（${payload.site_id} · ${payload.nodes.length} 節點 · ${savedAt}）`, true);
+            setEditMode(false);
+            syncLayoutSaveButton();
+        }
+
+        async function resetLayoutToDefault() {
+            const sid = (topo && topo.site && topo.site.id) || currentSiteId;
+            if (!confirm(`還原「${sid}」為預設版面？伺服器與本機自訂位置都會清除。`)) return;
+            await fetch('/api/ot/topology/layout?site=' + encodeURIComponent(sid), { method: 'DELETE' });
+            localStorage.removeItem(layoutKey(sid));
+            layoutDirty = false;
+            setEditMode(false);
+            await loadTopology(sid);
+            fitView();
+            setLayoutStatus('已還原為預設版面', true);
+        }
+
+        function exportLayoutJson() {
+            const payload = collectLayoutPayload();
+            if (!payload) return;
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `ot-topology-layout-${payload.site_id}.json`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+
+        async function importLayoutFromFile(file) {
+            const text = await file.text();
+            const data = JSON.parse(text);
+            const nodes = data.nodes || data.layout?.nodes;
+            if (!Array.isArray(nodes) || !nodes.length) {
+                throw new Error('JSON 需包含 nodes: [{id,x,y}]');
+            }
+            if (!topo || !topo.nodes) throw new Error('請先載入拓樸');
+            applyPositionOverrides(topo.nodes, nodes);
+            topo.nodes.forEach((n) => {
+                const grp = nodeElMap.get(n.id);
+                if (grp) grp.setAttribute('transform', `translate(${n.x}, ${n.y})`);
+            });
+            redrawLinks();
+            layoutDirty = true;
+            setEditMode(true);
+            syncLayoutSaveButton();
+            setLayoutStatus('已匯入版面 — 請確認後按「儲存版面」', false);
+        }
+
+        function clientToViewport(clientX, clientY) {
+            const pt = svg.createSVGPoint();
+            pt.x = clientX;
+            pt.y = clientY;
+            const ctm = viewport.getScreenCTM();
+            if (!ctm) return { x: 0, y: 0 };
+            return pt.matrixTransform(ctm.inverse());
+        }
+
+        function edgePath(a, b) {
+            const dy = Math.abs(a.y - b.y);
+            const dx = Math.abs(a.x - b.x);
+            if (dy > 36 && dy >= dx * 0.45) {
+                const midY = (a.y + b.y) / 2;
+                const d = `M ${a.x} ${a.y} L ${a.x} ${midY} L ${b.x} ${midY} L ${b.x} ${b.y}`;
+                return { d, mx: (a.x + b.x) / 2, my: midY };
+            }
+            const mx = (a.x + b.x) / 2;
+            const my = (a.y + b.y) / 2;
+            return { d: `M ${a.x} ${a.y} Q ${mx} ${my} ${b.x} ${b.y}`, mx, my };
+        }
+
+        function portCaption(e) {
+            const fp = e.from_port || '';
+            const tp = e.to_port || '';
+            if (fp && tp) return `${fp} ↔ ${tp}`;
+            return e.label || e.kind || '';
+        }
+
+        if (new URLSearchParams(location.search).get('embed') === '1') {
+            document.documentElement.classList.add('embedded');
+        }
+
+        function statusColor(st) {
+            return st === 'fail' ? 'var(--fail)' : (st === 'warn' ? 'var(--warn)' : 'var(--ok)');
+        }
+
+        function applyCanvasSize(data) {
+            const c = (data && data.canvas) || TOPO_CANVAS;
+            const w = c.width || TOPO_CANVAS.w;
+            const h = c.height || TOPO_CANVAS.h;
+            svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+            TOPO_CANVAS.w = w;
+            TOPO_CANVAS.h = h;
+            TOPO_CANVAS.bandW = w - TOPO_CANVAS.pad * 2;
+        }
+
+        function renderLayers(layers) {
+            const g = document.getElementById('layers');
+            g.innerHTML = '';
+            (layers || []).forEach((L) => {
+                const band = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                band.setAttribute('class', 'layer-band');
+                band.setAttribute('x', TOPO_CANVAS.pad);
+                band.setAttribute('y', L.y0);
+                band.setAttribute('width', TOPO_CANVAS.bandW);
+                band.setAttribute('height', L.y1 - L.y0);
+                band.setAttribute('rx', 8);
+                g.appendChild(band);
+                const t1 = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                t1.setAttribute('class', 'layer-label');
+                t1.setAttribute('x', 36);
+                t1.setAttribute('y', L.y0 + 22);
+                t1.textContent = L.label;
+                g.appendChild(t1);
+                const t2 = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                t2.setAttribute('class', 'layer-sub');
+                t2.setAttribute('x', 36);
+                t2.setAttribute('y', L.y0 + 36);
+                t2.textContent = L.subtitle || '';
+                g.appendChild(t2);
+            });
+        }
+
+        function redrawLinks() {
+            if (!topo) return;
+            const lg = document.getElementById('links');
+            const lgLbl = document.getElementById('linkLabels');
+            lg.innerHTML = '';
+            lgLbl.innerHTML = '';
+            (topo.edges || []).forEach((e, i) => {
+                const a = nodeMap.get(e.from);
+                const b = nodeMap.get(e.to);
+                if (!a || !b) return;
+                const { d, mx, my } = edgePath(a, b);
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', d);
+                path.setAttribute('class', 'link' + (e.kind === 'profinet' ? ' active' : ''));
+                path.dataset.edge = String(i);
+                path.title = portCaption(e);
+                lg.appendChild(path);
+                const cap = portCaption(e);
+                if (cap) {
+                    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    t.setAttribute('class', 'link-label');
+                    t.setAttribute('x', mx);
+                    t.setAttribute('y', my - 4);
+                    t.textContent = cap.length > 28 ? cap.slice(0, 26) + '…' : cap;
+                    lgLbl.appendChild(t);
+                }
+            });
+        }
+
+        function truncateLabel(s, maxLen) {
+            const t = String(s || '');
+            return t.length <= maxLen ? t : t.slice(0, maxLen - 1) + '…';
+        }
+
+        function renderGraph(data) {
+            nodeMap.clear();
+            nodeElMap.clear();
+            applyCanvasSize(data);
+            renderLayers(data.layers);
+            const ng = document.getElementById('nodes');
+            ng.innerHTML = '';
+            (data.nodes || []).forEach((n) => nodeMap.set(n.id, n));
+            redrawLinks();
+
+            (data.nodes || []).forEach((n) => {
+                const grp = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                grp.setAttribute('transform', `translate(${n.x}, ${n.y})`);
+                grp.dataset.id = n.id;
+                grp.style.cursor = editMode ? 'move' : 'pointer';
+                nodeElMap.set(n.id, grp);
+
+                const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                ring.setAttribute('r', 28);
+                ring.setAttribute('fill', 'rgba(8,18,32,0.88)');
+                ring.setAttribute('class', 'node-ring ' + (n.status || 'ok'));
+                ring.setAttribute('stroke-width', 2.5);
+                grp.appendChild(ring);
+
+                const accent = TYPE_ICON[n.type] || '#64748b';
+                const plate = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                plate.setAttribute('class', 'node-plate');
+                plate.setAttribute('x', -22);
+                plate.setAttribute('y', -22);
+                plate.setAttribute('width', 44);
+                plate.setAttribute('height', 44);
+                plate.setAttribute('rx', 8);
+                plate.setAttribute('stroke', accent);
+                grp.appendChild(plate);
+
+                const iconUrl = resolveDeviceIconUrl(n);
+                const img = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+                img.setAttribute('class', 'node-device-img');
+                img.setAttribute('href', iconUrl);
+                img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', iconUrl);
+                img.setAttribute('x', -20);
+                img.setAttribute('y', -20);
+                img.setAttribute('width', 40);
+                img.setAttribute('height', 40);
+                img.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+                grp.appendChild(img);
+
+                const lbl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                lbl.setAttribute('class', 'node-label');
+                lbl.setAttribute('y', 48);
+                lbl.textContent = truncateLabel(n.label, 16);
+                grp.appendChild(lbl);
+
+                const sub = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                sub.setAttribute('class', 'node-sub');
+                sub.setAttribute('y', 60);
+                sub.textContent = truncateLabel(n.ip || '', 15);
+                grp.appendChild(sub);
+
+                if (n.source === 'log') {
+                    const badge = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    badge.setAttribute('cx', 20);
+                    badge.setAttribute('cy', -20);
+                    badge.setAttribute('r', 5);
+                    badge.setAttribute('fill', '#38bdf8');
+                    grp.appendChild(badge);
+                }
+
+                grp.addEventListener('mouseenter', (ev) => { if (!editMode && !dragNode) showTip(n, ev); });
+                grp.addEventListener('mouseleave', hideTip);
+                grp.addEventListener('mousemove', (ev) => { if (!editMode) moveTip(ev); });
+                grp.addEventListener('pointerdown', (ev) => {
+                    if (!editMode) return;
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    clearTextSelection();
+                    setCanvasPanning(true);
+                    dragNode = { id: n.id, pid: ev.pointerId };
+                    grp.setPointerCapture(ev.pointerId);
+                    hideTip();
+                });
+                grp.addEventListener('click', (ev) => {
+                    if (editMode) return;
+                    ev.stopPropagation();
+                    openNodeDetailModal(n);
+                });
+                ng.appendChild(grp);
+            });
+        }
+
+        function renderPortTable(data) {
+            const el = document.getElementById('portTable');
+            const rows = data.port_links || data.edges || [];
+            if (!rows.length) {
+                el.innerHTML = '<p style="color:var(--muted);margin:0;">此廠區尚無 Port 連線定義</p>';
+                return;
+            }
+            const trs = rows.map((r) => {
+                const fromL = r.from_label || r.from;
+                const toL = r.to_label || r.to;
+                const vlan = r.vlan != null ? `VLAN ${r.vlan}` : '—';
+                return `<tr><td>${escapeHtml(fromL)}</td><td>${escapeHtml(r.from_port || '')}</td><td>${escapeHtml(toL)}</td><td>${escapeHtml(r.to_port || '')}</td><td>${escapeHtml(r.kind || '')}</td><td>${vlan}</td></tr>`;
+            }).join('');
+            el.innerHTML = `<table><thead><tr><th>來源</th><th>Port</th><th>目的</th><th>Port</th><th>類型</th><th>VLAN</th></tr></thead><tbody>${trs}</tbody></table>`;
+        }
+
+        function fillSiteSelect(data) {
+            const sel = document.getElementById('siteSelect');
+            const sites = data.sites_available || [{ id: currentSiteId, name: (data.site && data.site.name) || currentSiteId }];
+            const prev = currentSiteId;
+            sel.innerHTML = sites.map((s) =>
+                `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name || s.id)}</option>`
+            ).join('');
+            sel.value = (data.site && data.site.id) || prev;
+            currentSiteId = sel.value;
+            sessionStorage.setItem('ot_topo_site', currentSiteId);
+        }
+
+        const tip = document.getElementById('nodeTip');
+        function showTip(n, ev) {
+            const tel = n.telemetry || {};
+            const rows = Object.entries(tel).map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('');
+            tip.innerHTML = `<h4>${n.label}</h4><dl><dt>類型</dt><dd>${n.type}</dd><dt>IP</dt><dd>${n.ip}</dt><dt>來源</dt><dd>${n.source === 'log' ? 'OT 日誌' : '模擬節點'}</dd><dt>狀態</dt><dd>${n.status}</dd>${rows}</dl>`;
+            tip.classList.add('visible');
+            moveTip(ev);
+        }
+        function hideTip() { tip.classList.remove('visible'); }
+        function moveTip(ev) {
+            const wrap = document.getElementById('canvasWrap');
+            const r = wrap.getBoundingClientRect();
+            tip.style.left = (ev.clientX - r.left + 12) + 'px';
+            tip.style.top = (ev.clientY - r.top + 12) + 'px';
+        }
+
+        function updateSite(data) {
+            const site = data.site || {};
+            const st = site.status || 'ok';
+            document.getElementById('siteStatus').innerHTML =
+                `<span class="dot ${st}"></span> ${site.name || 'OT 場域'} · ${st.toUpperCase()}`;
+            const mc = data.sim_machine_count || (data.nodes || []).length;
+            document.getElementById('siteMeta').textContent =
+                `更新 ${data.updated_at || '—'} · 回報機台 ${mc} · ${site.subnet ? site.subnet + '.0/24' : ''} · ${site.principle || ''}`;
+
+            const kpiSite = document.getElementById('kpiSite');
+            const kpiNodes = document.getElementById('kpiNodes');
+            const kpiLinks = document.getElementById('kpiLinks');
+            const kpiStatus = document.getElementById('kpiStatus');
+            if (kpiSite) kpiSite.innerHTML = `<strong>${site.id || '—'}</strong> 廠區`;
+            if (kpiNodes) kpiNodes.innerHTML = `<strong>${(data.nodes || []).length}</strong> 節點`;
+            if (kpiLinks) kpiLinks.innerHTML = `<strong>${(data.edges || []).length}</strong> 連線`;
+            if (kpiStatus) {
+                kpiStatus.className = 'kpi status-' + (st === 'fail' ? 'fail' : st === 'warn' ? 'warn' : 'ok');
+                kpiStatus.innerHTML = `<strong>${st.toUpperCase()}</strong> 場域`;
+            }
+        }
+
+        const TOPO_MODAL_TITLES = {
+            overview: '總覽 · 圖例',
+            ports: 'Port 連線表',
+            stream: 'Syslog 串流',
+        };
+
+        let hubActiveTab = 'overview';
+
+        function openTopoModal(tab) {
+            const key = tab || hubActiveTab || 'overview';
+            hubActiveTab = key;
+            document.querySelectorAll('[data-side-panel]').forEach((p) => {
+                p.classList.toggle('active', p.dataset.sidePanel === key);
+            });
+            document.querySelectorAll('.hub-tabs [data-open-modal]').forEach((btn) => {
+                btn.classList.toggle('active', btn.dataset.openModal === key);
+            });
+            const titleEl = document.getElementById('topoModalTitle');
+            if (titleEl) {
+                titleEl.textContent = '場域控制台 · ' + (TOPO_MODAL_TITLES[key] || '詳細資訊');
+            }
+            const modal = document.getElementById('topoModal');
+            if (modal) {
+                modal.classList.add('open');
+                modal.setAttribute('aria-hidden', 'false');
+            }
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeTopoModal() {
+            const modal = document.getElementById('topoModal');
+            if (modal) {
+                modal.classList.remove('open');
+                modal.setAttribute('aria-hidden', 'true');
+            }
+            if (!nodeDetailOpen) {
+                document.body.style.overflow = '';
+            }
+        }
+
+        document.getElementById('btnOpenHub')?.addEventListener('click', () => openTopoModal(hubActiveTab));
+        document.querySelectorAll('[data-open-modal]').forEach((btn) => {
+            btn.addEventListener('click', () => openTopoModal(btn.dataset.openModal));
+        });
+        document.getElementById('topoModalClose')?.addEventListener('click', closeTopoModal);
+        document.getElementById('topoModalBackdrop')?.addEventListener('click', closeTopoModal);
+        document.getElementById('nodeDetailClose')?.addEventListener('click', closeNodeDetailModal);
+        document.getElementById('nodeDetailBackdrop')?.addEventListener('click', closeNodeDetailModal);
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            if (nodeDetailOpen) closeNodeDetailModal();
+            else closeTopoModal();
+        });
+
+        const FEED_MAX = 56;
+
+        function feedSeverityClass(sev) {
+            const s = Number(sev);
+            if (s <= 3) return 'sev-fail';
+            if (s === 4) return 'sev-warn';
+            return 'sev-ok';
+        }
+
+        function formatFeedEvent(r) {
+            const sim = r.simulated ? '<span class="sim-tag">SIM</span> ' : '';
+            const dev = r.device ? `<span class="dev">${escapeHtml(r.device)}</span> ` : '';
+            const ip = r.ip ? `<span style="opacity:0.75">(${escapeHtml(r.ip)})</span> ` : '';
+            const ctrl = r.control ? `[${escapeHtml(r.control)}] ` : '';
+            return `${sim}<strong>${escapeHtml(r.time || '—')}</strong> ${dev}${ip}${ctrl}${escapeHtml(r.summary || '')}`;
+        }
+
+        function pushFeedEvent(r) {
+            rememberFeedEventForNode(r);
+            const feed = document.getElementById('feed');
+            const div = document.createElement('div');
+            div.className = 'feed-item ' + feedSeverityClass(r.severity);
+            div.innerHTML = formatFeedEvent(r);
+            feed.prepend(div);
+            while (feed.children.length > FEED_MAX) feed.lastChild.remove();
+            refreshOpenNodeDetail();
+        }
+
+        function pushFeed(line) {
+            const feed = document.getElementById('feed');
+            const div = document.createElement('div');
+            div.className = 'feed-item';
+            div.innerHTML = line;
+            feed.prepend(div);
+            while (feed.children.length > FEED_MAX) feed.lastChild.remove();
+        }
+
+        function seedFeed(data) {
+            document.getElementById('feed').innerHTML = '';
+            liveEventsByNode.clear();
+            const rows = data.recent_reports || data.sim_syslog_feed || [];
+            rows.forEach((r) => pushFeedEvent(r));
+            if (!rows.length) {
+                pushFeed('<strong>system</strong> 等待 OT 日誌回報…');
+            }
+            const meta = document.getElementById('feedMeta');
+            if (meta) {
+                const n = data.sim_machine_count || (data.nodes || []).length;
+                meta.textContent = `回報機台 ${n} 台 · 初始事件 ${rows.length} 則 · 即時虛擬 syslog 2.5s`;
+            }
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        function randomTelemetry(n) {
+            const t = { ...(n.telemetry || {}) };
+            Object.keys(t).forEach((k) => {
+                if (typeof t[k] === 'number') {
+                    const delta = Math.floor(Math.random() * 5) - 2;
+                    t[k] = Math.max(0, t[k] + delta);
+                }
+            });
+            return t;
+        }
+
+        let simFeedBusy = false;
+
+        async function simTick() {
+            if (!topo || !simOn) return;
+            const nodes = topo.nodes || [];
+            for (let i = 0; i < 2; i += 1) {
+                const pick = nodes[Math.floor(Math.random() * nodes.length)];
+                if (!pick) continue;
+                pick.telemetry = randomTelemetry(pick);
+            }
+            if (!simFeedBusy) {
+                simFeedBusy = true;
+                try {
+                    const res = await fetch(
+                        '/api/ot/topology/sim_feed?site=' + encodeURIComponent(currentSiteId) + '&n=4'
+                    );
+                    const batch = await res.json();
+                    (batch.events || []).forEach((ev) => {
+                        ev.time = ev.time || new Date().toLocaleTimeString();
+                        pushFeedEvent(ev);
+                        const node = nodeMap.get(
+                            (topo.sim_reporting_devices || []).find((d) => d.label === ev.device)?.id
+                        ) || nodes.find((n) => n.label === ev.device || n.ip === ev.ip);
+                        if (node) {
+                            node.telemetry = node.telemetry || {};
+                            if (typeof node.telemetry.syslog_events === 'number') {
+                                node.telemetry.syslog_events += 1;
+                            }
+                        }
+                    });
+                    const last = (batch.events || [])[0];
+                    if (last) {
+                        document.getElementById('simBadge').textContent =
+                            `最後 syslog：${last.device || '—'} · ${last.summary?.slice(0, 48) || ''}… · ${new Date().toLocaleTimeString()}`;
+                    }
+                } catch (_) {
+                    /* ignore transient errors */
+                } finally {
+                    simFeedBusy = false;
+                }
+            }
+            const paths = document.querySelectorAll('#links path');
+            if (paths.length) {
+                const path = paths[Math.floor(Math.random() * paths.length)];
+                path.classList.add('active');
+                setTimeout(() => path.classList.remove('active'), 700);
+            }
+            refreshOpenNodeDetail();
+        }
+
+        function applyViewTransform() {
+            viewport.setAttribute('transform', `translate(${view.x} ${view.y}) scale(${view.scale})`);
+        }
+
+        function fitView() {
+            view = { x: 0, y: 0, scale: 1 };
+            applyViewTransform();
+        }
+
+        let pan = null;
+        canvasWrap?.addEventListener('selectstart', (e) => e.preventDefault());
+        svg.addEventListener('selectstart', (e) => e.preventDefault());
+        svg.addEventListener('dragstart', (e) => e.preventDefault());
+
+        svg.addEventListener('pointerdown', (e) => {
+            if (editMode) return;
+            if (e.target.closest && e.target.closest('[data-id]')) return;
+            e.preventDefault();
+            clearTextSelection();
+            setCanvasPanning(true);
+            pan = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y };
+            svg.setPointerCapture(e.pointerId);
+        });
+        svg.addEventListener('pointermove', (e) => {
+            if (dragNode || pan) clearTextSelection();
+            if (dragNode) {
+                const n = nodeMap.get(dragNode.id);
+                const grp = nodeElMap.get(dragNode.id);
+                if (!n || !grp) return;
+                const p = clientToViewport(e.clientX, e.clientY);
+                n.x = snapCoord(p.x);
+                n.y = snapCoord(p.y);
+                grp.setAttribute('transform', `translate(${n.x}, ${n.y})`);
+                redrawLinks();
+                layoutDirty = true;
+                syncLayoutSaveButton();
+                return;
+            }
+            if (!pan) return;
+            view.x = pan.vx + (e.clientX - pan.x);
+            view.y = pan.vy + (e.clientY - pan.y);
+            applyViewTransform();
+        });
+        function endCanvasInteraction() {
+            dragNode = null;
+            pan = null;
+            setCanvasPanning(false);
+            clearTextSelection();
+        }
+        svg.addEventListener('pointerup', (e) => {
+            if (dragNode && dragNode.pid === e.pointerId) {
+                saveLayout();
+            }
+            endCanvasInteraction();
+        });
+        svg.addEventListener('pointercancel', endCanvasInteraction);
+        window.addEventListener('pointerup', () => {
+            if (dragNode || pan) endCanvasInteraction();
+        });
+        svg.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const s = Math.max(0.5, Math.min(2.2, view.scale * (e.deltaY > 0 ? 0.92 : 1.08)));
+            view.scale = s;
+            applyViewTransform();
+        }, { passive: false });
+
+        async function loadTopology(siteId) {
+            if (siteId) currentSiteId = siteId;
+            closeNodeDetailModal();
+            liveEventsByNode.clear();
+            const res = await fetch('/api/ot/topology?site=' + encodeURIComponent(currentSiteId));
+            const data = await res.json();
+            if (!data.ok) throw new Error(data.error || 'load failed');
+            applySavedLayout(data);
+            topo = data;
+            fillSiteSelect(data);
+            renderGraph(data);
+            updateSite(data);
+            renderPortTable(data);
+            seedFeed(data);
+            updateLayoutStatusFromData(data);
+        }
+
+        document.getElementById('siteSelect').addEventListener('change', (e) => {
+            currentSiteId = e.target.value;
+            sessionStorage.setItem('ot_topo_site', currentSiteId);
+            loadTopology(currentSiteId).catch(console.error);
+        });
+
+        document.getElementById('btnLayoutEdit').addEventListener('click', () => setEditMode(!editMode));
+        document.getElementById('layoutSnap').addEventListener('change', (e) => {
+            layoutSnapEnabled = e.target.checked;
+        });
+        document.getElementById('btnLayoutSave').addEventListener('click', () => {
+            saveLayoutToServer().catch((err) => setLayoutStatus(err.message || '儲存失敗', false));
+        });
+        document.getElementById('btnLayoutExport').addEventListener('click', exportLayoutJson);
+        document.getElementById('btnLayoutImport').addEventListener('click', () => {
+            document.getElementById('layoutImportFile').click();
+        });
+        document.getElementById('layoutImportFile').addEventListener('change', (e) => {
+            const file = e.target.files && e.target.files[0];
+            e.target.value = '';
+            if (!file) return;
+            importLayoutFromFile(file).catch((err) => setLayoutStatus(err.message || '匯入失敗', false));
+        });
+        document.getElementById('btnLayoutReset').addEventListener('click', () => {
+            resetLayoutToDefault().catch((err) => setLayoutStatus(err.message || '還原失敗', false));
+        });
+
+        document.getElementById('btnFit').addEventListener('click', fitView);
+
+        window.addEventListener('beforeunload', (e) => {
+            if (!layoutDirty) return;
+            e.preventDefault();
+            e.returnValue = '';
+        });
+        document.getElementById('btnRefresh').addEventListener('click', () => loadTopology().catch(console.error));
+        document.getElementById('btnSim').addEventListener('click', (e) => {
+            simOn = !simOn;
+            e.target.classList.toggle('active', simOn);
+        });
+
+        renderDeviceLegend();
+
+        loadTopology(currentSiteId).then(() => fitView()).catch((err) => {
+            document.getElementById('siteStatus').innerHTML = '<span class="dot fail"></span> 載入失敗';
+            pushFeed('<strong>error</strong> ' + escapeHtml(err.message));
+        });
+
+        simTimer = setInterval(() => { simTick().catch(() => {}); }, 2500);
+        setInterval(() => loadTopology().catch(() => {}), 60000);
+    </script>
+</body>
+</html>

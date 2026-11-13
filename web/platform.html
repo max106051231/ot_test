@@ -312,6 +312,7 @@
 
             <nav class="nav-tabs" id="navTabs">
                 <button type="button" class="active" data-view="monitor">監控戰情</button>
+                <button type="button" data-view="topology">OT 拓樸</button>
                 <button type="button" data-view="chat">AI 對話</button>
                 <button type="button" data-view="compliance">合規架構</button>
             </nav>
@@ -328,6 +329,13 @@
                 <div class="scale-chip" data-scale-chip>100%</div>
                 <div class="frame-host">
                     <iframe src="/monitor?embed=1" title="監控戰情室"></iframe>
+                </div>
+            </section>
+            <section class="pane" id="pane-topology" data-pane="topology" data-design-width="1280">
+                <div class="pane-label">OT 場域拓樸</div>
+                <div class="scale-chip" data-scale-chip>100%</div>
+                <div class="frame-host">
+                    <iframe src="/topology?embed=1" title="OT 場域網路拓樸"></iframe>
                 </div>
             </section>
             <section class="pane" id="pane-chat" data-pane="chat" data-design-width="960">
@@ -415,9 +423,13 @@
                 statusChip.textContent = systemStatusText;
                 return;
             }
-            statusChip.textContent = currentView === 'monitor'
-                ? '目前：監控戰情室'
-                : (currentView === 'compliance' ? '目前：合規架構 · Evidence' : '目前：AI 對話');
+            const labels = {
+                monitor: '目前：監控戰情室',
+                topology: '目前：OT 場域拓樸',
+                compliance: '目前：合規架構 · Evidence',
+                chat: '目前：AI 對話',
+            };
+            statusChip.textContent = labels[currentView] || labels.chat;
         }
 
         function applyView() {
@@ -443,7 +455,7 @@
         }
 
         function navigateToView(view) {
-            if (!['monitor', 'chat', 'compliance'].includes(view)) return;
+            if (!['monitor', 'topology', 'chat', 'compliance'].includes(view)) return;
             currentView = view;
             splitMode = false;
             splitBtn.classList.remove('active');
@@ -455,7 +467,7 @@
             const fromQuery = params.get('view');
             const fromHash = (location.hash || '').replace(/^#/, '');
             const view = fromQuery || fromHash;
-            if (view && ['monitor', 'chat', 'compliance'].includes(view)) {
+            if (view && ['monitor', 'topology', 'chat', 'compliance'].includes(view)) {
                 currentView = view;
             }
         }

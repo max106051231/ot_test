@@ -393,15 +393,7 @@
         .isms-topo-node.status-down { border-color: rgba(248, 113, 113, 0.55); }
         .isms-topo-node.status-down::before { background: var(--topo-red); }
         .isms-topo-node-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
-        .isms-topo-node-icon {
-            width: 26px; height: 26px;
-            display: flex; align-items: center; justify-content: center;
-            border-radius: 7px;
-            background: rgba(78, 200, 240, 0.1);
-            border: 1px solid rgba(78, 200, 240, 0.18);
-            font-size: 13px;
-            flex-shrink: 0;
-        }
+        .isms-topo-node-icon { display: none; }
         .isms-topo-node-id {
             font-weight: 700;
             font-size: 10px;
@@ -836,8 +828,8 @@
 
         <div class="action-bar">
             <button type="button" class="btn" id="runPipeline">▶ 執行地端合規管線</button>
-            <button type="button" class="btn" id="runAiReview" disabled>🤖 AI 自動審核</button>
-            <a class="btn" href="/platform?view=monitor" data-platform-view="monitor" id="linkExportPdf">📄 前往匯出 PDF 報告</a>
+            <button type="button" class="btn" id="runAiReview" disabled>AI 自動審核</button>
+            <a class="btn" href="/platform?view=monitor" data-platform-view="monitor" id="linkExportPdf">前往匯出 PDF 報告</a>
             <span class="action-bar-note" id="reviewerModeNote">① 管線：掃描 OT + Evidence + 入列（不含 LLM）　② 另按「AI 自動審核」處理 pending queue</span>
         </div>
 
@@ -1221,7 +1213,6 @@
             return `<button type="button" class="isms-topo-node${layerCls}${active} ${archNodeStatusClass(node.status)}" data-topo-node="${escapeHtml(node.id)}" title="點擊查看 ${escapeHtml(node.name)}">
                 <div class="isms-topo-node-inner">
                     <div class="isms-topo-node-head">
-                        <span class="isms-topo-node-icon">${node.icon || '⬡'}</span>
                         <span class="isms-topo-node-id">${escapeHtml(node.code)}</span>
                     </div>
                     <div class="isms-topo-node-name">${escapeHtml(node.name)}</div>
@@ -1713,7 +1704,7 @@
                 <p>${escapeHtml(m.detail || '—')}</p>
                 ${breakdownRows ? `<h4>分解</h4><table class="breakdown-table"><tbody>${breakdownRows}</tbody></table>` : ''}
                 ${(m.recommendations || []).length ? `<h4>建議</h4><ul class="compact">${m.recommendations.map(r => `<li>${escapeHtml(r)}</li>`).join('')}</ul>` : ''}
-                ${m.flashcard_tab ? `<button type="button" class="metric-link-btn" id="metricFlashcardLink">📇 查看「${escapeHtml(COVERAGE_TABS.find(t => t.id === m.flashcard_tab)?.label || '識字卡')}」</button>` : ''}
+                ${m.flashcard_tab ? `<button type="button" class="metric-link-btn" id="metricFlashcardLink">查看「${escapeHtml(COVERAGE_TABS.find(t => t.id === m.flashcard_tab)?.label || '識字卡')}」</button>` : ''}
             `;
             const link = document.getElementById('metricFlashcardLink');
             if (link && m.flashcard_tab) {
@@ -1755,7 +1746,7 @@
                 return;
             }
             if (isHumanReviewMetric(metricId) && !humanReviewMetricsVisible()) {
-                showBanner('Human Review／待審指標請先執行「🤖 AI 自動審核」後再查看', 'err');
+                showBanner('Human Review／待審指標請先執行「AI 自動審核」後再查看', 'err');
                 return;
             }
             const m = metricsAnalysisData?.by_id?.[metricId];
@@ -2102,7 +2093,7 @@
             if (!pipelineScanDone) {
                 reviewBlock = '<p style="color:var(--muted);font-size:0.85rem">Human Review 佇列與採納率：請先執行地端合規管線。</p>';
             } else if (!humanReviewMetricsVisible()) {
-                reviewBlock = '<p style="color:var(--muted);font-size:0.85rem">Human Review 佇列與採納率：請先執行上方「🤖 AI 自動審核」。</p>';
+                reviewBlock = '<p style="color:var(--muted);font-size:0.85rem">Human Review 佇列與採納率：請先執行上方「AI 自動審核」。</p>';
             } else {
                 const pendingLine = `待審：${hr.pending ?? rm.pending_queue ?? 0} · 採納率目標 ≥75%`;
                 reviewBlock = `<p><strong>Human Review</strong></p><ul class="compact">${(m.human_review||[]).map(x=>`<li>${x}</li>`).join('')}</ul>
@@ -2145,7 +2136,7 @@
                 showBanner('錯誤：' + err.message, 'err');
             } finally {
                 btn.disabled = false;
-                btn.textContent = '🤖 AI 自動審核';
+                btn.textContent = 'AI 自動審核';
             }
         }
 
@@ -2215,7 +2206,7 @@
             await initScanSection();
             const aiReady = await probeAiReviewApi();
             if (!aiReady) {
-                showBanner('⚠️ AI 自動審核 API 尚未載入 — 請重新執行 run_ollama.bat 後再試', 'err');
+                showBanner('AI 自動審核 API 尚未載入 — 請重新執行 run_ollama.bat 後再試', 'err');
             }
 
             const jobs = [

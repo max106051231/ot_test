@@ -250,12 +250,11 @@ if EDGE_MODE or LLM_DEVICE == "cpu":
     os.environ.setdefault("OT_ENABLE_RAG", "0")
     os.environ.setdefault("ENABLE_GUARDRAIL", "0")
     os.environ.setdefault("LLM_WARMUP", "0")
-    os.environ.setdefault("LLM_CHAT_PRIME", "0")
     os.environ.setdefault("LLM_CPU_FAST_GROUNDED", "0")
     os.environ.setdefault("GUARDRAIL_DEVICE", "cpu")
     _configure_cpu_threads()
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory, stream_with_context
 from flask_cors import CORS
 
 from code.services.guardrail_service import guardrail_service
@@ -735,8 +734,8 @@ if SPEED_MODE == "cpu_fast":
     MAX_PROMPT_TOKENS = 384
     MAX_OUTPUT_CHARS = 400
     MAX_OUTPUT_CHARS_REPORT = 560
-    REPETITION_PENALTY = 1.05
-    NO_REPEAT_NGRAM = 0
+    REPETITION_PENALTY = 1.22
+    NO_REPEAT_NGRAM = 3
     RAG_CONTEXT_CHARS = 120
     CHAT_CTX_LIMIT = 100
     WARROOM_CTX_LIMIT = 1200
@@ -749,8 +748,8 @@ elif SPEED_MODE == "edge":
     MAX_PROMPT_TOKENS = 512
     MAX_OUTPUT_CHARS = 520
     MAX_OUTPUT_CHARS_REPORT = 720
-    REPETITION_PENALTY = 1.05
-    NO_REPEAT_NGRAM = 0
+    REPETITION_PENALTY = 1.18
+    NO_REPEAT_NGRAM = 3
     RAG_CONTEXT_CHARS = 160
     CHAT_CTX_LIMIT = 140
     WARROOM_CTX_LIMIT = 1800
@@ -913,10 +912,11 @@ def _chat_output_char_limit(
 ) -> int:
     """聊天回覆字數上限（監控／行動建議需較長）。"""
     base = int(MAX_OUTPUT_CHARS)
+    e2b_long = USE_OLLAMA and ollama_service.is_gemma4_e2b_model()
     if action_plan and log_grounded:
-        return max(base, 2800)
+        return max(base, 3200 if e2b_long else 2800)
     if log_grounded:
-        return max(base, 2000)
+        return max(base, 2600 if e2b_long else 2000)
     return base
 
 
@@ -1327,20 +1327,22 @@ else:
     print("⏳ 正在載入工控/ISO27001 資安 LLM（速度模式）...")
 
 _llm_lock = threading.RLock()
-# 是否已做過「隱形先問你好」對話探測（丟掉冷啟動第一則）
-_llm_chat_primed = False
 # Gemma 等：chat template 是否支援 system role（None=尚未探測）
 _llm_supports_system_role: bool | None = None
-# 已載入模型：切換後釋放舊模型顯存（預設只保留 1 個）
-# LLM_MODEL_CACHE_MAX>1 時可暫時多留，但仍建議 1
-try:
-    _LLM_CACHE_MAX = max(1, int(os.environ.get("LLM_MODEL_CACHE_MAX", "1") or "1"))
-except Exception:
-    _LLM_CACHE_MAX = 1
-# 切換成功後是否強制卸載其他快取（預設是）
-_LLM_RELEASE_ON_SWITCH = os.environ.get("LLM_RELEASE_ON_SWITCH", "1").strip().lower() not in (
+# 熱切換：切換時保留已載入模型（Ollama keep_alive + 本地快取）
+_LLM_HOT_SWITCH = os.environ.get("LLM_HOT_SWITCH", "1").strip().lower() not in (
     "0", "false", "no", "off",
 )
+_cache_default = "32" if _LLM_HOT_SWITCH else "1"
+_release_default = "0" if _LLM_HOT_SWITCH else "1"
+try:
+    _LLM_CACHE_MAX = max(1, int(os.environ.get("LLM_MODEL_CACHE_MAX", _cache_default) or _cache_default))
+except Exception:
+    _LLM_CACHE_MAX = 32 if _LLM_HOT_SWITCH else 1
+# 切換成功後是否強制卸載其他快取（熱切換預設否）
+_LLM_RELEASE_ON_SWITCH = os.environ.get(
+    "LLM_RELEASE_ON_SWITCH", _release_default,
+).strip().lower() not in ("0", "false", "no", "off")
 _llm_cache: dict[str, dict] = {}
 _llm_cache_lru: list[str] = []
 
@@ -1982,7 +1984,6 @@ def _failover_llm_to_cpu(reason: str = "") -> bool:
     卸載 GPU 模型，改載 CPU 輕量模型（本機 HF 快取）。
     """
     global model, tokenizer, MODEL_PATH, CUDA_DISABLED, LLM_DEVICE, EDGE_MODE
-    global _llm_chat_primed
 
     if CUDA_DISABLED and model is not None and tokenizer is not None:
         try:
@@ -2040,7 +2041,6 @@ def _failover_llm_to_cpu(reason: str = "") -> bool:
             stage="base",
         )
         print(f"✅ CPU 後備模型就緒：{fallback}")
-        _llm_chat_primed = False
         try:
             _apply_cpu_speed_profile("cuda→cpu failover")
         except Exception as pe:
@@ -2069,16 +2069,9 @@ else:
 
 # 啟動暖機（Edge 預設關閉；CUDA 預設開啟；Ollama 可選）
 _warmup_default = "0" if (EDGE_MODE or USE_OLLAMA) else "1"
-if USE_OLLAMA:
-    if os.environ.get("LLM_WARMUP", _warmup_default).strip().lower() not in (
-        "0", "false", "no",
-    ):
-        try:
-            ollama_service.prime_chat()
-            print("🔥 Ollama 暖機完成")
-        except Exception as _we:
-            print(f"⚠️ Ollama 暖機失敗：{_we}")
-elif (
+if (
+    not USE_OLLAMA
+    and
     model is not None
     and tokenizer is not None
     and os.environ.get("LLM_WARMUP", _warmup_default).strip().lower()
@@ -2106,100 +2099,6 @@ elif (
         if _is_cuda_fault(_we):
             print("⚠️ 啟動暖機即 CUDA 崩潰 → 立即切 CPU 後備")
             _failover_llm_to_cpu(str(_we))
-
-def _prime_llm_chat(*, force: bool = False) -> bool:
-    """
-    在使用者第一則問題前，先用 chat template 問一次「你好」並丟棄回覆。
-    基底 Qwen 常見：第一則 generate 出訓練殘留／亂碼，第二則才正常。
-    """
-    global _llm_chat_primed, model, tokenizer
-    if USE_OLLAMA:
-        if (
-            os.environ.get("LLM_CHAT_PRIME", "1").strip().lower()
-            in ("0", "false", "no", "off")
-        ):
-            _llm_chat_primed = True
-            return True
-        with _llm_lock:
-            if _llm_chat_primed and not force:
-                return True
-            print("🔥 Ollama 對話探測：先問「你好」並丟棄回覆…")
-            ok = ollama_service.prime_chat()
-            _llm_chat_primed = True
-            return ok
-
-    if model is None or tokenizer is None:
-        return False
-    if (
-        os.environ.get("LLM_CHAT_PRIME", "1").strip().lower()
-        in ("0", "false", "no", "off")
-    ):
-        _llm_chat_primed = True
-        return True
-
-    with _llm_lock:
-        if _llm_chat_primed and not force:
-            return True
-        print("🔥 LLM 對話探測：先問「你好」並丟棄回覆（避免使用者看到冷啟動異常）…")
-        try:
-            msgs = _normalize_chat_messages([
-                {
-                    "role": "system",
-                    "content": (
-                        "你是 Semi-Shield Cyber Agent。"
-                        "只用一句自然繁體中文打招呼；禁止日文與訓練格式；最後【回答結束】。"
-                    ),
-                },
-                {"role": "user", "content": "你好"},
-            ])
-            if hasattr(tokenizer, "apply_chat_template"):
-                prompt = tokenizer.apply_chat_template(
-                    msgs, tokenize=False, add_generation_prompt=True
-                )
-            else:
-                prompt = "<|user|>\n你好\n<|assistant|>\n"
-            inputs = tokenizer(
-                prompt, return_tensors="pt", truncation=True, max_length=384
-            )
-            device = next(model.parameters()).device
-            inputs = {k: v.to(device) for k, v in inputs.items()}
-            # CPU 探測短一點，避免啟動多等半分鐘
-            _prime_n = 16 if not _use_cuda_for_llm() else 48
-            with torch.inference_mode():
-                out = model.generate(
-                    **inputs,
-                    max_new_tokens=_prime_n,
-                    do_sample=False,
-                    use_cache=True,
-                    pad_token_id=tokenizer.pad_token_id,
-                    eos_token_id=tokenizer.eos_token_id,
-                )
-            gen = out[0][inputs["input_ids"].shape[1] :]
-            text = tokenizer.decode(gen, skip_special_tokens=True).strip()
-            del out, inputs, gen
-            _cuda_empty_cache_quiet()
-            _llm_chat_primed = True
-            preview = (text[:48] + "…") if len(text) > 48 else (text or "(空)")
-            print(f"✅ LLM 對話探測完成（已丟棄）：{preview}")
-            return True
-        except Exception as e:
-            print(f"⚠️ LLM 對話探測失敗：{e}")
-            if _is_cuda_fault(e):
-                print("⚠️ 對話探測 CUDA 崩潰 → 切 CPU 後備後再探測一次")
-                if _failover_llm_to_cpu(str(e)):
-                    _llm_chat_primed = False
-                    return _prime_llm_chat(force=True)
-            # 避免每個請求重試卡死；後續仍靠 sanitize
-            _llm_chat_primed = True
-            return False
-
-
-# 啟動時先做對話探測（若暖機已失敗切 CPU，此處對 CPU 模型再探測）
-if USE_OLLAMA or (model is not None and tokenizer is not None):
-    try:
-        _prime_llm_chat(force=True)
-    except Exception as _pe:
-        print(f"⚠️ 啟動對話探測略過：{_pe}")
 
 # 將啟動時載入的模型放入快取，之後切換可直接复用
 if not USE_OLLAMA and model is not None and tokenizer is not None:
@@ -2692,6 +2591,18 @@ def build_security_concept_reply(user_message: str = "") -> str:
     )
 
 
+def _chat_skip_quality_replacement() -> bool:
+    """略過「亂碼／訓練殘留」與「未通過品質檢查」替換成固定提示（預設開啟）。"""
+    if os.environ.get("CHAT_STRICT_QUALITY", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    ):
+        return False
+    raw = os.environ.get("CHAT_SKIP_QUALITY_CHECK")
+    if raw is not None and str(raw).strip() != "":
+        return str(raw).strip().lower() in ("1", "true", "yes", "on")
+    return True
+
+
 def _chat_grounded_fallback_enabled() -> bool:
     """固定 canned 回答；預設關閉，知識題一律 LLM（設 CHAT_GROUNDED_FALLBACK=1 才啟用）。"""
     return os.environ.get("CHAT_GROUNDED_FALLBACK", "0").strip().lower() in (
@@ -2829,6 +2740,35 @@ def _looks_like_list_loop(text: str) -> bool:
     return False
 
 
+def _looks_like_char_loop(text: str) -> bool:
+    """Edge/CPU 小模型常見：單字或短詞無意義循環（如 應應應本本本可可）。"""
+    if not text:
+        return False
+    core = re.sub(r"[\s\d\W_]+", "", text)
+    if len(core) < 16:
+        return False
+    if re.search(r"([\u4e00-\u9fff])\1{3,}", core):
+        return True
+    cjk_chars = [c for c in core if "\u4e00" <= c <= "\u9fff"]
+    if len(cjk_chars) < 20:
+        return False
+    uniq = len(set(cjk_chars))
+    if uniq <= max(5, len(cjk_chars) // 10):
+        return True
+    from collections import Counter
+
+    top3 = sum(v for _, v in Counter(cjk_chars).most_common(3))
+    if top3 / len(cjk_chars) >= 0.58:
+        return True
+    for plen in (2, 3, 4):
+        limit = min(len(core) - plen * 3, 48)
+        for i in range(0, max(0, limit)):
+            phrase = core[i : i + plen]
+            if len(phrase) == plen and phrase * 3 in core:
+                return True
+    return False
+
+
 def _collapse_repetitions(text: str) -> str:
     """去除模型陷入的重複句 / 重複片段。"""
     if not text:
@@ -2894,6 +2834,17 @@ def _collapse_repetitions(text: str) -> str:
 
     # 4) 「- 具體XXX」整輪循環
     text = _collapse_juti_bullet_loop(text)
+
+    # 5) 單字連續重複（Edge CPU 常見）
+    text = re.sub(r"([\u4e00-\u9fff])\1{2,}", r"\1\1", text)
+
+    # 6) 短詞 triple loop
+    for plen in (4, 3, 2):
+        m = re.search(rf"([\u4e00-\u9fff]{{{plen}}})\1{{2,}}", text)
+        if m:
+            text = text[: m.start()] + m.group(1) + text[m.end() :]
+            break
+
     return text.strip()
 
 
@@ -3000,6 +2951,8 @@ def _needs_zh_retry(text: str) -> bool:
     if _cjk_count(text) < 24 and len(text) > 40:
         return True
     if _reply_has_english_bullet_noise(text):
+        return True
+    if _looks_like_char_loop(text):
         return True
     return False
 
@@ -4240,7 +4193,7 @@ def _sanitize_ollama_chat_reply(text: str) -> str:
     return t.strip()
 
 
-def _run_ollama_llm(messages, max_new_tokens, allow_continue, output_mode):
+def _run_ollama_llm(messages, max_new_tokens, allow_continue, output_mode, stream_callback=None):
     """Ollama HTTP 推論。"""
     if not ollama_service.is_ready():
         err = ollama_service.current_info().get("ollama_error") or "Ollama 未連線"
@@ -4270,18 +4223,46 @@ def _run_ollama_llm(messages, max_new_tokens, allow_continue, output_mode):
                 ctx_env = os.environ.get("OLLAMA_SYSLOG_NUM_CTX", "8192").strip()
                 if ctx_env.isdigit() and int(ctx_env) > 0:
                     ollama_num_ctx = int(ctx_env)
+        elif ollama_service.is_gemma4_e2b_model(model_name):
+            ctx_env = os.environ.get("OLLAMA_GEMMA4_NUM_CTX", "8192").strip()
+            if ctx_env.isdigit() and int(ctx_env) > 0:
+                ollama_num_ctx = int(ctx_env)
+        think_on = (
+            ollama_service.is_gemma4_e2b_model(model_name)
+            and ollama_service.gemma4_e2b_think_enabled()
+        )
         print(
             f"🦙 Ollama chat | model={model_name} "
             f"max_tokens={token_budget} mode={output_mode}"
             + (f" num_ctx={ollama_num_ctx}" if ollama_num_ctx else "")
+            + (f" think={'on' if think_on else 'off'}" if ollama_service.is_gemma4_e2b_model(model_name) else "")
+            + (" stream=on" if stream_callback else "")
         )
-        reply = ollama_service.chat(
-            msgs,
-            max_new_tokens=token_budget,
-            num_ctx=ollama_num_ctx,
-            allow_fallback=ollama_allow_fallback,
-        )
-        reply = _sanitize_ollama_chat_reply(_collapse_repetitions(reply or ""))
+        if stream_callback:
+            parts: list[str] = []
+            for delta in ollama_service.iter_chat_content(
+                msgs,
+                max_new_tokens=token_budget,
+                num_ctx=ollama_num_ctx,
+                think=think_on,
+                model=model_name,
+            ):
+                if not delta:
+                    continue
+                parts.append(delta)
+                try:
+                    stream_callback(delta)
+                except Exception:
+                    pass
+            reply = _sanitize_ollama_chat_reply(_collapse_repetitions("".join(parts)))
+        else:
+            reply = ollama_service.chat(
+                msgs,
+                max_new_tokens=token_budget,
+                num_ctx=ollama_num_ctx,
+                allow_fallback=ollama_allow_fallback,
+            )
+            reply = _sanitize_ollama_chat_reply(_collapse_repetitions(reply or ""))
 
         if output_mode == "chat":
             if not reply or _looks_like_ollama_meta_leak(reply):
@@ -4338,7 +4319,13 @@ def _run_ollama_llm(messages, max_new_tokens, allow_continue, output_mode):
         return (cleaned or "").replace("\ufffd", "")
 
 
-def run_llm(messages, max_new_tokens=MAX_NEW_TOKENS, allow_continue=False, output_mode="report"):
+def run_llm(
+    messages,
+    max_new_tokens=MAX_NEW_TOKENS,
+    allow_continue=False,
+    output_mode="report",
+    stream_callback=None,
+):
     """通用 LLM 推論：接收 chat messages，回傳模型文字回應。"""
     output_mode = (output_mode or "report").lower()
 
@@ -4348,6 +4335,7 @@ def run_llm(messages, max_new_tokens=MAX_NEW_TOKENS, allow_continue=False, outpu
             max_new_tokens,
             allow_continue,
             output_mode,
+            stream_callback=stream_callback,
         )
 
     if model is None or tokenizer is None:
@@ -4458,6 +4446,9 @@ def _run_llm_locked(
             ngram = 4 if phi else (
                 NO_REPEAT_NGRAM or (3 if output_mode == "chat" else 0)
             )
+            if _cpu_infer or safe_mode:
+                penalty = max(float(penalty), 1.22 if _cpu_infer else 1.15)
+                ngram = max(int(ngram or 0), 3)
             if penalty and penalty != 1.0:
                 gen_kwargs["repetition_penalty"] = penalty
             if ngram and ngram > 0 and not safe_mode:
@@ -4497,17 +4488,15 @@ def _run_llm_locked(
             flags=re.I,
         )
 
-        # 條列循環／訓練殘留：強制短重寫一次（CPU 略過，避免多等一整輪生成）
-        if (
-            not _cpu_infer
-            and output_mode == "chat"
-            and (
-                _looks_like_list_loop(reply)
-                or _looks_like_train_leak(reply)
-                or (_is_phi_model_active() and reply.count("具體") >= 8)
-                or _cjk_count(reply) < 12
-            )
-        ):
+        # 條列循環／訓練殘留／字元 loop：強制短重寫一次（CPU 用 safe 模式）
+        bad_output = (
+            _looks_like_list_loop(reply)
+            or _looks_like_train_leak(reply)
+            or _looks_like_char_loop(reply)
+            or (_is_phi_model_active() and reply.count("具體") >= 8)
+            or _cjk_count(reply) < 12
+        )
+        if output_mode == "chat" and bad_output:
             print("⚠️ 偵測到無效輸出／訓練殘留，強制重答一次…")
             retry_messages = list(messages) + [
                 {
@@ -4519,15 +4508,21 @@ def _run_llm_locked(
                     ),
                 }
             ]
-            retry = _generate_with_cuda_retry(
-                retry_messages,
-                min(max_new_tokens, 240 if SPEED_MODE == "turbo" else 320),
+            retry_cap = (
+                min(max_new_tokens, 64)
+                if _cpu_infer
+                else min(max_new_tokens, 240 if SPEED_MODE == "turbo" else 320)
             )
+            if _cpu_infer:
+                retry = _generate_once(retry_messages, retry_cap, safe_mode=True)
+            else:
+                retry = _generate_with_cuda_retry(retry_messages, retry_cap)
             retry = _collapse_repetitions(retry or "")
             if (
                 retry
                 and not _looks_like_list_loop(retry)
                 and not _looks_like_train_leak(retry)
+                and not _looks_like_char_loop(retry)
                 and _cjk_count(retry) >= 24
             ):
                 reply = retry
@@ -4581,8 +4576,9 @@ def _run_llm_locked(
             _has_japanese(cleaned)
             or "已自動攔截" in cleaned
             or _needs_zh_retry(cleaned)
+            or _looks_like_char_loop(cleaned)
         )
-        if need_retry and not _cpu_infer:
+        if need_retry:
             print("⚠️ 偵測到非繁中／日文混雜，強制以繁體中文重寫一次...")
             if output_mode == "chat":
                 rewrite_hint = (
@@ -4607,17 +4603,29 @@ def _run_llm_locked(
             retry_messages = list(messages) + [
                 {"role": "user", "content": rewrite_hint}
             ]
-            retry_raw = _generate_with_cuda_retry(
-                retry_messages,
-                min(max_new_tokens, 280 if SPEED_MODE == "turbo" else 480),
+            rewrite_cap = (
+                min(max_new_tokens, 72)
+                if _cpu_infer
+                else min(max_new_tokens, 280 if SPEED_MODE == "turbo" else 480)
             )
+            if _cpu_infer:
+                retry_raw = _generate_once(retry_messages, rewrite_cap, safe_mode=True)
+            else:
+                retry_raw = _generate_with_cuda_retry(retry_messages, rewrite_cap)
             retry_clean = normalize_llm_output(retry_raw, mode=output_mode)
-            if "已自動攔截" not in retry_clean and not _has_japanese(retry_clean):
-                if _cjk_count(retry_clean) >= 40:
-                    cleaned = retry_clean
+            retry_ok = (
+                "已自動攔截" not in retry_clean
+                and not _has_japanese(retry_clean)
+                and not _looks_like_char_loop(retry_clean)
+                and _cjk_count(retry_clean)
+                >= (20 if _cpu_infer else 40)
+            )
+            if retry_ok:
+                cleaned = retry_clean
             elif (
                 "已自動攔截" in cleaned
                 and "已自動攔截" not in retry_clean
+                and not _looks_like_char_loop(retry_clean)
                 and _cjk_count(retry_clean) > 40
             ):
                 cleaned = retry_clean
@@ -6301,6 +6309,7 @@ def sanitize_agent_chat_reply(
         or _cjk_count(r) < 18
         or bool(re.fullmatch(r"[上下左右是否好的嗯啊]+", r.strip()))
         or _looks_like_train_leak(r)
+        or _looks_like_char_loop(r)
     )
     fake_metrics = _looks_like_fake_metrics_reply(r)
     quality_fail = (
@@ -6317,8 +6326,14 @@ def sanitize_agent_chat_reply(
                 print("⚠️ 閒聊輸出不穩，保留 LLM 或短提示")
             elif think_leaked:
                 print("⚠️ 對話輸出洩漏內部思考標記，替換成品質提示")
-            else:
+            elif not _chat_skip_quality_replacement():
                 print("⚠️ 對話輸出為亂碼／訓練殘留")
+            if (
+                _chat_skip_quality_replacement()
+                and r
+                and not think_leaked
+            ):
+                return _polish_chat_output(r)
             if (
                 casual
                 and r
@@ -6373,6 +6388,9 @@ def sanitize_agent_chat_reply(
         and not think_leaked
         and not _looks_like_train_leak(r)
     ):
+        return _polish_chat_output(r)
+
+    if _chat_skip_quality_replacement() and r:
         return _polish_chat_output(r)
 
     print("⚠️ 對話回覆未通過品質檢查，替換成品質提示")
@@ -7209,6 +7227,84 @@ def ensure_visual_reply(user_message, reply):
     return reply
 
 
+_HW_LOG_PRIORITY_RE = re.compile(
+    r"ILPOWER|ERR_DISABLE|\[sda\]|EXT2|device offline|FRU_|PLATFORM|POWER|"
+    r"UPDOWN|storage|flash|IOSXE-|kernel:|SUPERVISOR|ENVIRONMENT",
+    re.I,
+)
+
+
+def _trim_log_context_smart(ctx: str, limit: int) -> str:
+    """超長監控／syslog 上下文：優先保留標題與硬體／設備相關行，避免盲目截尾。"""
+    text = (ctx or "").strip()
+    if not text or len(text) <= limit:
+        return text
+    header: list[str] = []
+    priority: list[str] = []
+    normal: list[str] = []
+    for ln in text.splitlines():
+        s = ln.strip()
+        if not s:
+            continue
+        if s.startswith("【") or s.startswith("###") or re.match(r"^-\s", s):
+            header.append(ln)
+        elif _HW_LOG_PRIORITY_RE.search(s):
+            priority.append(ln)
+        else:
+            normal.append(ln)
+    kept: list[str] = []
+    for block in (header[:24], priority, normal):
+        for ln in block:
+            candidate = "\n".join(kept + [ln])
+            if len(candidate) > max(512, limit - 48):
+                break
+            kept.append(ln)
+        if len("\n".join(kept)) >= limit - 48:
+            break
+    out = "\n".join(kept).strip()
+    if len(out) < len(text):
+        out += "\n...(摘要已截斷；已優先保留硬體／設備相關 syslog)..."
+    return out
+
+
+def _ot_context_char_limit(
+    user_message: str,
+    *,
+    syslog_analysis_mode: bool,
+    uploaded_attachment: bool,
+    has_syslog_corpus: bool,
+) -> int:
+    """依模型與問題類型決定可注入 LLM 的監控／syslog 字數上限。"""
+    env_cap = os.environ.get("OT_LOG_CTX_CHARS", "").strip()
+    if env_cap.isdigit() and int(env_cap) > 0:
+        return int(env_cap)
+
+    if syslog_analysis_mode:
+        syslog_env = os.environ.get("SYSLOG_CTX_CHARS", "").strip()
+        if syslog_env.isdigit() and int(syslog_env) > 0:
+            return int(syslog_env)
+        limit = max(int(WARROOM_CTX_LIMIT), 16000)
+        if (
+            uploaded_attachment
+            and _is_small_or_gemma_model()
+            and not (USE_OLLAMA and ollama_service.is_gemma4_e2b_model())
+        ):
+            return min(limit, 5800)
+        return limit
+
+    if USE_OLLAMA and ollama_service.is_gemma4_e2b_model():
+        # 8192 ctx 下約可容 10k–12k 字輸入（另留思考／輸出 token）
+        base = 12000
+        if wants_hardware_device_check(user_message) or has_syslog_corpus:
+            base = 12000
+        return max(base, int(WARROOM_CTX_LIMIT))
+
+    if wants_ot_status_summary(user_message):
+        return max(int(WARROOM_CTX_LIMIT), 1200)
+
+    return max(int(WARROOM_CTX_LIMIT), 8000)
+
+
 def build_monitor_warroom_context(*, max_log_events: int = 96) -> str:
     """
     匯總監控戰情室（OT.html）同源資料，供 AI 對話引用。
@@ -7284,8 +7380,14 @@ def build_monitor_warroom_context(*, max_log_events: int = 96) -> str:
             if not bundle:
                 continue
             log_text = (bundle.get("log") or "").strip()
-            if len(log_text) > 520:
-                log_text = log_text[:520] + "\n...(bundle log 已截斷)..."
+            bundle_cap = 520
+            bundle_env = os.environ.get("OT_WARROOM_BUNDLE_CHARS", "").strip()
+            if bundle_env.isdigit() and int(bundle_env) > 0:
+                bundle_cap = int(bundle_env)
+            elif USE_OLLAMA and ollama_service.is_gemma4_e2b_model():
+                bundle_cap = 1200
+            if len(log_text) > bundle_cap:
+                log_text = log_text[:bundle_cap] + "\n...(bundle log 已截斷)..."
             lines.append(f"\n### {bundle.get('title') or title}（{key}）")
             lines.append(bundle.get("metric_summary") or "metric_summary=n/a")
             if bundle.get("evidence_id"):
@@ -7328,9 +7430,14 @@ def build_monitor_warroom_context(*, max_log_events: int = 96) -> str:
         lines.append("\n目前尚無解析後的事件清單。")
 
     summary = "\n".join(lines)
-    cap = WARROOM_CTX_LIMIT
+    cap = int(WARROOM_CTX_LIMIT)
+    warroom_env = os.environ.get("OT_WARROOM_CTX_LIMIT", "").strip()
+    if warroom_env.isdigit() and int(warroom_env) > 0:
+        cap = max(cap, int(warroom_env))
+    elif USE_OLLAMA and ollama_service.is_gemma4_e2b_model():
+        cap = max(cap, 12000)
     if len(summary) > cap:
-        summary = summary[:cap] + "\n...[監控戰情摘要已截斷]..."
+        summary = _trim_log_context_smart(summary, cap)
     return summary
 
 
@@ -7370,6 +7477,7 @@ def build_imported_syslog_corpus_context(
     *,
     max_chars: int | None = None,
     max_lines_per_file: int = 80,
+    hardware_priority: bool = False,
 ) -> str:
     """
     彙整 ot/ 已匯入之 syslog 原文，供 AI 對話直接引用（非僅 KPI 摘要）。
@@ -7380,7 +7488,16 @@ def build_imported_syslog_corpus_context(
     cap = max_chars
     if cap is None:
         env = os.environ.get("OT_SYSLOG_CTX_CHARS", "").strip()
-        cap = int(env) if env.isdigit() else max(int(WARROOM_CTX_LIMIT), 28000)
+        if env.isdigit() and int(env) > 0:
+            cap = int(env)
+        elif USE_OLLAMA and ollama_service.is_gemma4_e2b_model():
+            cap = 12000
+        else:
+            cap = max(int(WARROOM_CTX_LIMIT), 28000)
+
+    if hardware_priority or wants_hardware_device_check(user_message or ""):
+        hardware_priority = True
+        max_lines_per_file = max(max_lines_per_file, 150)
 
     device_hint = _device_hint_from_query(user_message or "")
     log_files = _list_ot_log_files()
@@ -7394,6 +7511,7 @@ def build_imported_syslog_corpus_context(
     if device_hint:
         lines.append(f"- 依問題篩選：{device_hint}")
 
+    scan_limit = max_lines_per_file * 3 if hardware_priority else max_lines_per_file
     total_raw = 0
     for path in log_files:
         file_lines: list[str] = []
@@ -7417,7 +7535,7 @@ def build_imported_syslog_corpus_context(
                     prefix = f"[{dev}] " if dev else ""
                     ts_part = f"{ts} " if ts else ""
                     file_lines.append(f"{prefix}{ts_part}{msg.strip()[:420]}")
-                    if len(file_lines) >= max_lines_per_file:
+                    if len(file_lines) >= scan_limit:
                         break
             else:
                 with open(path, "r", encoding="utf-8", errors="ignore") as f:
@@ -7429,7 +7547,7 @@ def build_imported_syslog_corpus_context(
                             if device_hint.lower() not in path.name.lower():
                                 continue
                         file_lines.append(ln[:420])
-                        if len(file_lines) >= max_lines_per_file:
+                        if len(file_lines) >= scan_limit:
                             break
         except Exception as e:
             lines.append(f"\n### {path.name}（讀取失敗：{e}）")
@@ -7437,6 +7555,13 @@ def build_imported_syslog_corpus_context(
 
         if not file_lines:
             continue
+
+        if hardware_priority:
+            hw = [ln for ln in file_lines if _HW_LOG_PRIORITY_RE.search(ln)]
+            other = [ln for ln in file_lines if ln not in hw]
+            file_lines = (hw + other)[:max_lines_per_file]
+        else:
+            file_lines = file_lines[:max_lines_per_file]
 
         total_raw += len(file_lines)
         lines.append(f"\n### {path.name}（樣本 {len(file_lines)} 行）")
@@ -7448,7 +7573,7 @@ def build_imported_syslog_corpus_context(
     lines.insert(1, f"- 引用事件行樣本：{total_raw} 行")
     body = "\n".join(lines)
     if len(body) > cap:
-        body = body[:cap] + "\n...(已匯入 syslog 語料庫截斷)..."
+        body = _trim_log_context_smart(body, cap)
     return body
 
 
@@ -7826,6 +7951,7 @@ def ask_agent(
     syslog_content: str = "",
     uploaded_syslog: bool = False,
     syslog_filename: str = "",
+    stream_callback=None,
 ):
     """聊天 Agent：可選擇附帶 OT 掃描結果、RAG 與多輪對話上下文。"""
     visual = wants_visual(user_message)
@@ -7897,10 +8023,19 @@ def ask_agent(
                     f"日誌 {len(log_src)} 字 | 問題：{user_message[:48]}"
                 )
             elif ot_context:
+                sup_cap = _ot_context_char_limit(
+                    user_message,
+                    syslog_analysis_mode=False,
+                    uploaded_attachment=False,
+                    has_syslog_corpus="【已匯入 SYSLOG 原文語料庫" in ot_context,
+                )
+                sup_ctx = ot_context
+                if len(sup_ctx) > sup_cap:
+                    sup_ctx = _trim_log_context_smart(sup_ctx, sup_cap)
                 ot_context = (
                     pasted_ctx
                     + "\n\n【補充｜監控戰情室摘要（次要參考）】\n"
-                    + (ot_context[:2400] + "…" if len(ot_context) > 2400 else ot_context)
+                    + sup_ctx
                 )
             else:
                 ot_context = pasted_ctx
@@ -7987,12 +8122,20 @@ def ask_agent(
     if (
         finetuned_kb
         and wants_hardware_device_check(user_message)
-        and not (ot_context or "").strip()
         and not visual
         and not uploaded_attachment
     ):
-        ot_context = build_monitor_warroom_context()
-        print("🔧 Agent：硬體設備問題已注入監控戰情室 → LLM")
+        if not (ot_context or "").strip():
+            ot_context = build_monitor_warroom_context()
+            print("🔧 Agent：硬體設備問題已注入監控戰情室 → LLM")
+        if "【已匯入 SYSLOG 原文語料庫" not in (ot_context or ""):
+            hw_corpus = build_imported_syslog_corpus_context(
+                user_message,
+                hardware_priority=True,
+            )
+            if hw_corpus:
+                ot_context = ((ot_context or "") + "\n\n" + hw_corpus).strip()
+                print("🔧 Agent：硬體設備問題已附加 syslog 語料庫（硬體優先）→ LLM")
 
     log_grounded = bool((ot_context or "").strip())
     log_first_rule = (
@@ -8157,20 +8300,20 @@ def ask_agent(
             "禁止寫「以下是根據底稿改寫的回覆」等開場白，直接說明現況即可。"
         )
     elif ot_context:
-        # 監控戰情室完整上下文：保留較長上限供 LLM 引用設備／bundle／evidence
+        # 監控戰情室完整上下文：E2B 等大 ctx 模型可注入更長 syslog／戰情室資料
         ctx = ot_context
-        if syslog_analysis_mode:
-            limit = max(int(os.environ.get("SYSLOG_CTX_CHARS", "0") or 0), 16000)
-            if not os.environ.get("SYSLOG_CTX_CHARS", "").strip().isdigit():
-                limit = max(WARROOM_CTX_LIMIT, 16000)
-            if uploaded_attachment and _is_small_or_gemma_model():
-                limit = min(limit, 5800)
-        elif wants_ot_status_summary(user_message):
-            limit = max(WARROOM_CTX_LIMIT, 1200)
-        else:
-            limit = WARROOM_CTX_LIMIT
+        has_corpus = "【已匯入 SYSLOG 原文語料庫" in ctx
+        limit = _ot_context_char_limit(
+            user_message,
+            syslog_analysis_mode=syslog_analysis_mode,
+            uploaded_attachment=uploaded_attachment,
+            has_syslog_corpus=has_corpus,
+        )
         if len(ctx) > limit:
-            ctx = ctx[:limit] + "\n...(摘要已截斷)..."
+            ctx = _trim_log_context_smart(ctx, limit)
+            print(f"📋 Agent：監控上下文 {len(ot_context)} → {len(ctx)} 字（limit={limit}）")
+        elif len(ctx) > 4000:
+            print(f"📋 Agent：監控上下文 {len(ctx)} 字（limit={limit}，未截斷）")
         if syslog_analysis_mode:
             parts.append(
                 "【SYSLOG 完整分析｜以下為使用者提供之原始日誌與統計；"
@@ -8365,22 +8508,35 @@ def ask_agent(
         print(f"📋 合規現況 LLM token_budget={token_budget}")
     elif log_grounded and output_mode == "chat" and not visual:
         action_plan = wants_warroom_action_plan(user_message)
+        e2b_long = USE_OLLAMA and ollama_service.is_gemma4_e2b_model()
         if action_plan:
             _lg_cap = 240 if _is_cpu_llm_inference() else (
-                720 if _is_small_or_gemma_model() else min(880, int(MAX_NEW_TOKENS) + 160)
+                1200 if e2b_long else (
+                    720 if _is_small_or_gemma_model() else min(880, int(MAX_NEW_TOKENS) + 160)
+                )
             )
             print(f"📋 戰情室行動建議 LLM token_budget cap={_lg_cap}")
         else:
             _lg_cap = 200 if _is_cpu_llm_inference() else (
-                560 if _is_small_or_gemma_model() else min(720, int(MAX_NEW_TOKENS))
+                1200 if e2b_long else (
+                    560 if _is_small_or_gemma_model() else min(720, int(MAX_NEW_TOKENS))
+                )
             )
-        token_budget = min(max(token_budget, _lg_cap), int(MAX_NEW_TOKENS) + (240 if action_plan else 0))
+        extra = 240 if action_plan else 0
+        if e2b_long and ollama_service.gemma4_e2b_think_enabled():
+            think_floor = int(os.environ.get("OLLAMA_GEMMA4_THINK_TOKENS", "1400") or 1400)
+            token_budget = min(max(token_budget, _lg_cap, think_floor), think_floor + extra)
+        elif e2b_long:
+            token_budget = min(max(token_budget, _lg_cap), int(MAX_NEW_TOKENS) + extra)
+        else:
+            token_budget = min(max(token_budget, _lg_cap), int(MAX_NEW_TOKENS) + extra)
         print(f"📋 日誌詳答 LLM token_budget={token_budget}")
     reply = run_llm(
         messages,
         max_new_tokens=token_budget,
         allow_continue=False if (USE_OLLAMA or _is_cpu_llm_inference()) else True,
         output_mode=output_mode,
+        stream_callback=stream_callback,
     )
 
     if syslog_analysis_mode and uploaded_attachment:
@@ -8979,13 +9135,13 @@ def _classify_generic_log_line(line: str):
     }
     ctrl_id, label = label_map.get(key, ("A.8.19 (Logs)", "A.8.19 組態變更"))
     badge_type = "pass-bg"
-    status_txt = "Compliant"
+    status_txt = "符合"
     if severity <= 2:
         badge_type = "fail-bg"
-        status_txt = "Critical"
+        status_txt = "不符合"
     elif severity <= 3:
         badge_type = "review-bg"
-        status_txt = "Attention"
+        status_txt = "待改善"
     return {
         "time": "unknown",
         "facility": "GENERIC",
@@ -9192,16 +9348,16 @@ def _classify_txt_log_line(line: str):
     ctrl_id, label = label_map.get(key, (mapping["ctrl_id"], mapping["label"]))
 
     badge_type = "pass-bg"
-    status_txt = "Compliant"
+    status_txt = "符合"
     if severity <= 2:
         badge_type = "fail-bg"
-        status_txt = "Critical"
+        status_txt = "不符合"
     elif severity <= 3 or key == "access_control":
         badge_type = "review-bg"
-        status_txt = "Attention"
+        status_txt = "待改善"
     elif re.search(r"CONFIG_I|LOGIN_FAILED|DENIED|ERR_DISABLE", hay, re.I):
         badge_type = "review-bg"
-        status_txt = "Attention"
+        status_txt = "待改善"
 
     return {
         "time": ts or "unknown",
@@ -9424,6 +9580,8 @@ def build_control_log_bundle(
     samples_by_key = samples_by_key or {}
     for key in CONTROL_TITLES:
         matched = [x for x in parsed_logs_list if x.get("key") == key]
+        if not matched and samples_by_key.get(key):
+            matched = list(samples_by_key[key][: max_lines * 2])
         if len(matched) < max_lines and samples_by_key.get(key):
             # 補齊各控制項專屬樣本（解決：計數很多但總表抽不到）
             seen = {(m.get("time"), m.get("raw")) for m in matched}
@@ -9453,10 +9611,19 @@ def build_control_log_bundle(
             if omitted > 0:
                 log_text += f"\n...另有 {omitted} 筆同類事件已省略..."
         elif full_count > 0:
-            log_text = (
-                f"（全量計數 {full_count} 筆，目前無可用原文樣本）\n"
-                "請只依量化指標評估；禁止虛構 syslog／HOSTNAME／IP 佔位內容。"
-            )
+            bucket = samples_by_key.get(key) or []
+            if bucket:
+                ranked_b = sorted(
+                    bucket,
+                    key=lambda x: (x.get("severity", 5), x.get("time", "")),
+                )
+                lines = [m["raw"] for m in ranked_b[:max_lines] if m.get("raw")]
+                log_text = "\n".join(lines) if lines else ""
+                omitted = max(0, full_count - len(lines))
+                if log_text and omitted > 0:
+                    log_text += f"\n...另有 {omitted} 筆同類事件已省略..."
+            else:
+                log_text = f"（全量計數 {full_count} 筆；摘要樣本載入中）"
         else:
             log_text = "目前該控制項沒有相關事件行數據。"
 
@@ -9622,6 +9789,10 @@ def scan_ot_directory():
         "all_logs_content": all_logs_content,
         "import_stats": import_stats,
         "control_bundles": control_bundles,
+        "samples_by_key": {
+            k: [dict(ev) for ev in (samples_by_key.get(k) or [])[:16]]
+            for k in CONTROL_TITLES
+        },
         "compliance_principle": "No Evidence, No Compliance Claim",
     }
 
@@ -9709,6 +9880,94 @@ def _parse_txt_log_file_cached(path: Path, max_events_per_file: int = 500):
     return _parse_ot_log_file_cached(path, max_events_per_file=max_events_per_file)
 
 
+def build_ot_topology(site_id: str = "fab-a") -> dict:
+    """
+    建構 OT 場域網路拓樸（多廠區、Port 連線表、日誌設備狀態）。
+    供 /topology 視覺化與 Agent 引用場域架構摘要。
+    """
+    from code.services.ot_topology_service import build_site_topology
+
+    data = get_ot_monitor_data()
+    if isinstance(data, dict) and data.get("error"):
+        return {"ok": False, "error": data["error"], "nodes": [], "edges": []}
+    return build_site_topology(
+        site_id,
+        monitor_data=data,
+        parse_device_fn=_parse_device_from_txt_name,
+    )
+
+
+def _rebuild_monitor_bundles(data: dict, *, old_bundles: dict | None = None) -> dict:
+    """拓樸合併後重算 control_bundles，保留 ot/ 掃描的各控制項原文樣本桶。"""
+    if not isinstance(data, dict) or not data.get("parsed_logs"):
+        return data
+    old_bundles = old_bundles or data.get("control_bundles") or {}
+    samples_by_key = {k: [] for k in CONTROL_TITLES}
+    for k in CONTROL_TITLES:
+        for ev in (data.get("samples_by_key") or {}).get(k) or []:
+            if len(samples_by_key[k]) >= 16:
+                break
+            samples_by_key[k].append(ev)
+    for ev in data["parsed_logs"]:
+        ek = ev.get("key")
+        if ek in samples_by_key and len(samples_by_key[ek]) < 16:
+            samples_by_key[ek].append(ev)
+    bundles = build_control_log_bundle(
+        data["parsed_logs"],
+        data.get("metrics") or {},
+        samples_by_key=samples_by_key,
+    )
+    for key, bundle in bundles.items():
+        prev = old_bundles.get(key) or {}
+        if prev.get("evidence_id"):
+            bundle["evidence_id"] = prev["evidence_id"]
+    data["control_bundles"] = bundles
+    data["samples_by_key"] = {
+        k: [dict(ev) for ev in samples_by_key.get(k, [])[:16]]
+        for k in CONTROL_TITLES
+    }
+    return data
+
+
+def _monitor_data_with_topology(*, force: bool = False, site: str = "fab-a") -> dict:
+    """OT 掃描 + 拓樸匯入 + bundle 重算（monitor API 與 evidence_dashboard 共用）。"""
+    from code.services.ot_topology_service import merge_topology_into_monitor
+
+    data = get_ot_monitor_data(force=force)
+    if not isinstance(data, dict):
+        return {"error": "無監控資料"}
+    had_error = bool(data.get("error"))
+    old_bundles = data.get("control_bundles") or {}
+    data = merge_topology_into_monitor(data, site_id=site)
+    data = _rebuild_monitor_bundles(data, old_bundles=old_bundles)
+    if had_error and not data.get("parsed_logs"):
+        data.setdefault(
+            "error",
+            data.get("error") or "OT 資料與拓樸匯入皆不可用",
+        )
+    else:
+        data.pop("error", None)
+    return data
+
+
+def build_monitor_evidence_dashboard(monitor_data: dict | None = None) -> dict:
+    """93 項 Annex A 證據鏈視圖（含 Semi-Shield vs 傳統比較）。"""
+    from code.services.evidence_chain_service import build_evidence_dashboard
+
+    data = monitor_data if monitor_data is not None else get_ot_monitor_data()
+    if isinstance(data, dict) and data.get("error"):
+        return {"ok": False, "error": data["error"]}
+    log_files: list[str] = []
+    try:
+        summary = json.loads(data.get("all_logs_content") or "{}")
+        for fm in summary.get("files") or []:
+            if fm.get("file"):
+                log_files.append(str(fm["file"]))
+    except Exception:
+        pass
+    return build_evidence_dashboard(data, log_files=log_files)
+
+
 def get_ot_monitor_data(force: bool = False):
     """帶快取的 OT 監控資料（給 API／Agent 共用）。"""
     import time
@@ -9763,12 +10022,165 @@ def serve_monitor_page():
     return send_from_directory(WEB_DIR, 'OT.html')
 
 
+@app.route('/topology')
+def serve_topology_page():
+    """OT 場域網路拓樸（Purdue 分層 + 日誌回報模擬）。"""
+    return send_from_directory(WEB_DIR, 'ot_topology.html')
+
+
+@app.route('/api/ot/topology', methods=['GET'])
+def api_ot_topology():
+    """OT 拓樸 JSON（節點、Port 連線、近期回報）；?site=fab-a|fab-b"""
+    site = (request.args.get("site") or "fab-a").strip()
+    topo = build_ot_topology(site)
+    code = 200 if topo.get("ok") else 500
+    return jsonify(topo), code
+
+
+@app.route('/api/ot/topology/layout', methods=['GET', 'PUT', 'DELETE'])
+def api_ot_topology_layout():
+    """客戶自訂拓樸節點版面（x,y）— 持久化於 data/ot_topology_layouts/。"""
+    from code.services.ot_topology_service import (
+        delete_custom_layout,
+        load_custom_layout,
+        save_custom_layout,
+    )
+
+    site = (request.args.get("site") if request.method == "GET" else None) or ""
+    if request.method != "GET":
+        body = request.get_json(silent=True) or {}
+        site = (body.get("site") or body.get("site_id") or request.args.get("site") or "fab-a").strip()
+
+    if request.method == "GET":
+        layout = load_custom_layout(site or "fab-a")
+        return jsonify({
+            "ok": True,
+            "site": site or "fab-a",
+            "layout": layout,
+            "has_custom": bool(layout),
+        })
+
+    if request.method == "DELETE":
+        removed = delete_custom_layout(site or "fab-a")
+        return jsonify({"ok": True, "site": site, "removed": removed})
+
+    nodes = body.get("nodes")
+    if not isinstance(nodes, list):
+        return jsonify({"error": "請提供 nodes: [{id, x, y}, ...]"}), 400
+    saved = save_custom_layout(
+        site,
+        nodes,
+        label=str(body.get("label") or ""),
+        updated_by=str(body.get("updated_by") or body.get("by") or ""),
+    )
+    return jsonify({"ok": True, "site": site, "layout": saved})
+
+
+@app.route('/api/ot/topology/sim_feed', methods=['GET'])
+def api_ot_topology_sim_feed():
+    """虛擬 syslog 即時批次（模擬完整 OT 場域回報）。"""
+    from code.services.ot_topology_service import sim_syslog_for_site
+
+    site = (request.args.get("site") or "fab-a").strip()
+    try:
+        n = int(request.args.get("n") or 4)
+    except ValueError:
+        n = 4
+    events = sim_syslog_for_site(site, count=n)
+    return jsonify({"ok": True, "site": site, "events": events}), 200
+
+
+@app.route('/api/monitor/manual_imports', methods=['GET'])
+def api_list_manual_imports():
+    from code.services.manual_import_service import list_imports
+
+    annex = (request.args.get("annex_a_id") or request.args.get("annex") or "").strip()
+    try:
+        limit = int(request.args.get("limit") or 100)
+    except ValueError:
+        limit = 100
+    rows = list_imports(annex_a_id=annex or None, limit=limit)
+    return jsonify({"ok": True, "imports": rows, "count": len(rows)}), 200
+
+
+@app.route('/api/monitor/manual_import', methods=['POST'])
+def api_manual_import():
+    from code.services.manual_import_service import append_import
+
+    req = request.get_json(silent=True) or {}
+    annex = (req.get("annex_a_id") or req.get("annex") or "").strip()
+    content = req.get("content") or req.get("text") or req.get("body") or ""
+    title = (req.get("title") or "").strip()
+    source = (req.get("source") or "manual_form").strip()
+    try:
+        rec = append_import(
+            annex_a_id=annex,
+            title=title,
+            content=content,
+            source=source,
+            simulated=bool(req.get("simulated")),
+        )
+    except ValueError as e:
+        return jsonify({"ok": False, "error": str(e)}), 400
+    return jsonify({"ok": True, "record": rec}), 201
+
+
+@app.route('/api/monitor/manual_import/simulate', methods=['POST'])
+def api_simulate_manual_import():
+    from code.services.manual_import_service import simulate_demo_batch
+
+    req = request.get_json(silent=True) or {}
+    force = str(req.get("force") or request.args.get("force") or "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+    result = simulate_demo_batch(skip_existing=not force)
+    created = result.get("created") or []
+    skipped_n = len(result.get("skipped_annex_ids") or [])
+    target_n = int(result.get("target_count") or 0)
+    msg = f"已模擬匯入 {len(created)} 筆（共 {target_n} 項需人工證據）"
+    if skipped_n and not force:
+        msg += f"，略過已有紀錄 {skipped_n} 項（force=1 可全部重匯）"
+    return jsonify({
+        "ok": True,
+        "message": msg,
+        "records": created,
+        "skipped_count": skipped_n,
+        "target_count": target_n,
+    }), 201
+
+
+@app.route('/api/monitor/evidence_dashboard', methods=['GET'])
+def api_monitor_evidence_dashboard():
+    """Annex A 全控制項證據鏈（含自動化分級與傳統路徑對照）。"""
+    force = request.args.get("force", "").strip().lower() in ("1", "true", "yes")
+    site = (request.args.get("site") or os.environ.get("OT_TOPO_SITE") or "fab-a").strip()
+    monitor = _monitor_data_with_topology(force=force, site=site)
+    if isinstance(monitor, dict) and monitor.get("error") and not monitor.get("parsed_logs"):
+        return jsonify({"ok": False, "error": monitor["error"]}), 404
+    dash = build_monitor_evidence_dashboard(monitor)
+    if dash.get("ok"):
+        dash["metrics"] = monitor.get("metrics") if isinstance(monitor, dict) else {}
+        dash["control_bundles"] = monitor.get("control_bundles") if isinstance(monitor, dict) else {}
+    return jsonify(dash), 200 if dash.get("ok") else 500
+
+
+@app.route('/web/<path:filename>')
+def serve_web_static(filename):
+    """web/ 目錄靜態資源（JS 模組等）。"""
+    return send_from_directory(WEB_DIR, filename)
+
+
 @app.route('/api/monitor/data', methods=['GET'])
 def get_monitor_data():
     force = str(request.args.get("force") or "").strip().lower() in ("1", "true", "yes")
-    data = get_ot_monitor_data(force=force)
-    if isinstance(data, dict) and "error" in data:
-        return jsonify(data), 404
+    site = (request.args.get("site") or os.environ.get("OT_TOPO_SITE") or "fab-a").strip()
+    data = _monitor_data_with_topology(force=force, site=site)
+    if not isinstance(data, dict):
+        return jsonify({"error": "無監控資料"}), 500
+    if data.get("error") and not data.get("parsed_logs"):
+        return jsonify({"error": data.get("error") or "OT 資料與拓樸匯入皆不可用"}), 404
     return jsonify(data)
 
 
@@ -10376,6 +10788,181 @@ def audit_checklist_notes():
     })
 
 
+def _agent_chat_wants_stream(req_data: dict) -> bool:
+    v = req_data.get("stream", True)
+    if v is False:
+        return False
+    if isinstance(v, str) and v.strip().lower() in ("0", "false", "no", "off"):
+        return False
+    return True
+
+
+def _postprocess_agent_chat_reply(
+    reply: str,
+    *,
+    user_message: str,
+    ot_context: str | None,
+    rag_context: str | None,
+    syslog_deep: bool,
+    report_mode: bool,
+) -> tuple[str, bool, bool]:
+    reply = sanitize_agent_chat_reply(
+        reply,
+        user_message,
+        ot_context=ot_context or "",
+        rag_context=rag_context or "",
+    )
+    reply = ensure_visual_reply(user_message, reply)
+    use_report_norm = bool(ENABLE_THREE_CARD_REPORT) and (
+        report_mode
+        or _looks_like_report(reply)
+        or bool(re.search(r"%[A-Z0-9_-]+-\d+-[A-Z0-9_]+", user_message or "", re.I))
+    )
+    reply = normalize_llm_output(
+        reply,
+        mode="syslog" if syslog_deep else ("report" if use_report_norm else "chat"),
+        output_char_limit=(
+            None
+            if syslog_deep or use_report_norm
+            else _chat_output_char_limit(
+                log_grounded=bool((ot_context or "").strip()),
+                action_plan=wants_warroom_action_plan(user_message),
+            )
+        ),
+    )
+    reply = sanitize_agent_chat_reply(
+        reply,
+        user_message,
+        ot_context=ot_context or "",
+        rag_context=rag_context or "",
+        log_cmd=False,
+    )
+    reply = _finalize_chat_reply(reply, user_message)
+    reply, redacted = guardrail_service.sanitize_output(reply)
+    reply_quality_failed = _is_chat_quality_fail_reply(reply)
+    return reply, reply_quality_failed, redacted
+
+
+def _emit_chat_reply_tokens(event_q, text: str) -> None:
+    """非 Ollama 或無即時推論時，仍逐字推送給前端打字機效果。"""
+    for ch in text or "":
+        event_q.put({"event": "token", "delta": ch})
+
+
+def _stream_agent_chat_ndjson(
+    *,
+    user_message: str,
+    syslog_content: str,
+    syslog_filename: str,
+    chat_history,
+    ot_context,
+    rag_context,
+    uploaded_syslog: bool,
+    syslog_deep: bool,
+    report_mode: bool,
+    guard: dict,
+    human_review_hint,
+    tool_called: bool,
+    tool_name,
+    tool_query,
+    rag_citations,
+):
+    import json as _json
+    import queue
+    import threading
+
+    event_q: queue.SimpleQueue = queue.SimpleQueue()
+    holder: dict = {}
+
+    def _worker():
+        try:
+            token_count = 0
+
+            def on_token(delta: str):
+                nonlocal token_count
+                if not delta:
+                    return
+                for ch in delta:
+                    event_q.put({"event": "token", "delta": ch})
+                    token_count += 1
+
+            stream_cb = on_token if USE_OLLAMA else None
+
+            reply = ask_agent(
+                user_message,
+                ot_context=ot_context,
+                rag_context=rag_context or None,
+                chat_history=chat_history,
+                syslog_content=syslog_content,
+                uploaded_syslog=uploaded_syslog,
+                syslog_filename=syslog_filename,
+                stream_callback=stream_cb,
+            )
+            reply, reply_quality_failed, redacted = _postprocess_agent_chat_reply(
+                reply,
+                user_message=user_message,
+                ot_context=ot_context,
+                rag_context=rag_context,
+                syslog_deep=syslog_deep,
+                report_mode=report_mode,
+            )
+            if token_count == 0 and (reply or "").strip():
+                _emit_chat_reply_tokens(event_q, reply)
+            holder["done"] = {
+                "event": "done",
+                "status": "success",
+                "reply": reply,
+                "reply_quality_failed": reply_quality_failed,
+                "tool_called": tool_called,
+                "tool_name": tool_name,
+                "tool_query": tool_query,
+                "guardrail": {
+                    "blocked": False,
+                    "mode": guard.get("mode") or guardrail_service.mode,
+                    "output_redacted": redacted,
+                    "safe_prob": guard.get("safe_prob", 1.0),
+                    "unsafe_prob": guard.get("unsafe_prob", 0.0),
+                    "reason": guard.get("reason"),
+                },
+                "human_review": human_review_hint,
+                "rag_enabled": _rag_feature_enabled(),
+                "rag_citations": rag_citations,
+                "llm_model": _current_llm_info(),
+                "syslog_analysis": bool(syslog_deep),
+            }
+        except Exception as ex:
+            holder["error"] = str(ex)
+        finally:
+            event_q.put(None)
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+    @stream_with_context
+    def generate():
+        while True:
+            item = event_q.get()
+            if item is None:
+                break
+            yield _json.dumps(item, ensure_ascii=False) + "\n"
+        if holder.get("error"):
+            yield _json.dumps(
+                {"event": "error", "message": holder["error"]},
+                ensure_ascii=False,
+            ) + "\n"
+        elif holder.get("done"):
+            yield _json.dumps(holder["done"], ensure_ascii=False) + "\n"
+
+    return Response(
+        generate(),
+        mimetype="application/x-ndjson; charset=utf-8",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
 @app.route('/api/agent/chat', methods=['POST'])
 def agent_chat():
     """前端聊天介面：護欄 → RAG 檢索 → LLM → 圖表補強 → 輸出脫敏。"""
@@ -10513,7 +11100,8 @@ def agent_chat():
     # 2b) 附加 ot/ 已匯入 syslog 原文（上傳單檔時略過，避免混用全庫）
     if not uploaded_syslog:
         corpus_ctx = build_imported_syslog_corpus_context(
-            user_message or (syslog_content or "")[:800]
+            user_message or (syslog_content or "")[:800],
+            hardware_priority=wants_hardware_device_check(user_message or ""),
         )
         if corpus_ctx:
             ot_context = ((ot_context or "") + "\n\n" + corpus_ctx).strip()
@@ -10526,14 +11114,27 @@ def agent_chat():
             )
             print(f"📋 Agent：已注入 ot/ syslog 語料庫 | {user_message[:48]}")
 
-    # 3) LLM 生成前：若尚未探測，先隱形問「你好」並丟棄（燒掉冷啟動第一則）
-    try:
-        _prime_llm_chat()
-    except Exception as _prime_err:
-        print(f"⚠️ 請求前對話探測略過：{_prime_err}")
-
-    # 3b) LLM 生成（帶多輪 history，避免「我是說 27001」這類接話答非所問）
+    # 3) LLM 生成（帶多輪 history，避免「我是說 27001」這類接話答非所問）
     chat_history = req_data.get("history") or req_data.get("messages") or []
+    if _agent_chat_wants_stream(req_data):
+        return _stream_agent_chat_ndjson(
+            user_message=user_message,
+            syslog_content=syslog_content,
+            syslog_filename=syslog_filename,
+            chat_history=chat_history,
+            ot_context=ot_context,
+            rag_context=rag_context,
+            uploaded_syslog=uploaded_syslog,
+            syslog_deep=syslog_deep,
+            report_mode=report_mode,
+            guard=guard,
+            human_review_hint=human_review_hint,
+            tool_called=tool_called,
+            tool_name=tool_name,
+            tool_query=tool_query,
+            rag_citations=rag_citations,
+        )
+
     reply = ask_agent(
         user_message,
         ot_context=ot_context,
@@ -10543,50 +11144,14 @@ def agent_chat():
         uploaded_syslog=uploaded_syslog,
         syslog_filename=syslog_filename,
     )
-    # 雙保險：對整段證據再跑一次防幻覺改寫
-    reply = sanitize_agent_chat_reply(
+    reply, reply_quality_failed, redacted = _postprocess_agent_chat_reply(
         reply,
-        user_message,
-        ot_context=ot_context or "",
-        rag_context=rag_context or "",
+        user_message=user_message,
+        ot_context=ot_context,
+        rag_context=rag_context,
+        syslog_deep=syslog_deep,
+        report_mode=report_mode,
     )
-    reply = ensure_visual_reply(user_message, reply)
-    # 三卡關閉時一律走 chat 淨化，再強制收斂成結論／說明／建議
-    use_report_norm = bool(ENABLE_THREE_CARD_REPORT) and (
-        report_mode
-        or _looks_like_report(reply)
-        or bool(
-            re.search(r"%[A-Z0-9_-]+-\d+-[A-Z0-9_]+", user_message or "", re.I)
-        )
-    )
-    reply = normalize_llm_output(
-        reply,
-        mode="syslog" if syslog_deep else ("report" if use_report_norm else "chat"),
-        output_char_limit=(
-            None
-            if syslog_deep or use_report_norm
-            else _chat_output_char_limit(
-                log_grounded=bool((ot_context or "").strip()),
-                action_plan=wants_warroom_action_plan(user_message),
-            )
-        ),
-    )
-    # normalize 後可能又露出模板殘留，再掃一次（略過重複 CMD 分數）
-    reply = sanitize_agent_chat_reply(
-        reply,
-        user_message,
-        ot_context=ot_context or "",
-        rag_context=rag_context or "",
-        log_cmd=False,
-    )
-    reply = _finalize_chat_reply(reply, user_message)
-    # --- 暫時註解：對話固定輸出（結論／說明／建議）收斂 ---
-    # reply = ensure_fixed_chat_format(reply, user_message)
-    # --- /暫時註解（恢復時取消註解，並將 ENABLE_FIXED_CHAT_FORMAT=True）---
-
-    # 4) 輸出脫敏
-    reply, redacted = guardrail_service.sanitize_output(reply)
-    reply_quality_failed = _is_chat_quality_fail_reply(reply)
 
     return jsonify({
         "status": "success",
@@ -11132,7 +11697,7 @@ def _resolve_switch_target(target: str) -> dict:
 
 def switch_llm_model(target: str) -> dict:
     """依 slug／路徑／HF id 切換 LLM；已載入者走快取，不重複載入。"""
-    global model, tokenizer, MODEL_PATH, _llm_chat_primed
+    global model, tokenizer, MODEL_PATH
 
     print(f"📥 LLM switch 請求：{target!r}")
     _reset_chat_template_probe()
@@ -11143,11 +11708,6 @@ def switch_llm_model(target: str) -> dict:
             print(f"❌ Ollama switch 失敗：{result.get('error')}")
             return result
         MODEL_PATH = ollama_service.current_model_name()
-        _llm_chat_primed = False
-        try:
-            _prime_llm_chat(force=True)
-        except Exception as we:
-            print(f"⚠️ Ollama 切換後對話探測略過：{we}")
         info = _current_llm_info()
         if result.get("slug"):
             info["slug"] = result["slug"]
@@ -11259,18 +11819,15 @@ def switch_llm_model(target: str) -> dict:
             if _LLM_RELEASE_ON_SWITCH:
                 _llm_cache_release_except(cache_key)
             print(f"⚡ 使用快取模型：{slug or cache_key}")
-            _llm_chat_primed = False
-            try:
-                _prime_llm_chat(force=True)
-            except Exception as we:
-                print(f"⚠️ 快取切換後對話探測略過：{we}")
+            cache_msg = "快取命中；熱切換保留" if _LLM_HOT_SWITCH else "快取命中；其他模型已釋放"
             return {
                 "ok": True,
                 "switched": True,
                 "from_cache": True,
+                "hot_switch": _LLM_HOT_SWITCH,
                 "message": (
                     f"已切換為 {_current_llm_info().get('label') or slug}"
-                    "（快取命中；其他模型已釋放）"
+                    f"（{cache_msg}）"
                 ),
                 **_current_llm_info(),
                 "cached_models": _llm_cache_keys_info(),
@@ -11283,9 +11840,9 @@ def switch_llm_model(target: str) -> dict:
                 prev_key = k
                 break
 
-        print(f"🔄 載入 LLM：{resolved}（{stage}）；將釋放舊模型資源")
+        load_note = "熱切換保留舊模型" if _LLM_HOT_SWITCH else "將釋放舊模型資源"
+        print(f"🔄 載入 LLM：{resolved}（{stage}）；{load_note}")
         try:
-            # 載入前先卸載舊模型，避免雙模型同時佔顯存
             if _LLM_RELEASE_ON_SWITCH:
                 _llm_cache_release_except(None)
                 model, tokenizer = None, None
@@ -11309,25 +11866,19 @@ def switch_llm_model(target: str) -> dict:
             if _LLM_RELEASE_ON_SWITCH:
                 _llm_cache_release_except(cache_key)
 
-            # 切換後重做對話探測（新模型同樣會有冷啟動第一則不穩）
-            _llm_chat_primed = False
-            try:
-                _prime_llm_chat(force=True)
-            except Exception as we:
-                print(f"⚠️ 切換後對話探測略過：{we}")
-                if _is_cuda_fault(we):
-                    print("⚠️ 切換後探測 CUDA 崩潰 → 切 CPU 後備")
-                    _failover_llm_to_cpu(str(we))
-
             info = _current_llm_info()
-            msg = f"已載入並切換為 {info.get('label') or slug}（舊模型資源已釋放）"
+            if _LLM_HOT_SWITCH:
+                msg = f"已載入並切換為 {info.get('label') or slug}（熱切換；舊模型保留在快取）"
+            else:
+                msg = f"已載入並切換為 {info.get('label') or slug}（舊模型資源已釋放）"
             if gpu_fallback_used:
                 msg += " · 已自動改以 GPU 載入"
-            print(f"✅ LLM 已載入並切換為 {info.get('label') or slug}（舊模型已釋放）")
+            print(f"✅ {msg}")
             return {
                 "ok": True,
                 "switched": True,
                 "from_cache": False,
+                "hot_switch": _LLM_HOT_SWITCH,
                 "gpu_fallback": gpu_fallback_used,
                 "message": msg,
                 **info,
@@ -11392,14 +11943,25 @@ def list_llm_models():
         "groups": groups,
         "cached_models": _llm_cache_keys_info(),
         "cache_max": _LLM_CACHE_MAX,
+        "hot_switch": _LLM_HOT_SWITCH,
         "release_on_switch": _LLM_RELEASE_ON_SWITCH,
+        "pinned_models": sorted(ollama_service.pinned_models()) if USE_OLLAMA else [],
         "hint": (
-            "Ollama 後端：Llama / Gemma / Phi / Mistral 等地端模型；Qwen 已自選單移除。"
+            "Ollama 熱切換：已用過的模型常駐 VRAM，切換無需重新載入。"
             "微調後＝Semi-Shield OT；微調前＝官方 Ollama 基底。"
-            if USE_OLLAMA
+            if USE_OLLAMA and _LLM_HOT_SWITCH
             else (
-                "切換模型後會釋放舊模型顯存／記憶體，再載入新模型。"
-                "微調後＝本地 merged；微調前＝HF 基底（需本機 cache）。"
+                "Ollama 後端：Llama / Gemma / Phi / Mistral 等地端模型；Qwen 已自選單移除。"
+                "微調後＝Semi-Shield OT；微調前＝官方 Ollama 基底。"
+                if USE_OLLAMA
+                else (
+                    "熱切換：已載入模型保留在快取，切換時直接命中。"
+                    if _LLM_HOT_SWITCH
+                    else (
+                        "切換模型後會釋放舊模型顯存／記憶體，再載入新模型。"
+                        "微調後＝本地 merged；微調前＝HF 基底（需本機 cache）。"
+                    )
+                )
             )
         ),
     })
@@ -11408,7 +11970,7 @@ def list_llm_models():
 
 @app.route('/api/llm/switch', methods=['POST'])
 def api_switch_llm_model():
-    """熱切換對話用 LLM（卸載舊模型後載入選定模型）。"""
+    """切換對話用 LLM（熱切換時保留已載入模型）。"""
     req = request.get_json(silent=True) or {}
     target = (req.get("model") or req.get("slug") or req.get("path") or "").strip()
     print(f"🌐 /api/llm/switch body keys={list(req.keys())} model={target!r}")

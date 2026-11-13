@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="SCADA">
+  <rect x="10" y="28" width="22" height="26" rx="2" fill="#134e4a" stroke="#2dd4bf" stroke-width="1.2"/>
+  <rect x="14" y="32" width="14" height="6" rx="1" fill="#042f2e"/>
+  <rect x="14" y="40" width="14" height="6" rx="1" fill="#042f2e"/>
+  <rect x="28" y="16" width="26" height="20" rx="2" fill="#0f172a" stroke="#2dd4bf" stroke-width="1.2"/>
+  <rect x="31" y="19" width="20" height="14" rx="1" fill="#115e59"/>
+  <polyline points="33,29 37,24 41,27 45,21 49,25" fill="none" stroke="#5eead4" stroke-width="1.2"/>
+  <rect x="32" y="40" width="20" height="14" rx="2" fill="#334155"/>
+</svg>

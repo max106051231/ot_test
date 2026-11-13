@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Firewall">
+  <defs>
+    <linearGradient id="fw-g" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fb923c"/><stop offset="100%" stop-color="#c2410c"/>
+    </linearGradient>
+  </defs>
+  <rect x="14" y="16" width="36" height="32" rx="4" fill="#1e293b" stroke="#f97316" stroke-width="1.5"/>
+  <path d="M32 22 L42 28 V38 L32 44 L22 38 V28 Z" fill="url(#fw-g)" stroke="#fdba74" stroke-width="1"/>
+  <path d="M32 26 L36 29 V35 L32 38 L28 35 V29 Z" fill="#431407" opacity="0.5"/>
+  <rect x="18" y="42" width="28" height="3" rx="1" fill="#334155"/>
+  <circle cx="22" cy="43.5" r="1" fill="#4ade80"/><circle cx="26" cy="43.5" r="1" fill="#4ade80"/>
+  <circle cx="30" cy="43.5" r="1" fill="#fbbf24"/>
+</svg>

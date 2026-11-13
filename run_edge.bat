@@ -1,6 +1,7 @@
 @echo off
 REM 無 GPU / Edge 模式啟動（Windows CUDA 壞掉時也請用這個）
 cd /d "%~dp0"
+if "%PYTHONUTF8%"=="" set "PYTHONUTF8=1"
 
 set EDGE_MODE=1
 set FORCE_CPU=1
@@ -18,13 +19,17 @@ REM   set LLM_ALLOW_GPU_FALLBACK=1
 if "%OT_ENABLE_RAG%"=="" set OT_ENABLE_RAG=0
 if "%ENABLE_GUARDRAIL%"=="" set ENABLE_GUARDRAIL=0
 if "%LLM_WARMUP%"=="" set LLM_WARMUP=0
-if "%LLM_CHAT_PRIME%"=="" set LLM_CHAT_PRIME=0
 if "%LLM_CPU_FAST_GROUNDED%"=="" set LLM_CPU_FAST_GROUNDED=0
+if "%CHAT_SKIP_QUALITY_CHECK%"=="" set CHAT_SKIP_QUALITY_CHECK=1
 if "%LLM_CPU_QUANT%"=="" set LLM_CPU_QUANT=1
 if "%PORT%"=="" set PORT=2000
 
 set "PY=%~dp0.venv\Scripts\python.exe"
-if not exist "%PY%" set "PY=py -3.12"
+set "PY_ARGS="
+if not exist "%PY%" (
+  set "PY=py"
+  set "PY_ARGS=-3.12"
+)
 echo [Edge] FORCE_CPU=1 LLM_DEVICE=cpu model=%EDGE_LLM_MODEL% speed=%LLM_SPEED%
-"%PY%" app.py
+"%PY%" %PY_ARGS% app.py
 pause
